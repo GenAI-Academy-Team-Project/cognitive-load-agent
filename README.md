@@ -15,6 +15,8 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 
 The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent layer is deliberately deterministic for the initial release: it evaluates structured records with testable rules and keeps each result auditable. No Mem0 service is required. An LLM reasoning adapter can be introduced later behind explicit consent, redaction, and the same approval policy.
 
+![Carestead system architecture](docs/images/carestead-architecture.png)
+
 ```text
 Caregiver dashboard
        │
@@ -29,6 +31,12 @@ API action layer ─── human approval gate
 Cloudflare D1
 tasks · events · risks · memories · approvals · traces
 ```
+
+## Agent decision path
+
+The agent retrieves relevant records, checks whether the evidence is sufficient, evaluates risk, and routes consequential actions through a caregiver approval gate. Each path ends in a recorded, scoreable outcome.
+
+![Carestead agent decision path](docs/images/carestead-decision-path.png)
 
 ## Run locally
 
