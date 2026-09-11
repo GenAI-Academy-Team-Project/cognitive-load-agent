@@ -1,4 +1,4 @@
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const risks = sqliteTable("risks", {
   id: text("id").primaryKey(),
@@ -67,3 +67,37 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const households = sqliteTable("households", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const careCircleMembers = sqliteTable("care_circle_members", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id").notNull(),
+  userId: text("user_id"),
+  email: text("email").notNull(),
+  displayName: text("display_name").notNull(),
+  role: text("role").notNull(),
+  status: text("status").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index('idx_care_circle_user_id').on(table.userId),
+  uniqueIndex('idx_care_circle_email').on(table.email),
+]);
+
+export const auditEntries = sqliteTable("audit_entries", {
+  id: text("id").primaryKey(),
+  actorUserId: text("actor_user_id").notNull(),
+  actorEmail: text("actor_email").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  detail: text("detail").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index('idx_audit_created_at').on(table.createdAt),
+]);

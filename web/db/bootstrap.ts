@@ -6,6 +6,12 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS approvals (id TEXT PRIMARY KEY, risk_id TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)`,
   `CREATE TABLE IF NOT EXISTS traces (id TEXT PRIMARY KEY, trigger TEXT NOT NULL, evidence TEXT NOT NULL, decision TEXT NOT NULL, policy_status TEXT NOT NULL, tool TEXT NOT NULL, outcome TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS households (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS care_circle_members (id TEXT PRIMARY KEY, household_id TEXT NOT NULL, user_id TEXT, email TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS audit_entries (id TEXT PRIMARY KEY, actor_user_id TEXT NOT NULL, actor_email TEXT NOT NULL, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_care_circle_user_id ON care_circle_members(user_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_care_circle_email ON care_circle_members(email)`,
+  `CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_entries(created_at)`,
 ];
 
 const seedStatements = [
@@ -76,6 +82,10 @@ const seedStatements = [
   [
     `INSERT OR IGNORE INTO settings VALUES (?, ?, ?)`,
     ["seeded", "true", "2026-09-10T13:10:00-04:00"],
+  ],
+  [
+    `INSERT OR IGNORE INTO households VALUES (?, ?, ?)`,
+    ["household-demo", "Alex's care circle", "2026-09-10T13:10:00-04:00"],
   ],
 ] as const;
 

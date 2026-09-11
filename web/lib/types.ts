@@ -16,7 +16,7 @@ export type CareTask = {
   title: string;
   owner: string;
   due_at: string;
-  status: "open" | "due_soon" | "assigned" | "scheduled" | "complete";
+  status: "open" | "due_soon" | "assigned" | "scheduled" | "complete" | "archived";
   category: string;
   source_risk_id: string | null;
 };
@@ -60,6 +60,34 @@ export type Trace = {
   created_at: string;
 };
 
+export type CareCircleMember = {
+  id: string;
+  email: string;
+  display_name: string;
+  role: "owner" | "caregiver" | "viewer";
+  status: "active" | "invited" | "archived";
+  updated_at: string;
+};
+
+export type CurrentUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: "owner" | "caregiver" | "viewer";
+};
+
+export type BenchmarkSummary = {
+  scenarioCount: number;
+  version: string;
+  retrieval: number;
+  decision: number;
+  policy: number;
+  action: number;
+  passed: number;
+  failed: number;
+  categories: number;
+};
+
 export type DashboardState = {
   risks: Risk[];
   tasks: CareTask[];
@@ -67,5 +95,8 @@ export type DashboardState = {
   memories: MemoryRecord[];
   approvals: Approval[];
   traces: Trace[];
+  careCircle: CareCircleMember[];
+  currentUser: CurrentUser;
+  benchmark: BenchmarkSummary;
   agentMode: "deterministic";
 };
