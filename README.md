@@ -17,6 +17,10 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Reusable, versioned care-plan templates with recipient-specific overrides
 - Privacy-safe plan cloning and de-identified custom template creation
 - Live caregiver handover brief with profile, current state, review priorities, contacts, and support systems
+- Approval-aware in-app notifications with held, delivered, and read states
+- Consent, retention, recipient export, and verified permanent-deletion controls
+- Central input validation, request throttling, health checks, and privacy-safe error monitoring
+- Automated WCAG accessibility checks in continuous integration
 
 ## Architecture
 
@@ -59,6 +63,7 @@ tasks · events · risks · memories · approvals · traces
 | Recipient access boundary | Links each signed-in member to only the people they may access and assigns a per-recipient role |
 | Plan template manager | Instantiates built-in plans, records personal overrides, saves de-identified templates, clones structure, and applies opt-in upgrades |
 | Caregiver handover | Consolidates the recipient profile, latest event, unresolved risks, pending reviews, upcoming responsibilities, support contacts, and authorized care team |
+| Policy guardrails | Applies validation, authorization, consent status, throttling, approval policy, auditing, and privacy-safe error handling before actions |
 
 The current release uses one care-state agent, not a multi-agent system. Its decision engine is intentionally deterministic so every rule can be tested against known outcomes. A future LLM adapter can assist with reasoning while remaining behind the same retrieval, policy, and approval controls.
 
@@ -88,6 +93,37 @@ The **Handover** view is a live operational summary for moving responsibility fr
 - the care-circle members who currently have access and their role.
 
 Caregivers can copy the brief as plain text for a controlled handover, edit the profile, and create, edit, or archive support contacts. The brief is assembled from current recipient-scoped data whenever it loads, so it does not become a disconnected summary that silently goes stale. It remains a care-coordination aid rather than a medical record or source of clinical guidance.
+
+## Privacy and production-readiness controls
+
+### Approval-aware notifications
+
+The notification inbox is recipient-scoped. Notifications linked to a consequential action begin in `needs_approval`; approving the associated plan releases them to `delivered`. Notifications from ordinary care checks are delivered in-app and can be marked read. Carestead intentionally does not send care details through email, SMS, or lock-screen push in this release.
+
+### Consent and retention
+
+Each recipient has a purpose-limited consent record with active/withdrawn status, granting identity and timestamps, and a selected 30-, 90-, 365-day, or no-expiry retention period. Withdrawing consent pauses care-record mutations, agent checks, and new notifications while still allowing the owner to restore consent or delete the data. The retention policy removes expired event, trace, notification, and error history during recipient-state loading.
+
+### Export and deletion
+
+Owners can download a recipient-scoped JSON export with a versioned schema and `no-store` response policy. The export contains the profile, contacts, care team, plans, responsibilities, events, memories, risks, approvals, traces, notifications, and consent record. Export requests are logged and rate-limited.
+
+Permanent deletion requires the exact recipient display name, cannot delete the owner’s only remaining recipient, and removes the recipient profile, support contacts, plan, scoped operational records, notifications, consent, and access mappings. A minimal content-free deletion receipt remains for accountability.
+
+### Validation, throttling, and monitoring
+
+All state-changing requests pass authentication, per-recipient authorization, action-specific throttling, bounded field validation, format checks, consent policy, and audit recording. Error responses include a request identifier. Monitoring stores route, action, error code, actor identifier, recipient identifier, and timestamp—never care notes, memory values, contact details, or profile text. `/api/health` exposes only service and database reachability.
+
+### Accessibility and non-clinical scope
+
+Playwright and axe-core tests cover the Overview, Handover, and Privacy & Data surfaces against WCAG A/AA rules. The GitHub Actions workflow runs this accessibility check on pushes and pull requests:
+
+```bash
+cd web
+npm run test:accessibility
+```
+
+A persistent product footer, onboarding consent acknowledgement, approval guidance, handover notice, export notice, and privacy controls state that Carestead supports coordination only. It does not diagnose, prescribe, replace clinical judgment, or replace emergency services.
 
 ## Agent decision path
 
@@ -156,10 +192,15 @@ Benchmark files are in `web/benchmark/`:
 | `plan_overrides` | Recipient-specific responsibility edits preserved across upgrades |
 | `recipient_profiles` | Concise caregiver-entered handover context and urgent-plan guidance |
 | `support_contacts` | Recipient-scoped people, providers, and support services |
+| `consent_records` | Purpose, consent status, grant/withdrawal timestamps, and retention choice |
+| `notifications` | Approval-aware in-app notices, delivery state, and read state |
+| `data_requests` | Export and content-free deletion accountability records |
+| `rate_limit_events` | Short-lived counters for per-user action throttling |
+| `error_events` | Privacy-safe request/error metadata for operational monitoring |
 
 ## Supported API actions
 
-The `/api/state` endpoint exposes authenticated, recipient-scoped reads and permission-checked actions for responsibility creation, editing, completion and archival; memory creation, editing, verification and archival; profile updates; support-contact creation, editing and archival; approval decisions; ride assignment; agent checks; and care-circle membership management. It also supports care-recipient creation, plan cloning, de-identified template saving, and owner-approved template upgrades.
+The `/api/state` endpoint exposes authenticated, validated, rate-limited, recipient-scoped reads and actions for responsibilities, memories, profiles, contacts, consent, notifications, approvals, agent checks, care-circle membership, plan templates, cloning, upgrades, and verified deletion. `/api/export` produces an owner-only recipient export. `/api/health` returns a non-sensitive availability check.
 
 ## Run locally
 

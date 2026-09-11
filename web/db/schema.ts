@@ -228,3 +228,62 @@ export const supportContacts = sqliteTable('support_contacts', {
 }, (table) => [
   index('idx_support_contacts_recipient_status').on(table.recipientId, table.status),
 ]);
+
+export const consentRecords = sqliteTable('consent_records', {
+  recipientId: text('recipient_id').primaryKey(),
+  status: text('status').notNull(),
+  purpose: text('purpose').notNull(),
+  retentionDays: text('retention_days').notNull(),
+  grantedBy: text('granted_by').notNull(),
+  grantedAt: text('granted_at'),
+  withdrawnAt: text('withdrawn_at'),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  detail: text('detail').notNull(),
+  approvalId: text('approval_id'),
+  deliveryState: text('delivery_state').notNull(),
+  readAt: text('read_at'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_notifications_recipient_state').on(table.recipientId, table.deliveryState, table.createdAt),
+]);
+
+export const dataRequests = sqliteTable('data_requests', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  requestType: text('request_type').notNull(),
+  status: text('status').notNull(),
+  requestedBy: text('requested_by').notNull(),
+  createdAt: text('created_at').notNull(),
+  completedAt: text('completed_at'),
+}, (table) => [
+  index('idx_data_requests_recipient_created').on(table.recipientId, table.createdAt),
+]);
+
+export const rateLimitEvents = sqliteTable('rate_limit_events', {
+  id: text('id').primaryKey(),
+  actorUserId: text('actor_user_id').notNull(),
+  action: text('action').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_rate_limit_actor_action_time').on(table.actorUserId, table.action, table.createdAt),
+]);
+
+export const errorEvents = sqliteTable('error_events', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull(),
+  route: text('route').notNull(),
+  action: text('action').notNull(),
+  errorCode: text('error_code').notNull(),
+  actorUserId: text('actor_user_id').notNull(),
+  recipientId: text('recipient_id'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_error_events_created').on(table.createdAt),
+]);

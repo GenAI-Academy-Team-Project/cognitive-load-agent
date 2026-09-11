@@ -33,6 +33,15 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS recipient_profiles (recipient_id TEXT PRIMARY KEY, preferred_name TEXT NOT NULL, pronouns TEXT NOT NULL, care_context TEXT NOT NULL, communication_notes TEXT NOT NULL, mobility_notes TEXT NOT NULL, home_base TEXT NOT NULL, emergency_plan TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS support_contacts (id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, name TEXT NOT NULL, relationship TEXT NOT NULL, contact_type TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL, organization TEXT NOT NULL, notes TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_support_contacts_recipient_status ON support_contacts(recipient_id, status)`,
+  `CREATE TABLE IF NOT EXISTS consent_records (recipient_id TEXT PRIMARY KEY, status TEXT NOT NULL, purpose TEXT NOT NULL, retention_days TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at TEXT, withdrawn_at TEXT, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL, approval_id TEXT, delivery_state TEXT NOT NULL, read_at TEXT, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_recipient_state ON notifications(recipient_id, delivery_state, created_at)`,
+  `CREATE TABLE IF NOT EXISTS data_requests (id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, request_type TEXT NOT NULL, status TEXT NOT NULL, requested_by TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_data_requests_recipient_created ON data_requests(recipient_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS rate_limit_events (id TEXT PRIMARY KEY, actor_user_id TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_rate_limit_actor_action_time ON rate_limit_events(actor_user_id, action, created_at)`,
+  `CREATE TABLE IF NOT EXISTS error_events (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, route TEXT NOT NULL, action TEXT NOT NULL, error_code TEXT NOT NULL, actor_user_id TEXT NOT NULL, recipient_id TEXT, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_error_events_created ON error_events(created_at)`,
 ];
 
 const seedStatements = [
@@ -170,6 +179,14 @@ const seedStatements = [
     ['contact-pharmacy', 'recipient-alex', 'Northside Pharmacy', 'Pharmacy', 'provider', '416-555-0188', '', 'Northside Pharmacy', 'Preferred pharmacy; confirm refill readiness before arranging pickup.', 'important', 'active', '2026-09-10T13:10:00-04:00'],
     ['contact-transit', 'recipient-alex', 'Accessible Transit', 'Transportation service', 'service', '416-555-0108', '', 'City Accessible Transit', 'Book at least one day in advance.', 'important', 'active', '2026-09-10T13:10:00-04:00'],
   ].map((values) => [`INSERT OR IGNORE INTO support_contacts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, values] as const),
+  [
+    `INSERT OR IGNORE INTO consent_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['recipient-alex', 'active', 'Care coordination, caregiver handover, risk review, and responsibility management.', '365', 'Initial care-circle owner', '2026-09-10T13:10:00-04:00', null, '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO notifications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['notification-med', 'recipient-alex', 'approval', 'Medication pickup needs approval', 'A caregiver must approve the proposed pickup assignment before it can be released as an action notification.', 'approval-med', 'needs_approval', null, '2026-09-10T13:10:00-04:00'],
+  ],
 ] as const;
 
 export async function ensureDatabase(db: D1Database) {

@@ -142,6 +142,29 @@ export type SupportContact = {
   updated_at: string;
 };
 
+export type ConsentRecord = {
+  recipient_id: string;
+  status: 'active' | 'withdrawn';
+  purpose: string;
+  retention_days: string;
+  granted_by: string;
+  granted_at: string | null;
+  withdrawn_at: string | null;
+  updated_at: string;
+};
+
+export type CareNotification = {
+  id: string;
+  recipient_id: string;
+  kind: 'approval' | 'risk' | 'reminder' | 'system';
+  title: string;
+  detail: string;
+  approval_id: string | null;
+  delivery_state: 'needs_approval' | 'delivered' | 'suppressed';
+  read_at: string | null;
+  created_at: string;
+};
+
 export type BenchmarkSummary = {
   scenarioCount: number;
   version: string;
@@ -168,6 +191,9 @@ export type DashboardState = {
   templates: PlanTemplate[];
   profile: RecipientProfile;
   supportContacts: SupportContact[];
+  consent: ConsentRecord;
+  notifications: CareNotification[];
+  monitoring: { recentErrors: number; lastErrorAt: string | null };
   currentUser: CurrentUser;
   benchmark: BenchmarkSummary;
   agentMode: "deterministic";
