@@ -16,6 +16,7 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Multiple care recipients with an explicit recipient switcher and isolated records
 - Reusable, versioned care-plan templates with recipient-specific overrides
 - Privacy-safe plan cloning and de-identified custom template creation
+- Live caregiver handover brief with profile, current state, review priorities, contacts, and support systems
 
 ## Architecture
 
@@ -57,6 +58,7 @@ tasks · events · risks · memories · approvals · traces
 | D1 database | Stores operational state, care-circle membership, audit records, and evaluation traces |
 | Recipient access boundary | Links each signed-in member to only the people they may access and assigns a per-recipient role |
 | Plan template manager | Instantiates built-in plans, records personal overrides, saves de-identified templates, clones structure, and applies opt-in upgrades |
+| Caregiver handover | Consolidates the recipient profile, latest event, unresolved risks, pending reviews, upcoming responsibilities, support contacts, and authorized care team |
 
 The current release uses one care-state agent, not a multi-agent system. Its decision engine is intentionally deterministic so every rule can be tested against known outcomes. A future LLM adapter can assist with reasoning while remaining behind the same retrieval, policy, and approval controls.
 
@@ -74,6 +76,18 @@ Creating a recipient instantiates fresh responsibilities from the latest selecte
 “Save as template” creates a reusable custom template from active responsibility structure. Person names are replaced and medication-specific responsibility text is normalized. “Clone plan” creates a new recipient with fresh, unassigned responsibilities. Neither operation copies memories, events, risks, approvals, traces, outcomes, or care-circle membership.
 
 Operational tables remain compact and are connected to a person and plan through `record_scopes`. This provides one authorization and retrieval boundary across tasks, events, memory, risks, approvals, and agent traces.
+
+## Caregiver handover brief
+
+The **Handover** view is a live operational summary for moving responsibility from one caregiver to another. It combines:
+
+- a concise profile, pronouns, home base, care context, communication preferences, mobility/access notes, and urgent-situation plan;
+- the newest care event and its source;
+- unresolved risks, pending approvals, facts requiring verification, and the next open responsibilities;
+- key people, providers, and support services with phone/email details, priority, and operational notes; and
+- the care-circle members who currently have access and their role.
+
+Caregivers can copy the brief as plain text for a controlled handover, edit the profile, and create, edit, or archive support contacts. The brief is assembled from current recipient-scoped data whenever it loads, so it does not become a disconnected summary that silently goes stale. It remains a care-coordination aid rather than a medical record or source of clinical guidance.
 
 ## Agent decision path
 
@@ -140,10 +154,12 @@ Benchmark files are in `web/benchmark/`:
 | `record_scopes` | Recipient/plan ownership for every operational record |
 | `recipient_members` | Per-recipient access and owner/caregiver/viewer role |
 | `plan_overrides` | Recipient-specific responsibility edits preserved across upgrades |
+| `recipient_profiles` | Concise caregiver-entered handover context and urgent-plan guidance |
+| `support_contacts` | Recipient-scoped people, providers, and support services |
 
 ## Supported API actions
 
-The `/api/state` endpoint exposes authenticated, recipient-scoped reads and permission-checked actions for responsibility creation, editing, completion and archival; memory creation, editing, verification and archival; approval decisions; ride assignment; agent checks; and care-circle membership management. It also supports care-recipient creation, plan cloning, de-identified template saving, and owner-approved template upgrades.
+The `/api/state` endpoint exposes authenticated, recipient-scoped reads and permission-checked actions for responsibility creation, editing, completion and archival; memory creation, editing, verification and archival; profile updates; support-contact creation, editing and archival; approval decisions; ride assignment; agent checks; and care-circle membership management. It also supports care-recipient creation, plan cloning, de-identified template saving, and owner-approved template upgrades.
 
 ## Run locally
 

@@ -81,6 +81,8 @@ export type CareRecipient = {
   display_name: string;
   timezone: string;
   status: string;
+  created_at: string;
+  updated_at: string;
   active_plan_id: string | null;
   active_plan_name: string | null;
 };
@@ -113,6 +115,33 @@ export type PlanTemplate = {
   rule_count: number;
 };
 
+export type RecipientProfile = {
+  recipient_id: string;
+  preferred_name: string;
+  pronouns: string;
+  care_context: string;
+  communication_notes: string;
+  mobility_notes: string;
+  home_base: string;
+  emergency_plan: string;
+  updated_at: string;
+};
+
+export type SupportContact = {
+  id: string;
+  recipient_id: string;
+  name: string;
+  relationship: string;
+  contact_type: 'person' | 'provider' | 'service';
+  phone: string;
+  email: string;
+  organization: string;
+  notes: string;
+  priority: 'primary' | 'important' | 'standard';
+  status: 'active' | 'archived';
+  updated_at: string;
+};
+
 export type BenchmarkSummary = {
   scenarioCount: number;
   version: string;
@@ -137,6 +166,8 @@ export type DashboardState = {
   selectedRecipient: CareRecipient;
   currentPlan: CarePlan;
   templates: PlanTemplate[];
+  profile: RecipientProfile;
+  supportContacts: SupportContact[];
   currentUser: CurrentUser;
   benchmark: BenchmarkSummary;
   agentMode: "deterministic";

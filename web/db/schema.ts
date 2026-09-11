@@ -199,3 +199,32 @@ export const planOverrides = sqliteTable('plan_overrides', {
 }, (table) => [
   index('idx_plan_overrides_plan').on(table.planId),
 ]);
+
+export const recipientProfiles = sqliteTable('recipient_profiles', {
+  recipientId: text('recipient_id').primaryKey(),
+  preferredName: text('preferred_name').notNull(),
+  pronouns: text('pronouns').notNull(),
+  careContext: text('care_context').notNull(),
+  communicationNotes: text('communication_notes').notNull(),
+  mobilityNotes: text('mobility_notes').notNull(),
+  homeBase: text('home_base').notNull(),
+  emergencyPlan: text('emergency_plan').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const supportContacts = sqliteTable('support_contacts', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  name: text('name').notNull(),
+  relationship: text('relationship').notNull(),
+  contactType: text('contact_type').notNull(),
+  phone: text('phone').notNull(),
+  email: text('email').notNull(),
+  organization: text('organization').notNull(),
+  notes: text('notes').notNull(),
+  priority: text('priority').notNull(),
+  status: text('status').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_support_contacts_recipient_status').on(table.recipientId, table.status),
+]);

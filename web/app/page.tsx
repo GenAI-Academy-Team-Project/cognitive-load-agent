@@ -7,7 +7,7 @@ import {
   ChevronRight, CircleUserRound, ClipboardCheck, Clock3, HeartPulse,
   LayoutDashboard, ListChecks, LoaderCircle, MemoryStick, Pill, Plus,
   Archive, BookOpen, Copy, LockKeyhole, Pencil, Route, Save, ShieldCheck,
-  Sparkles, UserPlus, Users,
+  Sparkles, UserPlus, Users, FileText, Mail, Phone, Siren,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +17,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import type { CareTask, DashboardState, MemoryRecord, Risk } from '@/lib/types';
+import type { CareTask, DashboardState, MemoryRecord, Risk, SupportContact } from '@/lib/types';
 
-type View = 'Overview' | 'Care plan' | 'Responsibilities' | 'Timeline' | 'Memory' | 'Care circle' | 'Evaluations';
+type View = 'Overview' | 'Handover' | 'Care plan' | 'Responsibilities' | 'Timeline' | 'Memory' | 'Care circle' | 'Evaluations';
 
 const navItems: { label: View; icon: typeof Activity }[] = [
   { label: 'Overview', icon: LayoutDashboard },
+  { label: 'Handover', icon: FileText },
   { label: 'Care plan', icon: BookOpen },
   { label: 'Responsibilities', icon: ClipboardCheck },
   { label: 'Timeline', icon: CalendarDays },
@@ -49,6 +50,8 @@ export default function Home() {
   const [recipientOpen, setRecipientOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [contactDialog, setContactDialog] = useState<SupportContact | 'new' | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -92,6 +95,25 @@ export default function Home() {
       setState(result as DashboardState);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to switch care recipient.'); }
     finally { setBusy(null); }
+  }
+
+  async function copyHandover() {
+    if (!state) return;
+    const openRisks = state.risks.filter((risk) => risk.status !== 'resolved');
+    const reviewTasks = state.tasks.filter((task) => task.status !== 'complete').slice(0, 5);
+    const lines = [
+      `${state.profile.preferred_name || state.selectedRecipient.display_name} — caregiver handover`,
+      state.profile.pronouns ? `Pronouns: ${state.profile.pronouns}` : '',
+      `Care context: ${state.profile.care_context || 'Not yet recorded'}`,
+      `Latest update: ${state.events[0] ? `${state.events[0].title} — ${state.events[0].detail}` : 'No recent events'}`,
+      `Open risks: ${openRisks.length ? openRisks.map((risk) => `${risk.severity}: ${risk.title}`).join('; ') : 'None'}`,
+      `Review next: ${reviewTasks.length ? reviewTasks.map((task) => `${task.title} (${task.owner})`).join('; ') : 'No open responsibilities'}`,
+      `Key contacts: ${state.supportContacts.length ? state.supportContacts.map((contact) => `${contact.name}, ${contact.relationship}${contact.phone ? `, ${contact.phone}` : ''}`).join('; ') : 'None recorded'}`,
+      state.profile.communication_notes ? `Communication: ${state.profile.communication_notes}` : '',
+      state.profile.mobility_notes ? `Mobility: ${state.profile.mobility_notes}` : '',
+      state.profile.emergency_plan ? `Urgent plan: ${state.profile.emergency_plan}` : '',
+    ].filter(Boolean);
+    try { await navigator.clipboard.writeText(lines.join('\n')); setMessage('Handover brief copied.'); } catch { setMessage('The handover brief could not be copied.'); }
   }
 
   const openTasks = state?.tasks.filter((task) => task.status !== 'complete').length ?? 0;
@@ -149,6 +171,7 @@ export default function Home() {
             {!state ? <LoadingState /> : (
               <>
                 {view === 'Overview' && <Overview state={state} openTasks={openTasks} coverage={coverage} resolvedRisks={resolvedRisks} onAdd={() => setTaskDialog('new')} onApprove={() => setApprovalOpen(true)} onAssign={() => act('assign_ride', {}, 'Maya was assigned to the physiotherapy ride.')} busy={busy} writeAllowed={writeAllowed} />}
+                {view === 'Handover' && <HandoverView state={state} onEditProfile={() => setProfileOpen(true)} onAddContact={() => setContactDialog('new')} onEditContact={setContactDialog} onArchiveContact={(id) => act('archive_support_contact', { id }, 'Support contact archived.')} onCopy={copyHandover} busy={busy} />}
                 {view === 'Care plan' && <CarePlanView state={state} onCreate={() => setRecipientOpen(true)} onSave={() => setTemplateOpen(true)} onClone={() => setCloneOpen(true)} onUpgrade={() => act('upgrade_plan', {}, 'The latest template version was applied without overwriting personal changes.')} busy={busy} />}
                 {view === 'Responsibilities' && <Responsibilities tasks={state.tasks} onAdd={() => setTaskDialog('new')} onEdit={setTaskDialog} onComplete={(id) => act('complete_task', { id }, 'Responsibility marked complete.')} onArchive={(id) => act('archive_task', { id }, 'Responsibility archived.')} busy={busy} writeAllowed={writeAllowed} />}
                 {view === 'Timeline' && <Timeline state={state} />}
@@ -168,6 +191,8 @@ export default function Home() {
       <CreateRecipientDialog open={recipientOpen} onOpenChange={setRecipientOpen} templates={state?.templates ?? []} busy={busy} onCreate={async (payload) => { const ok = await act('create_recipient', payload, 'A new care recipient and plan were created.'); if (ok) { setRecipientOpen(false); setView('Care plan'); } }} />
       <SaveTemplateDialog open={templateOpen} onOpenChange={setTemplateOpen} busy={busy} onSave={async (payload) => { const ok = await act('save_plan_template', payload, 'A de-identified reusable template was saved.'); if (ok) setTemplateOpen(false); }} />
       <ClonePlanDialog open={cloneOpen} onOpenChange={setCloneOpen} busy={busy} onClone={async (payload) => { const ok = await act('clone_plan', payload, 'The plan structure was cloned for a new person.'); if (ok) { setCloneOpen(false); setView('Care plan'); } }} />
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} profile={state?.profile} busy={busy} onSave={async (payload) => { const ok = await act('update_profile', payload, 'The handover profile was updated.'); if (ok) setProfileOpen(false); }} />
+      <SupportContactDialog key={contactDialog === 'new' ? 'contact-new' : `contact-${contactDialog?.id ?? 'closed'}`} open={contactDialog !== null} contact={contactDialog === 'new' ? undefined : contactDialog ?? undefined} onOpenChange={(open) => { if (!open) setContactDialog(null); }} busy={busy} onSave={async (payload) => { const ok = await act(contactDialog === 'new' ? 'add_support_contact' : 'update_support_contact', contactDialog !== 'new' && contactDialog ? { ...payload, id: contactDialog.id } : payload, contactDialog === 'new' ? 'Support contact added.' : 'Support contact updated.'); if (ok) setContactDialog(null); }} />
       {message && <button onClick={() => setMessage(null)} className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl"><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
     </main>
   );
@@ -198,6 +223,43 @@ function Overview({ state, openTasks, coverage, resolvedRisks, onAdd, onApprove,
     <section className="mt-8 rounded-[22px] border bg-card p-5 md:p-6"><SectionHeading title="Upcoming care schedule" subtitle="A shared operational view for the care circle." /><div className="mt-5 grid gap-2 lg:grid-cols-4">{state.tasks.slice(0, 4).map((task) => <ScheduleCard key={task.id} task={task} />)}</div></section>
   </>;
 }
+
+function HandoverView({ state, onEditProfile, onAddContact, onEditContact, onArchiveContact, onCopy, busy }: { state: DashboardState; onEditProfile: () => void; onAddContact: () => void; onEditContact: (contact: SupportContact) => void; onArchiveContact: (id: string) => void; onCopy: () => void; busy: string | null }) {
+  const writeAllowed = state.currentUser.role !== 'viewer';
+  const openRisks = state.risks.filter((risk) => risk.status !== 'resolved');
+  const pendingApprovals = state.approvals.filter((approval) => approval.status === 'pending');
+  const factsToReview = state.memories.filter((memory) => memory.status === 'review_due');
+  const openTasks = state.tasks.filter((task) => task.status !== 'complete').slice(0, 5);
+  const reviewCount = openRisks.length + pendingApprovals.length + factsToReview.length;
+  const profileName = state.profile.preferred_name || state.selectedRecipient.display_name;
+  return <><PageHeading eyebrow="Caregiver handover" title={`${profileName}, at a glance`} description="A live, concise brief for the next caregiver—profile, current state, review priorities, responsibilities, and the people and services that keep care moving." action={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={onCopy}><Copy /> Copy brief</Button><Button onClick={onEditProfile} disabled={!writeAllowed}><Pencil /> Edit profile</Button></div>} />
+    <div className="mt-8 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="space-y-5">
+        <article className="rounded-[22px] border bg-card p-6 shadow-[0_12px_35px_rgb(35_68_52/0.05)]">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div className="flex items-center gap-4"><span className="grid size-14 place-items-center rounded-2xl bg-[#d9eadf] font-heading text-lg font-semibold text-[#315944]">{profileName.slice(0, 2).toUpperCase()}</span><div><h2 className="font-heading text-xl font-semibold">{profileName}</h2><p className="mt-1 text-sm text-muted-foreground">{state.profile.pronouns || 'Pronouns not recorded'} · {state.profile.home_base || state.selectedRecipient.timezone}</p></div></div><Badge variant="outline" className="w-fit bg-[#eff7f1] text-primary">{state.currentPlan.name}</Badge></div>
+          <p className="mt-5 text-[15px] leading-7">{state.profile.care_context || 'Add a short care context so a new caregiver can understand the person and their support needs quickly.'}</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2"><ProfileNote label="How to communicate" text={state.profile.communication_notes} /><ProfileNote label="Mobility & access" text={state.profile.mobility_notes} /></div>
+          {state.profile.emergency_plan && <div className="mt-4 flex gap-3 rounded-xl border border-[#e5c6bd] bg-[#fffaf8] p-4"><Siren className="mt-0.5 size-5 shrink-0 text-[#8e3d2d]" /><div><p className="text-sm font-semibold">If something is urgent</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{state.profile.emergency_plan}</p></div></div>}
+        </article>
+
+        <section className="rounded-[22px] border bg-card p-6"><div className="flex items-start justify-between gap-4"><SectionHeading title="Latest state" subtitle="The newest signal and what needs attention now." /><Badge variant="outline" className={reviewCount ? 'border-[#ead9ae] bg-[#fffdf6] text-[#7a5a12]' : 'bg-[#eff7f1] text-primary'}>{reviewCount} to review</Badge></div>
+          <div className="mt-5 rounded-2xl bg-muted/55 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Most recent update</p>{state.events[0] ? <><p className="mt-2 font-heading font-semibold">{state.events[0].title}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{state.events[0].detail}</p><p className="mt-2 text-xs text-muted-foreground">{formatDate(state.events[0].occurred_at)} · {state.events[0].source}</p></> : <p className="mt-2 text-sm text-muted-foreground">No recent events have been recorded.</p>}</div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3"><ReviewColumn title="Open risks" empty="No open risks" items={openRisks.slice(0, 3).map((risk) => ({ id: risk.id, title: risk.title, note: `${risk.severity} · ${risk.status.replace('_', ' ')}` }))} /><ReviewColumn title="Due next" empty="No open tasks" items={openTasks.slice(0, 3).map((task) => ({ id: task.id, title: task.title, note: `${task.owner} · ${formatDate(task.due_at)}` }))} /><ReviewColumn title="Verify" empty="Nothing to verify" items={[...pendingApprovals.map((approval) => ({ id: approval.id, title: approval.action, note: 'Approval pending' })), ...factsToReview.map((memory) => ({ id: memory.id, title: memory.value, note: 'Trusted fact review' }))].slice(0, 3)} /></div>
+        </section>
+      </div>
+
+      <aside className="space-y-5">
+        <section className="rounded-[22px] border bg-card p-6"><div className="flex items-start justify-between gap-4"><SectionHeading title="Key contacts & support" subtitle="People, providers, and services the next caregiver may need." /><Button size="sm" variant="outline" onClick={onAddContact} disabled={!writeAllowed}><Plus /> Add</Button></div><div className="mt-5 space-y-3">{state.supportContacts.length ? state.supportContacts.map((contact) => <article key={contact.id} className="rounded-2xl border bg-[#fbfcfb] p-4"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="font-heading font-semibold">{contact.name}</p>{contact.priority !== 'standard' && <Badge variant="outline" className={contact.priority === 'primary' ? 'bg-[#eff7f1] text-primary' : ''}>{contact.priority}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{contact.relationship}{contact.organization ? ` · ${contact.organization}` : ''}</p></div>{writeAllowed && <div className="flex"><Button size="icon-sm" variant="ghost" onClick={() => onEditContact(contact)} aria-label={`Edit ${contact.name}`}><Pencil /></Button><Button size="icon-sm" variant="ghost" onClick={() => onArchiveContact(contact.id)} disabled={!!busy} aria-label={`Archive ${contact.name}`}><Archive /></Button></div>}</div>{contact.notes && <p className="mt-3 text-sm leading-6 text-muted-foreground">{contact.notes}</p>}<div className="mt-3 flex flex-wrap gap-3 text-xs">{contact.phone && <a className="flex items-center gap-1.5 text-primary hover:underline" href={`tel:${contact.phone}`}><Phone className="size-3.5" />{contact.phone}</a>}{contact.email && <a className="flex items-center gap-1.5 text-primary hover:underline" href={`mailto:${contact.email}`}><Mail className="size-3.5" />{contact.email}</a>}</div></article>) : <EmptyNote text="No support contacts recorded yet." />}</div></section>
+        <section className="rounded-[22px] border bg-card p-6"><SectionHeading title="Care team with access" subtitle="People who can view or update this care plan." /><div className="mt-4 space-y-3">{state.careCircle.map((member) => <div key={member.id} className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-full bg-secondary text-xs font-semibold text-primary">{member.display_name.slice(0, 2).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{member.display_name}</p><p className="truncate text-xs text-muted-foreground">{member.email}</p></div><Badge variant="outline" className="capitalize">{member.role}</Badge></div>)}</div></section>
+      </aside>
+    </div>
+    <p className="mt-5 text-xs leading-5 text-muted-foreground">This operational handover summarizes caregiver-entered information. It is not a medical record or substitute for emergency or clinical guidance.</p>
+  </>;
+}
+
+function ProfileNote({ label, text }: { label: string; text: string }) { return <div className="rounded-xl border bg-[#fbfcfb] p-4"><p className="text-xs font-semibold text-foreground">{label}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{text || 'Not yet recorded'}</p></div>; }
+function ReviewColumn({ title, items, empty }: { title: string; items: { id: string; title: string; note: string }[]; empty: string }) { return <div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{title}</p>{items.length ? <div className="space-y-2">{items.map((item) => <div key={item.id} className="rounded-xl border p-3"><p className="line-clamp-2 text-sm font-medium leading-5">{item.title}</p><p className="mt-1 text-[11px] capitalize text-muted-foreground">{item.note}</p></div>)}</div> : <EmptyNote text={empty} />}</div>; }
+function EmptyNote({ text }: { text: string }) { return <div className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">{text}</div>; }
 
 function CarePlanView({ state, onCreate, onSave, onClone, onUpgrade, busy }: { state: DashboardState; onCreate: () => void; onSave: () => void; onClone: () => void; onUpgrade: () => void; busy: string | null }) {
   const owner = state.currentUser.role === 'owner';
@@ -295,4 +357,15 @@ function SaveTemplateDialog({ open, onOpenChange, onSave, busy }: { open: boolea
 function ClonePlanDialog({ open, onOpenChange, onClone, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onClone: (payload: Record<string, string>) => void; busy: string | null }) {
   function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onClone({ displayName: formValue(data, 'displayName'), timezone: formValue(data, 'timezone') }); }
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg"><form onSubmit={submit}><DialogHeader><DialogTitle>Clone this plan for another person</DialogTitle><DialogDescription>A new care recipient receives fresh, unassigned responsibilities based on this plan.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><label htmlFor="clone-name" className="grid gap-1.5 text-sm font-medium">New person&apos;s display name<Input id="clone-name" name="displayName" placeholder="e.g. Sam" required /></label><label htmlFor="clone-timezone" className="grid gap-1.5 text-sm font-medium">Timezone<Input id="clone-timezone" name="timezone" defaultValue="America/Toronto" required /></label><div className="rounded-xl border border-[#e5c6bd] bg-[#fffaf8] p-4 text-sm leading-6 text-muted-foreground"><strong className="text-foreground">Privacy boundary:</strong> personal facts, event history, owners, risks, approvals, and outcomes will not move.</div></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'clone_plan' ? <LoaderCircle className="animate-spin" /> : <Copy />}Clone structure</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function ProfileDialog({ open, onOpenChange, onSave, profile, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onSave: (payload: Record<string, string>) => void; profile?: DashboardState['profile']; busy: string | null }) {
+  function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onSave({ preferredName: formValue(data, 'preferredName'), pronouns: formValue(data, 'pronouns'), homeBase: formValue(data, 'homeBase'), careContext: formValue(data, 'careContext'), communicationNotes: formValue(data, 'communicationNotes'), mobilityNotes: formValue(data, 'mobilityNotes'), emergencyPlan: formValue(data, 'emergencyPlan') }); }
+  const area = 'min-h-20 w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring';
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><form onSubmit={submit}><DialogHeader><DialogTitle>Edit handover profile</DialogTitle><DialogDescription>Keep this short and operational so another caregiver can understand the person quickly.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><div className="grid gap-4 sm:grid-cols-3"><label htmlFor="profile-name" className="grid gap-1.5 text-sm font-medium">Preferred name<Input id="profile-name" name="preferredName" defaultValue={profile?.preferred_name} required /></label><label htmlFor="profile-pronouns" className="grid gap-1.5 text-sm font-medium">Pronouns<Input id="profile-pronouns" name="pronouns" defaultValue={profile?.pronouns} placeholder="Optional" /></label><label htmlFor="profile-home" className="grid gap-1.5 text-sm font-medium">Home base<Input id="profile-home" name="homeBase" defaultValue={profile?.home_base} placeholder="City or setting" /></label></div><label htmlFor="profile-context" className="grid gap-1.5 text-sm font-medium">Care context<textarea id="profile-context" name="careContext" defaultValue={profile?.care_context} className={area} placeholder="What should a new caregiver understand first?" /></label><div className="grid gap-4 sm:grid-cols-2"><label htmlFor="profile-communication" className="grid gap-1.5 text-sm font-medium">Communication notes<textarea id="profile-communication" name="communicationNotes" defaultValue={profile?.communication_notes} className={area} /></label><label htmlFor="profile-mobility" className="grid gap-1.5 text-sm font-medium">Mobility and access<textarea id="profile-mobility" name="mobilityNotes" defaultValue={profile?.mobility_notes} className={area} /></label></div><label htmlFor="profile-emergency" className="grid gap-1.5 text-sm font-medium">Urgent situation plan<textarea id="profile-emergency" name="emergencyPlan" defaultValue={profile?.emergency_plan} className={area} placeholder="Keep this aligned with the documented clinical or emergency plan." /></label></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'update_profile' ? <LoaderCircle className="animate-spin" /> : <Save />}Save profile</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function SupportContactDialog({ open, onOpenChange, onSave, contact, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onSave: (payload: Record<string, string>) => void; contact?: SupportContact; busy: string | null }) {
+  function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onSave({ name: formValue(data, 'name'), relationship: formValue(data, 'relationship'), contactType: formValue(data, 'contactType'), phone: formValue(data, 'phone'), email: formValue(data, 'email'), organization: formValue(data, 'organization'), notes: formValue(data, 'notes'), priority: formValue(data, 'priority') }); }
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl"><form onSubmit={submit}><DialogHeader><DialogTitle>{contact ? 'Edit support contact' : 'Add a support contact'}</DialogTitle><DialogDescription>Include the people, providers, and services another caregiver may need during a handover.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><div className="grid gap-4 sm:grid-cols-2"><label htmlFor="support-name" className="grid gap-1.5 text-sm font-medium">Name<Input id="support-name" name="name" defaultValue={contact?.name} required /></label><label htmlFor="support-relationship" className="grid gap-1.5 text-sm font-medium">Role or relationship<Input id="support-relationship" name="relationship" defaultValue={contact?.relationship} placeholder="Family caregiver, pharmacy…" required /></label></div><div className="grid gap-4 sm:grid-cols-2"><label htmlFor="support-type" className="grid gap-1.5 text-sm font-medium">Type<select id="support-type" name="contactType" defaultValue={contact?.contact_type ?? 'person'} className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="person">Person</option><option value="provider">Provider</option><option value="service">Service</option></select></label><label htmlFor="support-priority" className="grid gap-1.5 text-sm font-medium">Priority<select id="support-priority" name="priority" defaultValue={contact?.priority ?? 'standard'} className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="primary">Primary</option><option value="important">Important</option><option value="standard">Standard</option></select></label></div><label htmlFor="support-org" className="grid gap-1.5 text-sm font-medium">Organization<Input id="support-org" name="organization" defaultValue={contact?.organization} placeholder="Optional" /></label><div className="grid gap-4 sm:grid-cols-2"><label htmlFor="support-phone" className="grid gap-1.5 text-sm font-medium">Phone<Input id="support-phone" name="phone" type="tel" defaultValue={contact?.phone} /></label><label htmlFor="support-email" className="grid gap-1.5 text-sm font-medium">Email<Input id="support-email" name="email" type="email" defaultValue={contact?.email} /></label></div><label htmlFor="support-notes" className="grid gap-1.5 text-sm font-medium">What they help with<textarea id="support-notes" name="notes" defaultValue={contact?.notes} className="min-h-20 w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" /></label></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy?.includes('support_contact') ? <LoaderCircle className="animate-spin" /> : contact ? <Pencil /> : <Plus />}{contact ? 'Save contact' : 'Add contact'}</Button></DialogFooter></form></DialogContent></Dialog>;
 }

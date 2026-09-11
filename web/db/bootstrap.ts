@@ -30,6 +30,9 @@ const schemaStatements = [
   `CREATE INDEX IF NOT EXISTS idx_recipient_members_member ON recipient_members(member_id)`,
   `CREATE TABLE IF NOT EXISTS plan_overrides (id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_plan_overrides_plan ON plan_overrides(plan_id)`,
+  `CREATE TABLE IF NOT EXISTS recipient_profiles (recipient_id TEXT PRIMARY KEY, preferred_name TEXT NOT NULL, pronouns TEXT NOT NULL, care_context TEXT NOT NULL, communication_notes TEXT NOT NULL, mobility_notes TEXT NOT NULL, home_base TEXT NOT NULL, emergency_plan TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS support_contacts (id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, name TEXT NOT NULL, relationship TEXT NOT NULL, contact_type TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL, organization TEXT NOT NULL, notes TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_support_contacts_recipient_status ON support_contacts(recipient_id, status)`,
 ];
 
 const seedStatements = [
@@ -158,6 +161,15 @@ const seedStatements = [
     `INSERT OR IGNORE INTO record_scopes VALUES (?, ?, ?, ?, ?, ?)`,
     [`scope-${entityType}-${entityId}`, entityType, entityId, 'recipient-alex', 'plan-alex', '2026-09-10T13:10:00-04:00'],
   ] as const),
+  [
+    `INSERT OR IGNORE INTO recipient_profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['recipient-alex', 'Alex', 'they/them', 'Lives independently with family support for medication, transportation, appointments, and weekly household needs.', 'Prefers one clear request at a time and a phone call for time-sensitive changes.', 'Uses accessible transportation for appointments; allow extra transfer time.', 'Home — Toronto', 'For urgent health concerns, follow the documented clinical plan and contact emergency services when appropriate.', '2026-09-10T13:10:00-04:00'],
+  ],
+  ...[
+    ['contact-maya', 'recipient-alex', 'Maya', 'Family caregiver', 'person', '416-555-0142', 'maya@example.test', '', 'Primary medication pickup and evening check-ins.', 'primary', 'active', '2026-09-10T13:10:00-04:00'],
+    ['contact-pharmacy', 'recipient-alex', 'Northside Pharmacy', 'Pharmacy', 'provider', '416-555-0188', '', 'Northside Pharmacy', 'Preferred pharmacy; confirm refill readiness before arranging pickup.', 'important', 'active', '2026-09-10T13:10:00-04:00'],
+    ['contact-transit', 'recipient-alex', 'Accessible Transit', 'Transportation service', 'service', '416-555-0108', '', 'City Accessible Transit', 'Book at least one day in advance.', 'important', 'active', '2026-09-10T13:10:00-04:00'],
+  ].map((values) => [`INSERT OR IGNORE INTO support_contacts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, values] as const),
 ] as const;
 
 export async function ensureDatabase(db: D1Database) {
