@@ -68,7 +68,7 @@ Long-term memory is limited to explicit source-linked records. New facts begin i
 
 ## Authentication and authorization
 
-The deployed application uses the private Site's authenticated-user headers. It does not store passwords. On the first authenticated visit, the initial user becomes the care-circle owner. Owners can invite an email address; the invitation activates when that address signs in.
+The deployed application uses the private Site's authenticated-user headers. It does not store passwords. On the first authenticated visit, the initial user becomes the care-circle owner. Owners can record an email invitation and role in Carestead; the same email must also be granted access through the private Site's sharing controls before that person can visit and activate the membership.
 
 Roles are enforced in every API write path:
 
