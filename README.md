@@ -25,6 +25,8 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Approval-gated chat tools for rescheduling, assignments, responsibilities, care checks, and in-app notifications
 - Browser voice input and spoken replies without retained audio
 
+![Carestead core product features](docs/images/carestead-core-features.png)
+
 ## Architecture
 
 The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent layer is deliberately deterministic for the initial release: it evaluates structured records with testable rules and keeps each result auditable. No Mem0 service is required. An LLM reasoning adapter can be introduced later behind explicit consent, redaction, and the same approval policy.
@@ -33,26 +35,7 @@ The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent l
 
 The lightweight RAG layer retrieves relevant tasks, events, and trusted facts directly from the structured care database. Every retrieval is filtered by an authorized `recipient_id`, giving the orchestrator grounded context without introducing a separate vector service for the MVP.
 
-![Carestead system architecture](docs/images/carestead-architecture.png)
-
-```text
-Caregiver dashboard + voice-enabled chat
-       │
-       ▼
-Recipient-scoped retrieval/orchestrator
-       │
-       ├── grounded answer + evidence
-       └── proposed tool ─── human approval gate
-       │
-       ├── care-state risk rules
-       ├── responsibility/calendar/notification tools
-       └── evaluation trace writer
-       │
-       ▼
-Cloudflare D1
-recipients · plans · templates · record scopes
-tasks · events · risks · memories · approvals · traces
-```
+The browser experience, authenticated API boundary, agent orchestration, retrieval, approval policy, tools, durable data, and evaluation loop are shown together above. Questions can return grounded answers immediately; action requests become typed proposals and cross the approval gate before any tool is allowed to write.
 
 ## Key components
 
@@ -74,6 +57,12 @@ tasks · events · risks · memories · approvals · traces
 | Voice controls | Uses supported browser speech recognition and speech synthesis; only the resulting text enters chat history and raw audio is not stored |
 
 The current release uses one care-state agent, not a multi-agent system. Its decision engine is intentionally deterministic so every rule can be tested against known outcomes. A future LLM adapter can assist with reasoning while remaining behind the same retrieval, policy, and approval controls.
+
+## Caregiver user journey
+
+Carestead keeps the workflow centered on a selected care recipient. A caregiver reviews the current state, asks a grounded question by text or voice, inspects the retrieved evidence, and explicitly approves or declines any consequential action. The resulting change and outcome remain visible to the next caregiver through the live handover and audit trail.
+
+![Carestead caregiver user journey](docs/images/carestead-user-journey.png)
 
 ## Care-recipient and reusable-plan model
 
