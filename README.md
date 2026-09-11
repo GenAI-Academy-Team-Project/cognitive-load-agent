@@ -13,6 +13,9 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Runnable synthetic benchmark with calculated quality metrics
 - Signed-in care-circle roles with server-side authorization
 - Full create, view, edit, verify, complete, reassign, and archive workflows
+- Multiple care recipients with an explicit recipient switcher and isolated records
+- Reusable, versioned care-plan templates with recipient-specific overrides
+- Privacy-safe plan cloning and de-identified custom template creation
 
 ## Architecture
 
@@ -20,7 +23,7 @@ The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent l
 
 ![Carestead technical architecture](docs/images/carestead-technical-architecture.png)
 
-The lightweight RAG layer retrieves relevant tasks, events, and trusted facts directly from the structured care database. This gives the orchestrator grounded context without introducing a separate vector service for the MVP.
+The lightweight RAG layer retrieves relevant tasks, events, and trusted facts directly from the structured care database. Every retrieval is filtered by an authorized `recipient_id`, giving the orchestrator grounded context without introducing a separate vector service for the MVP.
 
 ![Carestead system architecture](docs/images/carestead-architecture.png)
 
@@ -36,6 +39,7 @@ API action layer ─── human approval gate
        │
        ▼
 Cloudflare D1
+recipients · plans · templates · record scopes
 tasks · events · risks · memories · approvals · traces
 ```
 
@@ -51,8 +55,25 @@ tasks · events · risks · memories · approvals · traces
 | Memory tools | Create, edit, verify, and archive source-linked trusted facts |
 | Approval gate | Prevents consequential recommendations from becoming actions without caregiver review |
 | D1 database | Stores operational state, care-circle membership, audit records, and evaluation traces |
+| Recipient access boundary | Links each signed-in member to only the people they may access and assigns a per-recipient role |
+| Plan template manager | Instantiates built-in plans, records personal overrides, saves de-identified templates, clones structure, and applies opt-in upgrades |
 
 The current release uses one care-state agent, not a multi-agent system. Its decision engine is intentionally deterministic so every rule can be tested against known outcomes. A future LLM adapter can assist with reasoning while remaining behind the same retrieval, policy, and approval controls.
+
+## Care-recipient and reusable-plan model
+
+Each person has a durable care-recipient record and one active care plan. A plan points to a template key and version; edits to instantiated responsibilities are preserved as recipient-specific overrides. The product includes four starting points:
+
+- Aging at Home
+- Medication Support
+- Post-Discharge: 30 Days
+- Mobility & Physiotherapy
+
+Creating a recipient instantiates fresh responsibilities from the latest selected template. Template upgrades are never automatic: the owner reviews and applies them, new responsibilities are added, and existing personal edits are not overwritten.
+
+“Save as template” creates a reusable custom template from active responsibility structure. Person names are replaced and medication-specific responsibility text is normalized. “Clone plan” creates a new recipient with fresh, unassigned responsibilities. Neither operation copies memories, events, risks, approvals, traces, outcomes, or care-circle membership.
+
+Operational tables remain compact and are connected to a person and plan through `record_scopes`. This provides one authorization and retrieval boundary across tasks, events, memory, risks, approvals, and agent traces.
 
 ## Agent decision path
 
@@ -70,7 +91,7 @@ Long-term memory is limited to explicit source-linked records. New facts begin i
 
 The deployed application uses the private Site's authenticated-user headers. It does not store passwords. On the first authenticated visit, the initial user becomes the care-circle owner. Owners can record an email invitation and role in Carestead; the same email must also be granted access through the private Site's sharing controls before that person can visit and activate the membership.
 
-Roles are enforced in every API write path:
+Roles are assigned per care recipient and enforced in every API write path:
 
 - **Owner:** manages members and roles and can change all care records.
 - **Caregiver:** can manage responsibilities, memories, approvals, and agent checks.
@@ -111,10 +132,18 @@ Benchmark files are in `web/benchmark/`:
 | `households` | Care-plan container |
 | `care_circle_members` | Signed-in identities, invitations, and roles |
 | `audit_entries` | Attributed record-change history |
+| `care_recipients` | The people receiving care and their timezone/status |
+| `care_plans` | Active plan, source template key/version, and lifecycle |
+| `plan_templates` | Built-in and de-identified custom template versions |
+| `template_responsibilities` | Portable responsibility definitions and due offsets |
+| `template_risk_rules` | Portable detection and approval expectations |
+| `record_scopes` | Recipient/plan ownership for every operational record |
+| `recipient_members` | Per-recipient access and owner/caregiver/viewer role |
+| `plan_overrides` | Recipient-specific responsibility edits preserved across upgrades |
 
 ## Supported API actions
 
-The `/api/state` endpoint exposes authenticated reads and permission-checked actions for responsibility creation, editing, completion and archival; memory creation, editing, verification and archival; approval decisions; ride assignment; agent checks; and care-circle membership management.
+The `/api/state` endpoint exposes authenticated, recipient-scoped reads and permission-checked actions for responsibility creation, editing, completion and archival; memory creation, editing, verification and archival; approval decisions; ride assignment; agent checks; and care-circle membership management. It also supports care-recipient creation, plan cloning, de-identified template saving, and owner-approved template upgrades.
 
 ## Run locally
 

@@ -101,3 +101,101 @@ export const auditEntries = sqliteTable("audit_entries", {
 }, (table) => [
   index('idx_audit_created_at').on(table.createdAt),
 ]);
+
+export const careRecipients = sqliteTable('care_recipients', {
+  id: text('id').primaryKey(),
+  householdId: text('household_id').notNull(),
+  displayName: text('display_name').notNull(),
+  timezone: text('timezone').notNull(),
+  status: text('status').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_recipients_household').on(table.householdId),
+]);
+
+export const planTemplates = sqliteTable('plan_templates', {
+  id: text('id').primaryKey(),
+  templateKey: text('template_key').notNull(),
+  version: text('version').notNull(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  category: text('category').notNull(),
+  source: text('source').notNull(),
+  status: text('status').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_template_key_version').on(table.templateKey, table.version),
+]);
+
+export const templateResponsibilities = sqliteTable('template_responsibilities', {
+  id: text('id').primaryKey(),
+  templateId: text('template_id').notNull(),
+  title: text('title').notNull(),
+  category: text('category').notNull(),
+  cadence: text('cadence').notNull(),
+  ownerRole: text('owner_role').notNull(),
+  dueOffsetDays: text('due_offset_days').notNull(),
+}, (table) => [
+  index('idx_template_tasks_template').on(table.templateId),
+]);
+
+export const templateRiskRules = sqliteTable('template_risk_rules', {
+  id: text('id').primaryKey(),
+  templateId: text('template_id').notNull(),
+  name: text('name').notNull(),
+  conditionText: text('condition_text').notNull(),
+  severity: text('severity').notNull(),
+  approvalRequired: text('approval_required').notNull(),
+  expectedOutcome: text('expected_outcome').notNull(),
+}, (table) => [
+  index('idx_template_rules_template').on(table.templateId),
+]);
+
+export const carePlans = sqliteTable('care_plans', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  templateKey: text('template_key').notNull(),
+  templateVersion: text('template_version').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull(),
+  createdAt: text('created_at').notNull(),
+  activatedAt: text('activated_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('idx_plans_recipient_status').on(table.recipientId, table.status),
+]);
+
+export const recordScopes = sqliteTable('record_scopes', {
+  id: text('id').primaryKey(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  recipientId: text('recipient_id').notNull(),
+  planId: text('plan_id'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_scope_entity').on(table.entityType, table.entityId),
+  index('idx_scope_recipient_type').on(table.recipientId, table.entityType),
+]);
+
+export const recipientMembers = sqliteTable('recipient_members', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  accessRole: text('access_role').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_recipient_member').on(table.recipientId, table.memberId),
+  index('idx_recipient_members_member').on(table.memberId),
+]);
+
+export const planOverrides = sqliteTable('plan_overrides', {
+  id: text('id').primaryKey(),
+  planId: text('plan_id').notNull(),
+  field: text('field').notNull(),
+  value: text('value').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_plan_overrides_plan').on(table.planId),
+]);

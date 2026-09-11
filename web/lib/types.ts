@@ -76,6 +76,43 @@ export type CurrentUser = {
   role: "owner" | "caregiver" | "viewer";
 };
 
+export type CareRecipient = {
+  id: string;
+  display_name: string;
+  timezone: string;
+  status: string;
+  active_plan_id: string | null;
+  active_plan_name: string | null;
+};
+
+export type CarePlan = {
+  id: string;
+  recipient_id: string;
+  template_key: string;
+  template_version: string;
+  name: string;
+  status: string;
+  created_at: string;
+  activated_at: string;
+  updated_at: string;
+  latest_version: string;
+  update_available: boolean;
+  override_count: number;
+};
+
+export type PlanTemplate = {
+  id: string;
+  template_key: string;
+  version: string;
+  name: string;
+  description: string;
+  category: string;
+  source: 'built_in' | 'custom';
+  status: string;
+  task_count: number;
+  rule_count: number;
+};
+
 export type BenchmarkSummary = {
   scenarioCount: number;
   version: string;
@@ -96,6 +133,10 @@ export type DashboardState = {
   approvals: Approval[];
   traces: Trace[];
   careCircle: CareCircleMember[];
+  recipients: CareRecipient[];
+  selectedRecipient: CareRecipient;
+  currentPlan: CarePlan;
+  templates: PlanTemplate[];
   currentUser: CurrentUser;
   benchmark: BenchmarkSummary;
   agentMode: "deterministic";

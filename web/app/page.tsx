@@ -6,7 +6,8 @@ import {
   Activity, AlertTriangle, BrainCircuit, CalendarDays, Check, CheckCircle2,
   ChevronRight, CircleUserRound, ClipboardCheck, Clock3, HeartPulse,
   LayoutDashboard, ListChecks, LoaderCircle, MemoryStick, Pill, Plus,
-  Archive, LockKeyhole, Pencil, Route, ShieldCheck, Sparkles, UserPlus, Users,
+  Archive, BookOpen, Copy, LockKeyhole, Pencil, Route, Save, ShieldCheck,
+  Sparkles, UserPlus, Users,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -18,10 +19,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import type { CareTask, DashboardState, MemoryRecord, Risk } from '@/lib/types';
 
-type View = 'Overview' | 'Responsibilities' | 'Timeline' | 'Memory' | 'Care circle' | 'Evaluations';
+type View = 'Overview' | 'Care plan' | 'Responsibilities' | 'Timeline' | 'Memory' | 'Care circle' | 'Evaluations';
 
 const navItems: { label: View; icon: typeof Activity }[] = [
   { label: 'Overview', icon: LayoutDashboard },
+  { label: 'Care plan', icon: BookOpen },
   { label: 'Responsibilities', icon: ClipboardCheck },
   { label: 'Timeline', icon: CalendarDays },
   { label: 'Memory', icon: MemoryStick },
@@ -44,6 +46,9 @@ export default function Home() {
   const [taskDialog, setTaskDialog] = useState<CareTask | 'new' | null>(null);
   const [memoryDialog, setMemoryDialog] = useState<MemoryRecord | 'new' | null>(null);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [recipientOpen, setRecipientOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,7 +68,7 @@ export default function Home() {
       const response = await fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...payload }),
+        body: JSON.stringify({ action, recipientId: state?.selectedRecipient.id, ...payload }),
       });
       const result = await response.json() as DashboardState | { error: string };
       if (!response.ok) throw new Error('error' in result ? result.error : 'Action failed');
@@ -76,6 +81,17 @@ export default function Home() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function selectRecipient(recipientId: string) {
+    setBusy('switch_recipient');
+    try {
+      const response = await fetch(`/api/state?recipientId=${encodeURIComponent(recipientId)}`);
+      const result = await response.json() as DashboardState | { error: string };
+      if (!response.ok) throw new Error('error' in result ? result.error : 'Unable to switch care recipient');
+      setState(result as DashboardState);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to switch care recipient.'); }
+    finally { setBusy(null); }
   }
 
   const openTasks = state?.tasks.filter((task) => task.status !== 'complete').length ?? 0;
@@ -114,6 +130,7 @@ export default function Home() {
             <div className="lg:hidden"><Brand /></div>
             <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex"><Activity className="size-4 text-primary" />Care plan monitoring is active</div>
             <div className="flex items-center gap-3">
+              {state && <select aria-label="Care recipient" value={state.selectedRecipient.id} onChange={(event) => selectRecipient(event.target.value)} disabled={!!busy} className="h-9 max-w-[170px] rounded-lg border bg-background px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-ring">{state.recipients.map((recipient) => <option key={recipient.id} value={recipient.id}>{recipient.display_name}</option>)}</select>}
               <Button variant="outline" onClick={() => act('run_check', {}, 'Care plan checked and evaluation trace saved.')} disabled={!!busy || !writeAllowed}>
                 {busy === 'run_check' ? <LoaderCircle className="animate-spin" /> : <Sparkles />} Run care check
               </Button>
@@ -132,6 +149,7 @@ export default function Home() {
             {!state ? <LoadingState /> : (
               <>
                 {view === 'Overview' && <Overview state={state} openTasks={openTasks} coverage={coverage} resolvedRisks={resolvedRisks} onAdd={() => setTaskDialog('new')} onApprove={() => setApprovalOpen(true)} onAssign={() => act('assign_ride', {}, 'Maya was assigned to the physiotherapy ride.')} busy={busy} writeAllowed={writeAllowed} />}
+                {view === 'Care plan' && <CarePlanView state={state} onCreate={() => setRecipientOpen(true)} onSave={() => setTemplateOpen(true)} onClone={() => setCloneOpen(true)} onUpgrade={() => act('upgrade_plan', {}, 'The latest template version was applied without overwriting personal changes.')} busy={busy} />}
                 {view === 'Responsibilities' && <Responsibilities tasks={state.tasks} onAdd={() => setTaskDialog('new')} onEdit={setTaskDialog} onComplete={(id) => act('complete_task', { id }, 'Responsibility marked complete.')} onArchive={(id) => act('archive_task', { id }, 'Responsibility archived.')} busy={busy} writeAllowed={writeAllowed} />}
                 {view === 'Timeline' && <Timeline state={state} />}
                 {view === 'Memory' && <Memory state={state} onAdd={() => setMemoryDialog('new')} onEdit={setMemoryDialog} onVerify={(id) => act('verify_memory', { id }, 'Trusted fact verified.')} onArchive={(id) => act('archive_memory', { id }, 'Trusted fact archived.')} writeAllowed={writeAllowed} busy={busy} />}
@@ -147,6 +165,9 @@ export default function Home() {
       <TaskDialog key={taskDialog === 'new' ? 'task-new' : `task-${taskDialog?.id ?? 'closed'}`} open={taskDialog !== null} task={taskDialog === 'new' ? undefined : taskDialog ?? undefined} onOpenChange={(open) => { if (!open) setTaskDialog(null); }} busy={busy} onSave={async (payload) => { const ok = await act(taskDialog === 'new' ? 'add_task' : 'update_task', taskDialog !== 'new' && taskDialog ? { ...payload, id: taskDialog.id } : payload, taskDialog === 'new' ? 'Responsibility added to the shared plan.' : 'Responsibility updated.'); if (ok) setTaskDialog(null); }} />
       <MemoryDialog key={memoryDialog === 'new' ? 'memory-new' : `memory-${memoryDialog?.id ?? 'closed'}`} open={memoryDialog !== null} memory={memoryDialog === 'new' ? undefined : memoryDialog ?? undefined} onOpenChange={(open) => { if (!open) setMemoryDialog(null); }} busy={busy} onSave={async (payload) => { const ok = await act(memoryDialog === 'new' ? 'add_memory' : 'update_memory', memoryDialog !== 'new' && memoryDialog ? { ...payload, id: memoryDialog.id } : payload, memoryDialog === 'new' ? 'Trusted fact added for review.' : 'Trusted fact updated.'); if (ok) setMemoryDialog(null); }} />
       <MemberDialog open={memberOpen} onOpenChange={setMemberOpen} busy={busy} onInvite={async (payload) => { const ok = await act('invite_member', payload, 'Care-circle invitation recorded.'); if (ok) setMemberOpen(false); }} />
+      <CreateRecipientDialog open={recipientOpen} onOpenChange={setRecipientOpen} templates={state?.templates ?? []} busy={busy} onCreate={async (payload) => { const ok = await act('create_recipient', payload, 'A new care recipient and plan were created.'); if (ok) { setRecipientOpen(false); setView('Care plan'); } }} />
+      <SaveTemplateDialog open={templateOpen} onOpenChange={setTemplateOpen} busy={busy} onSave={async (payload) => { const ok = await act('save_plan_template', payload, 'A de-identified reusable template was saved.'); if (ok) setTemplateOpen(false); }} />
+      <ClonePlanDialog open={cloneOpen} onOpenChange={setCloneOpen} busy={busy} onClone={async (payload) => { const ok = await act('clone_plan', payload, 'The plan structure was cloned for a new person.'); if (ok) { setCloneOpen(false); setView('Care plan'); } }} />
       {message && <button onClick={() => setMessage(null)} className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl"><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
     </main>
   );
@@ -162,7 +183,7 @@ function PageHeading({ eyebrow, title, description, action }: { eyebrow: string;
 
 function Overview({ state, openTasks, coverage, resolvedRisks, onAdd, onApprove, onAssign, busy, writeAllowed }: { state: DashboardState; openTasks: number; coverage: number; resolvedRisks: number; onAdd: () => void; onApprove: () => void; onAssign: () => void; busy: string | null; writeAllowed: boolean }) {
   return <>
-    <PageHeading eyebrow="Shared care plan" title={`Good morning, ${state.currentUser.displayName}`} description="Carestead has combined the shared schedule, care responsibilities, and trusted facts into one reviewable plan." action={<Button size="lg" className="w-fit rounded-xl px-4" onClick={onAdd} disabled={!writeAllowed}><Plus /> Add responsibility</Button>} />
+    <PageHeading eyebrow={`${state.selectedRecipient.display_name}'s care plan`} title={`Good morning, ${state.currentUser.displayName}`} description={`Carestead has combined ${state.selectedRecipient.display_name}'s schedule, responsibilities, and trusted facts into one reviewable plan.`} action={<Button size="lg" className="w-fit rounded-xl px-4" onClick={onAdd} disabled={!writeAllowed}><Plus /> Add responsibility</Button>} />
     <div className="mt-8 grid gap-4 md:grid-cols-3"><Metric label="Open responsibilities" value={String(openTasks)} note="Across the shared care plan" icon={ClipboardCheck} /><Metric label="Coverage this week" value={`${coverage}%`} note="Tasks with a named owner" icon={Users} /><Metric label="Risks resolved" value={String(resolvedRisks)} note="Recorded in this demo" icon={ShieldCheck} /></div>
     <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.8fr)]">
       <section><SectionHeading title="Needs your attention" subtitle="Prioritized by timing, dependency, and potential impact." /><div className="space-y-3">{state.risks.map((risk) => <RiskCard key={risk.id} risk={risk} onAction={!writeAllowed ? undefined : risk.id === 'risk-med' ? onApprove : risk.id === 'risk-ride' ? onAssign : undefined} busy={busy} />)}</div></section>
@@ -177,6 +198,25 @@ function Overview({ state, openTasks, coverage, resolvedRisks, onAdd, onApprove,
     <section className="mt-8 rounded-[22px] border bg-card p-5 md:p-6"><SectionHeading title="Upcoming care schedule" subtitle="A shared operational view for the care circle." /><div className="mt-5 grid gap-2 lg:grid-cols-4">{state.tasks.slice(0, 4).map((task) => <ScheduleCard key={task.id} task={task} />)}</div></section>
   </>;
 }
+
+function CarePlanView({ state, onCreate, onSave, onClone, onUpgrade, busy }: { state: DashboardState; onCreate: () => void; onSave: () => void; onClone: () => void; onUpgrade: () => void; busy: string | null }) {
+  const owner = state.currentUser.role === 'owner';
+  return <><PageHeading eyebrow="Portable care model" title={`${state.selectedRecipient.display_name}'s active plan`} description="Start from a proven structure, personalize it safely, and reuse the structure for someone else without carrying over private history." action={<Button onClick={onCreate} disabled={!owner || !!busy}><Plus /> New care recipient</Button>} />
+    <div className="mt-8 grid gap-5 xl:grid-cols-[1.05fr_1.6fr]">
+      <article className="rounded-[22px] border bg-card p-6 shadow-[0_12px_35px_rgb(35_68_52/0.05)]">
+        <div className="flex items-start justify-between gap-4"><span className="grid size-11 place-items-center rounded-2xl bg-[#e5f1e9] text-primary"><BookOpen className="size-5" /></span><Badge variant="outline" className="bg-[#eff7f1] text-primary">Active</Badge></div>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Current plan</p><h2 className="mt-1 font-heading text-xl font-semibold">{state.currentPlan.name}</h2>
+        <div className="mt-5 grid grid-cols-3 gap-3"><PlanStat label="Version" value={`v${state.currentPlan.template_version}`} /><PlanStat label="Tasks" value={String(state.tasks.length)} /><PlanStat label="Overrides" value={String(state.currentPlan.override_count)} /></div>
+        {state.currentPlan.update_available ? <div className="mt-5 rounded-xl border border-[#ead9ae] bg-[#fffdf6] p-4"><p className="font-medium text-[#7a5a12]">Version {state.currentPlan.latest_version} is available</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Upgrading adds new responsibilities. Your personal edits remain intact.</p><Button size="sm" className="mt-3" onClick={onUpgrade} disabled={!owner || !!busy}>{busy === 'upgrade_plan' ? <LoaderCircle className="animate-spin" /> : <Sparkles />}Review and apply</Button></div> : <p className="mt-5 flex items-center gap-2 text-sm text-primary"><CheckCircle2 className="size-4" />This plan uses the latest template.</p>}
+        <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" onClick={onSave} disabled={!owner || !!busy}><Save /> Save as template</Button><Button variant="outline" onClick={onClone} disabled={!owner || !!busy}><Copy /> Clone plan</Button></div>
+      </article>
+      <section><SectionHeading title="Plan templates" subtitle="Four built-in starting points plus any de-identified templates your care circle saves." /><div className="mt-4 grid gap-3 md:grid-cols-2">{state.templates.map((template) => <article key={template.id} className="rounded-[18px] border bg-card p-5"><div className="flex items-start justify-between gap-3"><div><p className="font-heading font-semibold">{template.name}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{template.category.replace('-', ' ')} · version {template.version}</p></div><Badge variant="outline" className={template.source === 'custom' ? 'bg-[#fff8e8] text-[#7a5a12]' : 'bg-[#eff7f1] text-primary'}>{template.source === 'custom' ? 'Saved' : 'Built-in'}</Badge></div><p className="mt-3 text-sm leading-6 text-muted-foreground">{template.description}</p><p className="mt-4 text-xs font-medium">{template.task_count} responsibilities · {template.rule_count} risk rules</p></article>)}</div></section>
+    </div>
+    <div className="mt-6 flex gap-3 rounded-2xl border border-[#c8dfd0] bg-[#f8fcf9] p-5"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="font-heading font-semibold">Safe portability</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Templates and clones include responsibility structure only. Trusted facts, timeline events, risks, approvals, agent traces, names, medication names, and past outcomes stay with the original person.</p></div></div>
+  </>;
+}
+
+function PlanStat({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-muted/55 p-3"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 font-heading text-lg font-semibold">{value}</p></div>; }
 
 function Responsibilities({ tasks, onAdd, onEdit, onComplete, onArchive, busy, writeAllowed }: { tasks: CareTask[]; onAdd: () => void; onEdit: (task: CareTask) => void; onComplete: (id: string) => void; onArchive: (id: string) => void; busy: string | null; writeAllowed: boolean }) {
   return <><PageHeading eyebrow="Shared plan" title="Responsibilities" description="Create, edit, complete, reassign, or archive every care obligation." action={<Button onClick={onAdd} disabled={!writeAllowed}><Plus /> Add responsibility</Button>} /><div className="mt-8 overflow-hidden rounded-[22px] border bg-card">{tasks.map((task, index) => <div key={task.id} className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${index ? 'border-t' : ''}`}><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${task.status === 'complete' ? 'bg-[#e5f1e9] text-primary' : 'bg-secondary text-muted-foreground'}`}>{task.status === 'complete' ? <Check className="size-5" /> : <ListChecks className="size-5" />}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-heading font-semibold">{task.title}</h3><StatusBadge value={task.status} /></div><p className="mt-1 text-sm text-muted-foreground">{formatDate(task.due_at)} · Owner: {task.owner} · {task.category}</p></div>{writeAllowed && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => onEdit(task)} disabled={!!busy}><Pencil /> Edit</Button>{task.status !== 'complete' && <Button variant="outline" size="sm" onClick={() => onComplete(task.id)} disabled={!!busy}><Check /> Complete</Button>}<Button variant="ghost" size="sm" onClick={() => onArchive(task.id)} disabled={!!busy} className="text-muted-foreground"><Archive /> Archive</Button></div>}</div>)}</div></>;
@@ -240,4 +280,19 @@ function MemoryDialog({ open, memory, onOpenChange, onSave, busy }: { open: bool
 function MemberDialog({ open, onOpenChange, onInvite, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onInvite: (payload: Record<string, string>) => void; busy: string | null }) {
   function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onInvite({ email: formValue(data, 'email'), displayName: formValue(data, 'displayName'), role: formValue(data, 'role') }); }
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg"><form onSubmit={submit}><DialogHeader><DialogTitle>Invite a care-circle member</DialogTitle><DialogDescription>Record their Carestead role here, then grant the same email access through the private Site sharing controls.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><label htmlFor="member-name" className="grid gap-1.5 text-sm font-medium">Display name<Input id="member-name" name="displayName" placeholder="Maya" required /></label><label htmlFor="member-email" className="grid gap-1.5 text-sm font-medium">Email<Input id="member-email" name="email" type="email" placeholder="maya@example.com" required /></label><label htmlFor="member-role" className="grid gap-1.5 text-sm font-medium">Role<select id="member-role" name="role" defaultValue="caregiver" className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="caregiver">Caregiver — can update care records</option><option value="viewer">Viewer — read only</option></select></label></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'invite_member' ? <LoaderCircle className="animate-spin" /> : <UserPlus />}Record invitation</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function CreateRecipientDialog({ open, onOpenChange, onCreate, templates, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (payload: Record<string, string>) => void; templates: DashboardState['templates']; busy: string | null }) {
+  function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onCreate({ displayName: formValue(data, 'displayName'), timezone: formValue(data, 'timezone'), templateKey: formValue(data, 'templateKey') }); }
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg"><form onSubmit={submit}><DialogHeader><DialogTitle>Create a care plan for someone</DialogTitle><DialogDescription>Choose a starting template. You can personalize every responsibility after the plan is created.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><label htmlFor="recipient-name" className="grid gap-1.5 text-sm font-medium">Person&apos;s display name<Input id="recipient-name" name="displayName" placeholder="e.g. Jordan" required /></label><label htmlFor="recipient-timezone" className="grid gap-1.5 text-sm font-medium">Timezone<Input id="recipient-timezone" name="timezone" defaultValue="America/Toronto" required /></label><label htmlFor="recipient-template" className="grid gap-1.5 text-sm font-medium">Starting template<select id="recipient-template" name="templateKey" defaultValue={templates[0]?.template_key} className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" required>{templates.map((template) => <option key={template.id} value={template.template_key}>{template.name} · v{template.version}</option>)}</select></label></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'create_recipient' ? <LoaderCircle className="animate-spin" /> : <Plus />}Create plan</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function SaveTemplateDialog({ open, onOpenChange, onSave, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onSave: (payload: Record<string, string>) => void; busy: string | null }) {
+  function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onSave({ name: formValue(data, 'name') }); }
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg"><form onSubmit={submit}><DialogHeader><DialogTitle>Save plan as a reusable template</DialogTitle><DialogDescription>Carestead copies the responsibility structure and removes person-specific names and medication details.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><label htmlFor="saved-template-name" className="grid gap-1.5 text-sm font-medium">Template name<Input id="saved-template-name" name="name" placeholder="e.g. Weekly family care routine" required /></label><div className="rounded-xl border border-[#c8dfd0] bg-[#f8fcf9] p-4 text-sm leading-6 text-muted-foreground"><strong className="text-foreground">Not copied:</strong> memories, timeline events, risks, approvals, agent traces, outcomes, or care-circle membership.</div></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'save_plan_template' ? <LoaderCircle className="animate-spin" /> : <Save />}Save template</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function ClonePlanDialog({ open, onOpenChange, onClone, busy }: { open: boolean; onOpenChange: (open: boolean) => void; onClone: (payload: Record<string, string>) => void; busy: string | null }) {
+  function submit(event: { preventDefault: () => void; currentTarget: HTMLFormElement }) { event.preventDefault(); const data = new FormData(event.currentTarget); onClone({ displayName: formValue(data, 'displayName'), timezone: formValue(data, 'timezone') }); }
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-lg"><form onSubmit={submit}><DialogHeader><DialogTitle>Clone this plan for another person</DialogTitle><DialogDescription>A new care recipient receives fresh, unassigned responsibilities based on this plan.</DialogDescription></DialogHeader><div className="mt-5 grid gap-4"><label htmlFor="clone-name" className="grid gap-1.5 text-sm font-medium">New person&apos;s display name<Input id="clone-name" name="displayName" placeholder="e.g. Sam" required /></label><label htmlFor="clone-timezone" className="grid gap-1.5 text-sm font-medium">Timezone<Input id="clone-timezone" name="timezone" defaultValue="America/Toronto" required /></label><div className="rounded-xl border border-[#e5c6bd] bg-[#fffaf8] p-4 text-sm leading-6 text-muted-foreground"><strong className="text-foreground">Privacy boundary:</strong> personal facts, event history, owners, risks, approvals, and outcomes will not move.</div></div><DialogFooter className="mt-5" showCloseButton><Button type="submit" disabled={!!busy}>{busy === 'clone_plan' ? <LoaderCircle className="animate-spin" /> : <Copy />}Clone structure</Button></DialogFooter></form></DialogContent></Dialog>;
 }

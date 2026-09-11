@@ -22,6 +22,13 @@
       "when": 1789100172397,
       "tag": "0002_tired_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789101705389,
+      "tag": "0003_neat_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

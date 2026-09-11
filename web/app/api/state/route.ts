@@ -3,182 +3,118 @@ import { runCareAgent } from '@/agent/orchestrator';
 import { ensureDatabase } from '@/db/bootstrap';
 import { canWrite, isOwner, requireMembership, type CareMembership, type CareRole } from '@/lib/auth';
 import { runBenchmark } from '@/lib/benchmark';
-import type {
-  Approval, CareCircleMember, CareEvent, CareTask, DashboardState, MemoryRecord, Risk, Trace,
-} from '@/lib/types';
+import type { Approval, CareCircleMember, CareEvent, CarePlan, CareRecipient, CareTask, DashboardState, MemoryRecord, PlanTemplate, Risk, Trace } from '@/lib/types';
 
 export const runtime = 'edge';
+type Body = { action?: string; id?: string; recipientId?: string; title?: string; owner?: string; dueAt?: string; category?: string; status?: string; kind?: string; value?: string; source?: string; confidence?: string; email?: string; displayName?: string; role?: CareRole; timezone?: string; templateKey?: string; name?: string };
+type Access = { recipientId: string; accessRole: CareRole };
 
-type ActionBody = {
-  action?: string;
-  id?: string;
-  title?: string;
-  owner?: string;
-  dueAt?: string;
-  category?: string;
-  status?: string;
-  kind?: string;
-  value?: string;
-  source?: string;
-  confidence?: string;
-  email?: string;
-  displayName?: string;
-  role?: CareRole;
-};
-
-async function rows<T>(db: D1Database, statement: string) {
-  return (await db.prepare(statement).all<T>()).results;
+async function rows<T>(db: D1Database, sql: string, values: unknown[] = []) { return (await db.prepare(sql).bind(...values).all<T>()).results; }
+async function seedAccess(db: D1Database, member: CareMembership) {
+  const found = await db.prepare('SELECT COUNT(*) AS count FROM recipient_members WHERE member_id = ?').bind(member.memberId).first<{ count: number }>();
+  if (!(found?.count ?? 0) && isOwner(member.role)) await db.prepare('INSERT OR IGNORE INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'recipient-alex', member.memberId, 'owner', new Date().toISOString()).run();
 }
+async function accessFor(db: D1Database, member: CareMembership, requested?: string): Promise<Access | null> {
+  await seedAccess(db, member);
+  const sql = requested ? "SELECT rm.recipient_id recipientId, rm.access_role accessRole FROM recipient_members rm JOIN care_recipients cr ON cr.id=rm.recipient_id WHERE rm.member_id=? AND rm.recipient_id=? AND cr.status='active'" : "SELECT rm.recipient_id recipientId, rm.access_role accessRole FROM recipient_members rm JOIN care_recipients cr ON cr.id=rm.recipient_id WHERE rm.member_id=? AND cr.status='active' ORDER BY cr.created_at LIMIT 1";
+  return db.prepare(sql).bind(...(requested ? [member.memberId, requested] : [member.memberId])).first<Access>();
+}
+async function belongs(db: D1Database, type: string, id: string, recipientId: string) { return Boolean(await db.prepare('SELECT 1 ok FROM record_scopes WHERE entity_type=? AND entity_id=? AND recipient_id=?').bind(type, id, recipientId).first()); }
+function scope(db: D1Database, type: string, id: string, recipientId: string, planId: string, now: string) { return db.prepare('INSERT INTO record_scopes VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), type, id, recipientId, planId, now); }
+async function getPlan(db: D1Database, recipientId: string) { return db.prepare("SELECT * FROM care_plans WHERE recipient_id=? AND status='active' ORDER BY activated_at DESC LIMIT 1").bind(recipientId).first<Omit<CarePlan, 'latest_version' | 'update_available' | 'override_count'>>(); }
 
-async function loadState(db: D1Database, member: CareMembership): Promise<DashboardState> {
-  const [risks, tasks, events, memories, approvals, traces, careCircle] = await Promise.all([
-    rows<Risk>(db, "SELECT * FROM risks ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, updated_at DESC"),
-    rows<CareTask>(db, "SELECT * FROM tasks WHERE status != 'archived' ORDER BY due_at ASC"),
-    rows<CareEvent>(db, 'SELECT * FROM events ORDER BY occurred_at DESC'),
-    rows<MemoryRecord>(db, "SELECT * FROM memories WHERE status != 'archived' ORDER BY updated_at DESC"),
-    rows<Approval>(db, 'SELECT * FROM approvals ORDER BY created_at DESC'),
-    rows<Trace>(db, 'SELECT * FROM traces ORDER BY created_at DESC'),
-    rows<CareCircleMember>(db, "SELECT id, email, display_name, role, status, updated_at FROM care_circle_members WHERE status != 'archived' ORDER BY CASE role WHEN 'owner' THEN 1 WHEN 'caregiver' THEN 2 ELSE 3 END, display_name"),
+async function state(db: D1Database, member: CareMembership, recipientId: string, role: CareRole): Promise<DashboardState> {
+  const recipient = await db.prepare("SELECT cr.*, cp.id active_plan_id, cp.name active_plan_name FROM care_recipients cr LEFT JOIN care_plans cp ON cp.recipient_id=cr.id AND cp.status='active' WHERE cr.id=?").bind(recipientId).first<CareRecipient>();
+  const plan = await getPlan(db, recipientId);
+  if (!recipient || !plan) throw new Error('Care recipient or active plan not found');
+  const scoped = (table: string, type: string, order: string, extra = '') => `SELECT x.* FROM ${table} x JOIN record_scopes s ON s.entity_type='${type}' AND s.entity_id=x.id WHERE s.recipient_id=? ${extra} ORDER BY ${order}`;
+  const [risks, tasks, events, memories, approvals, traces, careCircle, recipients, templates, latest, overrides] = await Promise.all([
+    rows<Risk>(db, scoped('risks', 'risk', "CASE x.severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, x.updated_at DESC"), [recipientId]),
+    rows<CareTask>(db, scoped('tasks', 'task', 'x.due_at', "AND x.status!='archived'"), [recipientId]),
+    rows<CareEvent>(db, scoped('events', 'event', 'x.occurred_at DESC'), [recipientId]),
+    rows<MemoryRecord>(db, scoped('memories', 'memory', 'x.updated_at DESC', "AND x.status!='archived'"), [recipientId]),
+    rows<Approval>(db, scoped('approvals', 'approval', 'x.created_at DESC'), [recipientId]),
+    rows<Trace>(db, scoped('traces', 'trace', 'x.created_at DESC'), [recipientId]),
+    rows<CareCircleMember>(db, "SELECT c.id,c.email,c.display_name,rm.access_role role,c.status,c.updated_at FROM recipient_members rm JOIN care_circle_members c ON c.id=rm.member_id WHERE rm.recipient_id=? AND c.status!='archived' ORDER BY CASE rm.access_role WHEN 'owner' THEN 1 WHEN 'caregiver' THEN 2 ELSE 3 END,c.display_name", [recipientId]),
+    rows<CareRecipient>(db, "SELECT cr.*,cp.id active_plan_id,cp.name active_plan_name FROM recipient_members rm JOIN care_recipients cr ON cr.id=rm.recipient_id LEFT JOIN care_plans cp ON cp.recipient_id=cr.id AND cp.status='active' WHERE rm.member_id=? AND cr.status='active' ORDER BY cr.display_name", [member.memberId]),
+    rows<PlanTemplate>(db, "SELECT pt.*,(SELECT COUNT(*) FROM template_responsibilities tr WHERE tr.template_id=pt.id) task_count,(SELECT COUNT(*) FROM template_risk_rules rr WHERE rr.template_id=pt.id) rule_count FROM plan_templates pt WHERE pt.status='active' AND CAST(pt.version AS INTEGER)=(SELECT MAX(CAST(p2.version AS INTEGER)) FROM plan_templates p2 WHERE p2.template_key=pt.template_key AND p2.status='active') ORDER BY CASE pt.source WHEN 'built_in' THEN 1 ELSE 2 END,pt.name"),
+    db.prepare('SELECT MAX(CAST(version AS INTEGER)) version FROM plan_templates WHERE template_key=?').bind(plan.template_key).first<{ version: number }>(),
+    db.prepare('SELECT COUNT(*) count FROM plan_overrides WHERE plan_id=?').bind(plan.id).first<{ count: number }>(),
   ]);
-  return {
-    risks, tasks, events, memories, approvals, traces, careCircle,
-    currentUser: { id: member.id, email: member.email, displayName: member.displayName, role: member.role },
-    benchmark: runBenchmark(),
-    agentMode: 'deterministic',
-  };
+  const latestVersion = String(latest?.version ?? plan.template_version);
+  return { risks, tasks, events, memories, approvals, traces, careCircle, recipients, selectedRecipient: recipient, currentPlan: { ...plan, latest_version: latestVersion, update_available: Number(latestVersion) > Number(plan.template_version), override_count: overrides?.count ?? 0 }, templates, currentUser: { id: member.id, email: member.email, displayName: member.displayName, role }, benchmark: runBenchmark(), agentMode: 'deterministic' };
 }
 
-async function audit(db: D1Database, member: CareMembership, action: string, entityType: string, entityId: string, detail: string) {
-  await db.prepare('INSERT INTO audit_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(crypto.randomUUID(), member.id, member.email, action, entityType, entityId, detail, new Date().toISOString()).run();
+async function audit(db: D1Database, member: CareMembership, action: string, type: string, id: string, detail: string) { await db.prepare('INSERT INTO audit_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), member.id, member.email, action, type, id, detail, new Date().toISOString()).run(); }
+function forbidden(message = 'Your role for this person does not allow this action') { return Response.json({ error: message }, { status: 403 }); }
+const clean = (value: string) => value.trim().replace(/\s+/g, ' ').slice(0, 80);
+function portableTitle(title: string, person: string, category: string) {
+  let value = person ? title.replaceAll(person, '{{recipient_name}}') : title;
+  if (category.toLowerCase() !== 'medication') return value;
+  const text = value.toLowerCase();
+  value = text.includes('pickup') || text.includes('pick up') ? 'Assign medication pickup' : text.includes('refill') ? 'Confirm refill status with pharmacy' : text.includes('supply') || text.includes('remaining') ? 'Check remaining medication supply' : text.includes('list') ? 'Review current medication list' : 'Manage medication responsibility';
+  return value;
 }
-
-function forbidden(message = 'Your care-circle role does not allow this action') {
-  return Response.json({ error: message }, { status: 403 });
+async function instantiate(db: D1Database, recipientId: string, planId: string, templateId: string, person: string, now: string) {
+  const defs = await rows<{ title: string; category: string; due_offset_days: string }>(db, 'SELECT title,category,due_offset_days FROM template_responsibilities WHERE template_id=? ORDER BY id', [templateId]);
+  const batch: D1PreparedStatement[] = [];
+  for (const item of defs) { const id = crypto.randomUUID(); const due = new Date(Date.now() + Number(item.due_offset_days) * 86400000).toISOString(); batch.push(db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, item.title.replaceAll('{{recipient_name}}', person), 'Unassigned', due, 'open', item.category, null), scope(db, 'task', id, recipientId, planId, now)); }
+  if (batch.length) await db.batch(batch);
 }
-
-const taskStatuses = new Set(['open', 'due_soon', 'assigned', 'scheduled', 'complete']);
-const memoryStatuses = new Set(['review_due', 'verified']);
-const confidenceLevels = new Set(['low', 'medium', 'high']);
-const assignableRoles = new Set(['caregiver', 'viewer']);
+async function createRecipient(db: D1Database, member: CareMembership, displayName: string, timezone: string, templateKey: string, now: string) {
+  const template = await db.prepare("SELECT * FROM plan_templates WHERE template_key=? AND status='active' ORDER BY CAST(version AS INTEGER) DESC LIMIT 1").bind(templateKey).first<PlanTemplate>();
+  if (!template) throw new Error('Plan template not found');
+  const recipientId = crypto.randomUUID(), planId = crypto.randomUUID(), name = clean(displayName);
+  await db.batch([db.prepare('INSERT INTO care_recipients VALUES (?, ?, ?, ?, ?, ?, ?)').bind(recipientId, 'household-demo', name, timezone || 'America/Toronto', 'active', now, now), db.prepare('INSERT INTO care_plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(planId, recipientId, template.template_key, template.version, `${name}'s ${template.name}`, 'active', now, now, now), db.prepare('INSERT INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), recipientId, member.memberId, 'owner', now)]);
+  await instantiate(db, recipientId, planId, template.id, name, now);
+  return recipientId;
+}
 
 export async function GET(request: Request) {
-  await ensureDatabase(env.DB);
-  const auth = await requireMembership(env.DB, request);
-  if ('error' in auth) return auth.error;
-  return Response.json(await loadState(env.DB, auth.member));
+  await ensureDatabase(env.DB); const auth = await requireMembership(env.DB, request); if ('error' in auth) return auth.error;
+  const access = await accessFor(env.DB, auth.member, new URL(request.url).searchParams.get('recipientId') ?? undefined); if (!access) return forbidden('You do not have access to that care recipient');
+  return Response.json(await state(env.DB, auth.member, access.recipientId, access.accessRole));
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as ActionBody;
-  const db = env.DB;
-  await ensureDatabase(db);
-  const auth = await requireMembership(db, request);
-  if ('error' in auth) return auth.error;
-  const member = auth.member;
-  const now = new Date().toISOString();
+  const body = await request.json() as Body, db = env.DB, now = new Date().toISOString(); await ensureDatabase(db);
+  const auth = await requireMembership(db, request); if ('error' in auth) return auth.error; const member = auth.member;
+  if (body.action === 'create_recipient' && body.displayName && body.templateKey) { if (!isOwner(member.role)) return forbidden('Only an owner can create a care recipient'); const id = await createRecipient(db, member, body.displayName, body.timezone || 'America/Toronto', body.templateKey, now); await audit(db, member, 'create', 'recipient', id, `Created care plan for ${clean(body.displayName)}`); return Response.json(await state(db, member, id, 'owner')); }
+  const access = await accessFor(db, member, body.recipientId); if (!access) return forbidden('You do not have access to that care recipient'); const recipientId = access.recipientId, role = access.accessRole;
+  const plan = await getPlan(db, recipientId); if (!plan) return Response.json({ error: 'No active care plan found' }, { status: 404 });
 
-  if (body.action === 'approve_plan' && body.id) {
-    if (!canWrite(member.role)) return forbidden();
-    const approval = await db.prepare('SELECT * FROM approvals WHERE id = ?').bind(body.id).first<Approval>();
-    if (!approval) return Response.json({ error: 'Approval not found' }, { status: 404 });
-    await db.batch([
-      db.prepare('UPDATE approvals SET status = ?, decided_at = ? WHERE id = ?').bind('approved', now, body.id),
-      db.prepare('UPDATE risks SET status = ?, updated_at = ? WHERE id = ?').bind('resolved', now, approval.risk_id),
-      db.prepare('UPDATE tasks SET owner = ?, status = ? WHERE source_risk_id = ? AND category = ?').bind('Maya', 'assigned', approval.risk_id, 'medication'),
-      db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'action', 'Medication plan approved', approval.action, member.displayName, now),
-      db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'Caregiver approval', approval.action, 'Assign medication pickup to Maya', 'approved by human', 'responsibility updater', 'Plan recorded', now),
-    ]);
-    await audit(db, member, 'approve', 'approval', body.id, approval.action);
-  } else if (body.action === 'assign_ride') {
-    if (!canWrite(member.role)) return forbidden();
-    await db.batch([
-      db.prepare('UPDATE tasks SET owner = ?, status = ? WHERE id = ?').bind('Maya', 'assigned', 'task-ride'),
-      db.prepare('UPDATE risks SET status = ?, updated_at = ? WHERE id = ?').bind('resolved', now, 'risk-ride'),
-      db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'transport', 'Physio ride assigned', 'Maya will drive Alex to physiotherapy.', member.displayName, now),
-    ]);
-    await audit(db, member, 'assign', 'task', 'task-ride', 'Assigned physio ride to Maya');
-  } else if (body.action === 'complete_task' && body.id) {
-    if (!canWrite(member.role)) return forbidden();
-    await db.batch([
-      db.prepare('UPDATE tasks SET status = ? WHERE id = ?').bind('complete', body.id),
-      db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'task', 'Responsibility completed', `Task ${body.id} was marked complete.`, member.displayName, now),
-    ]);
-    await audit(db, member, 'complete', 'task', body.id, 'Marked responsibility complete');
-  } else if (body.action === 'add_task' && body.title && body.dueAt) {
-    if (!canWrite(member.role)) return forbidden();
-    const id = crypto.randomUUID();
-    await db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, body.title.trim(), body.owner?.trim() || 'Unassigned', body.dueAt, 'open', body.category?.trim() || 'general', null).run();
-    await audit(db, member, 'create', 'task', id, body.title.trim());
+  const writable = () => canWrite(role) ? null : forbidden();
+  if (body.action === 'add_task' && body.title && body.dueAt) {
+    const blocked = writable(); if (blocked) return blocked; const id = crypto.randomUUID(); await db.batch([db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, body.title.trim(), body.owner?.trim() || 'Unassigned', body.dueAt, 'open', body.category?.trim() || 'general', null), scope(db, 'task', id, recipientId, plan.id, now)]); await audit(db, member, 'create', 'task', id, body.title.trim());
   } else if (body.action === 'update_task' && body.id && body.title && body.dueAt) {
-    if (!canWrite(member.role)) return forbidden();
-    if (!taskStatuses.has(body.status || 'open')) return Response.json({ error: 'Invalid responsibility status' }, { status: 400 });
-    await db.prepare('UPDATE tasks SET title = ?, owner = ?, due_at = ?, status = ?, category = ? WHERE id = ?')
-      .bind(body.title.trim(), body.owner?.trim() || 'Unassigned', body.dueAt, body.status || 'open', body.category?.trim() || 'general', body.id).run();
-    await audit(db, member, 'update', 'task', body.id, body.title.trim());
-  } else if (body.action === 'archive_task' && body.id) {
-    if (!canWrite(member.role)) return forbidden();
-    await db.prepare("UPDATE tasks SET status = 'archived' WHERE id = ?").bind(body.id).run();
-    await audit(db, member, 'archive', 'task', body.id, 'Archived responsibility');
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'task', body.id, recipientId)) return Response.json({ error: 'Responsibility not found' }, { status: 404 }); const valid = new Set(['open','due_soon','assigned','scheduled','complete']); if (!valid.has(body.status || 'open')) return Response.json({ error: 'Invalid status' }, { status: 400 });
+    const value = JSON.stringify({ title: body.title, owner: body.owner, dueAt: body.dueAt, status: body.status, category: body.category }); await db.batch([db.prepare('UPDATE tasks SET title=?,owner=?,due_at=?,status=?,category=? WHERE id=?').bind(body.title.trim(), body.owner?.trim() || 'Unassigned', body.dueAt, body.status || 'open', body.category?.trim() || 'general', body.id), db.prepare('INSERT INTO plan_overrides VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), plan.id, `task:${body.id}`, value, member.id, now)]); await audit(db, member, 'update', 'task', body.id, body.title);
+  } else if ((body.action === 'complete_task' || body.action === 'archive_task') && body.id) {
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'task', body.id, recipientId)) return Response.json({ error: 'Responsibility not found' }, { status: 404 }); const next = body.action === 'complete_task' ? 'complete' : 'archived'; await db.prepare('UPDATE tasks SET status=? WHERE id=?').bind(next, body.id).run(); await audit(db, member, next, 'task', body.id, `${next} responsibility`);
   } else if (body.action === 'add_memory' && body.value && body.source) {
-    if (!canWrite(member.role)) return forbidden();
-    if (!confidenceLevels.has(body.confidence || 'medium')) return Response.json({ error: 'Invalid confidence level' }, { status: 400 });
-    const id = crypto.randomUUID();
-    await db.prepare('INSERT INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, body.kind?.trim() || 'general', body.value.trim(), body.source.trim(), body.confidence || 'medium', 'review_due', now).run();
-    await audit(db, member, 'create', 'memory', id, body.value.trim());
+    const blocked = writable(); if (blocked) return blocked; if (!new Set(['low','medium','high']).has(body.confidence || 'medium')) return Response.json({ error: 'Invalid confidence' }, { status: 400 }); const id = crypto.randomUUID(); await db.batch([db.prepare('INSERT INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, body.kind?.trim() || 'general', body.value.trim(), body.source.trim(), body.confidence || 'medium', 'review_due', now), scope(db, 'memory', id, recipientId, plan.id, now)]); await audit(db, member, 'create', 'memory', id, body.value);
   } else if (body.action === 'update_memory' && body.id && body.value && body.source) {
-    if (!canWrite(member.role)) return forbidden();
-    if (!confidenceLevels.has(body.confidence || 'medium') || !memoryStatuses.has(body.status || 'review_due')) return Response.json({ error: 'Invalid memory status or confidence' }, { status: 400 });
-    await db.prepare('UPDATE memories SET kind = ?, value = ?, source = ?, confidence = ?, status = ?, updated_at = ? WHERE id = ?')
-      .bind(body.kind?.trim() || 'general', body.value.trim(), body.source.trim(), body.confidence || 'medium', body.status || 'review_due', now, body.id).run();
-    await audit(db, member, 'update', 'memory', body.id, body.value.trim());
-  } else if (body.action === 'verify_memory' && body.id) {
-    if (!canWrite(member.role)) return forbidden();
-    await db.prepare("UPDATE memories SET status = 'verified', updated_at = ? WHERE id = ?").bind(now, body.id).run();
-    await audit(db, member, 'verify', 'memory', body.id, 'Verified trusted fact');
-  } else if (body.action === 'archive_memory' && body.id) {
-    if (!canWrite(member.role)) return forbidden();
-    await db.prepare("UPDATE memories SET status = 'archived', updated_at = ? WHERE id = ?").bind(now, body.id).run();
-    await audit(db, member, 'archive', 'memory', body.id, 'Archived trusted fact');
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'memory', body.id, recipientId)) return Response.json({ error: 'Trusted fact not found' }, { status: 404 }); if (!new Set(['low','medium','high']).has(body.confidence || 'medium') || !new Set(['review_due','verified']).has(body.status || 'review_due')) return Response.json({ error: 'Invalid memory status or confidence' }, { status: 400 }); await db.prepare('UPDATE memories SET kind=?,value=?,source=?,confidence=?,status=?,updated_at=? WHERE id=?').bind(body.kind?.trim() || 'general', body.value.trim(), body.source.trim(), body.confidence || 'medium', body.status || 'review_due', now, body.id).run(); await audit(db, member, 'update', 'memory', body.id, body.value);
+  } else if ((body.action === 'verify_memory' || body.action === 'archive_memory') && body.id) {
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'memory', body.id, recipientId)) return Response.json({ error: 'Trusted fact not found' }, { status: 404 }); const next = body.action === 'verify_memory' ? 'verified' : 'archived'; await db.prepare('UPDATE memories SET status=?,updated_at=? WHERE id=?').bind(next, now, body.id).run(); await audit(db, member, next, 'memory', body.id, `${next} trusted fact`);
+  } else if (body.action === 'approve_plan' && body.id) {
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'approval', body.id, recipientId)) return Response.json({ error: 'Approval not found' }, { status: 404 }); const approval = await db.prepare('SELECT * FROM approvals WHERE id=?').bind(body.id).first<Approval>(); if (!approval || !await belongs(db, 'risk', approval.risk_id, recipientId)) return Response.json({ error: 'Approval not found' }, { status: 404 }); const eventId = crypto.randomUUID(), traceId = crypto.randomUUID(); await db.batch([db.prepare('UPDATE approvals SET status=?,decided_at=? WHERE id=?').bind('approved', now, body.id), db.prepare('UPDATE risks SET status=?,updated_at=? WHERE id=?').bind('resolved', now, approval.risk_id), db.prepare("UPDATE tasks SET owner='Maya',status='assigned' WHERE source_risk_id=? AND id IN (SELECT entity_id FROM record_scopes WHERE recipient_id=? AND entity_type='task')").bind(approval.risk_id, recipientId), db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(eventId, 'action', 'Medication plan approved', approval.action, member.displayName, now), scope(db, 'event', eventId, recipientId, plan.id, now), db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(traceId, 'Caregiver approval', approval.action, 'Assign medication pickup', 'approved by human', 'responsibility updater', 'Plan recorded', now), scope(db, 'trace', traceId, recipientId, plan.id, now)]); await audit(db, member, 'approve', 'approval', body.id, approval.action);
+  } else if (body.action === 'assign_ride') {
+    const blocked = writable(); if (blocked) return blocked; if (!await belongs(db, 'task', 'task-ride', recipientId) || !await belongs(db, 'risk', 'risk-ride', recipientId)) return Response.json({ error: 'Ride risk is not part of this plan' }, { status: 404 }); const eventId = crypto.randomUUID(); await db.batch([db.prepare("UPDATE tasks SET owner='Maya',status='assigned' WHERE id='task-ride'"), db.prepare("UPDATE risks SET status='resolved',updated_at=? WHERE id='risk-ride'").bind(now), db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(eventId, 'transport', 'Physio ride assigned', 'Maya will provide transportation to physiotherapy.', member.displayName, now), scope(db, 'event', eventId, recipientId, plan.id, now)]); await audit(db, member, 'assign', 'task', 'task-ride', 'Assigned ride');
   } else if (body.action === 'invite_member' && body.email && body.role) {
-    if (!isOwner(member.role)) return forbidden('Only the care-circle owner can invite members');
-    if (!assignableRoles.has(body.role)) return Response.json({ error: 'Invalid care-circle role' }, { status: 400 });
-    const email = body.email.trim().toLowerCase();
-    const existing = await db.prepare('SELECT id FROM care_circle_members WHERE lower(email) = lower(?)').bind(email).first<{ id: string }>();
-    if (existing) return Response.json({ error: 'That email is already in the care circle' }, { status: 409 });
-    const id = crypto.randomUUID();
-    await db.prepare('INSERT INTO care_circle_members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, 'household-demo', null, email, body.displayName?.trim() || email.split('@')[0], body.role, 'invited', now, now).run();
-    await audit(db, member, 'invite', 'member', id, `Invited ${email} as ${body.role}`);
+    if (!isOwner(role)) return forbidden('Only the recipient owner can invite members'); if (!new Set(['caregiver','viewer']).has(body.role)) return Response.json({ error: 'Invalid role' }, { status: 400 }); const email = body.email.trim().toLowerCase(); let target = await db.prepare('SELECT id FROM care_circle_members WHERE lower(email)=lower(?)').bind(email).first<{ id: string }>(); if (!target) { target = { id: crypto.randomUUID() }; await db.prepare('INSERT INTO care_circle_members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(target.id, 'household-demo', null, email, body.displayName?.trim() || email.split('@')[0], body.role, 'invited', now, now).run(); } else { await db.prepare("UPDATE care_circle_members SET status=CASE WHEN status='archived' THEN 'invited' ELSE status END,role=?,updated_at=? WHERE id=?").bind(body.role, now, target.id).run(); } if (await db.prepare('SELECT 1 ok FROM recipient_members WHERE recipient_id=? AND member_id=?').bind(recipientId, target.id).first()) return Response.json({ error: 'That person already has access' }, { status: 409 }); await db.prepare('INSERT INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), recipientId, target.id, body.role, now).run(); await audit(db, member, 'invite', 'member', target.id, `Invited ${email}`);
   } else if (body.action === 'update_member' && body.id && body.role) {
-    if (!isOwner(member.role)) return forbidden('Only the care-circle owner can change roles');
-    if (!assignableRoles.has(body.role)) return Response.json({ error: 'Invalid care-circle role' }, { status: 400 });
-    const target = await db.prepare('SELECT role FROM care_circle_members WHERE id = ?').bind(body.id).first<{ role: CareRole }>();
-    if (!target) return Response.json({ error: 'Member not found' }, { status: 404 });
-    if (target.role === 'owner') return forbidden('The owner role cannot be changed here');
-    await db.prepare('UPDATE care_circle_members SET role = ?, updated_at = ? WHERE id = ?').bind(body.role, now, body.id).run();
-    await audit(db, member, 'change_role', 'member', body.id, `Changed role to ${body.role}`);
+    if (!isOwner(role)) return forbidden('Only the recipient owner can change roles'); if (!new Set(['caregiver','viewer']).has(body.role)) return Response.json({ error: 'Invalid role' }, { status: 400 }); const target = await db.prepare('SELECT access_role role FROM recipient_members WHERE recipient_id=? AND member_id=?').bind(recipientId, body.id).first<{ role: CareRole }>(); if (!target) return Response.json({ error: 'Member not found' }, { status: 404 }); if (target.role === 'owner') return forbidden('The owner role cannot be changed'); await db.prepare('UPDATE recipient_members SET access_role=? WHERE recipient_id=? AND member_id=?').bind(body.role, recipientId, body.id).run(); await audit(db, member, 'change_role', 'member', body.id, `Changed role to ${body.role}`);
   } else if (body.action === 'archive_member' && body.id) {
-    if (!isOwner(member.role)) return forbidden('Only the care-circle owner can remove members');
-    const target = await db.prepare('SELECT role FROM care_circle_members WHERE id = ?').bind(body.id).first<{ role: CareRole }>();
-    if (!target) return Response.json({ error: 'Member not found' }, { status: 404 });
-    if (target.role === 'owner') return forbidden('The owner cannot be removed');
-    await db.prepare("UPDATE care_circle_members SET status = 'archived', updated_at = ? WHERE id = ?").bind(now, body.id).run();
-    await audit(db, member, 'remove', 'member', body.id, 'Removed member from care circle');
+    if (!isOwner(role)) return forbidden('Only the recipient owner can remove members'); const target = await db.prepare('SELECT access_role role FROM recipient_members WHERE recipient_id=? AND member_id=?').bind(recipientId, body.id).first<{ role: CareRole }>(); if (!target) return Response.json({ error: 'Member not found' }, { status: 404 }); if (target.role === 'owner') return forbidden('The owner cannot be removed'); await db.prepare('DELETE FROM recipient_members WHERE recipient_id=? AND member_id=?').bind(recipientId, body.id).run(); await audit(db, member, 'remove', 'member', body.id, 'Removed recipient access');
+  } else if (body.action === 'save_plan_template' && body.name) {
+    const blocked = writable(); if (blocked) return blocked; const person = await db.prepare('SELECT display_name FROM care_recipients WHERE id=?').bind(recipientId).first<{ display_name: string }>(); const sourceTasks = await rows<CareTask>(db, "SELECT t.* FROM tasks t JOIN record_scopes s ON s.entity_type='task' AND s.entity_id=t.id WHERE s.recipient_id=? AND t.status!='archived'", [recipientId]); const templateId = crypto.randomUUID(), key = `custom-${clean(body.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${templateId.slice(0,6)}`; const batch: D1PreparedStatement[] = [db.prepare('INSERT INTO plan_templates VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(templateId, key, '1', clean(body.name), 'A reusable, de-identified plan saved from an active care plan.', 'custom', 'custom', 'active', now)]; for (const task of sourceTasks) batch.push(db.prepare('INSERT INTO template_responsibilities VALUES (?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), templateId, portableTitle(task.title, person?.display_name || '', task.category), task.category, 'custom', 'caregiver', '1')); await db.batch(batch); await audit(db, member, 'create', 'template', templateId, `Saved de-identified template ${clean(body.name)}`);
+  } else if (body.action === 'clone_plan' && body.displayName) {
+    if (!isOwner(role)) return forbidden('Only the recipient owner can clone a plan'); const source = await db.prepare('SELECT display_name,timezone FROM care_recipients WHERE id=?').bind(recipientId).first<{ display_name: string; timezone: string }>(); const sourceTasks = await rows<CareTask>(db, "SELECT t.* FROM tasks t JOIN record_scopes s ON s.entity_type='task' AND s.entity_id=t.id WHERE s.recipient_id=? AND t.status!='archived'", [recipientId]); const newRecipient = crypto.randomUUID(), newPlan = crypto.randomUUID(), name = clean(body.displayName); const batch: D1PreparedStatement[] = [db.prepare('INSERT INTO care_recipients VALUES (?, ?, ?, ?, ?, ?, ?)').bind(newRecipient, 'household-demo', name, body.timezone || source?.timezone || 'America/Toronto', 'active', now, now), db.prepare('INSERT INTO care_plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(newPlan, newRecipient, plan.template_key, plan.template_version, `${name}'s care plan`, 'active', now, now, now), db.prepare('INSERT INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), newRecipient, member.memberId, 'owner', now)]; for (const task of sourceTasks) { const id = crypto.randomUUID(); batch.push(db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, portableTitle(task.title, source?.display_name || '', task.category).replaceAll('{{recipient_name}}', name), 'Unassigned', task.due_at, 'open', task.category, null), scope(db, 'task', id, newRecipient, newPlan, now)); } await db.batch(batch); await audit(db, member, 'clone', 'plan', newPlan, `Cloned plan structure for ${name}; personal history excluded`); return Response.json(await state(db, member, newRecipient, 'owner'));
+  } else if (body.action === 'upgrade_plan') {
+    if (!isOwner(role)) return forbidden('Only the recipient owner can upgrade a plan'); const latest = await db.prepare("SELECT * FROM plan_templates WHERE template_key=? AND status='active' ORDER BY CAST(version AS INTEGER) DESC LIMIT 1").bind(plan.template_key).first<PlanTemplate>(); if (!latest || Number(latest.version) <= Number(plan.template_version)) return Response.json({ error: 'This plan is already current' }, { status: 409 }); const person = await db.prepare('SELECT display_name FROM care_recipients WHERE id=?').bind(recipientId).first<{ display_name: string }>(); const existing = await rows<{ title: string; category: string }>(db, "SELECT t.title,t.category FROM tasks t JOIN record_scopes s ON s.entity_type='task' AND s.entity_id=t.id WHERE s.recipient_id=?", [recipientId]); const defs = await rows<{ title: string; category: string; due_offset_days: string }>(db, 'SELECT title,category,due_offset_days FROM template_responsibilities WHERE template_id=?', [latest.id]); const batch: D1PreparedStatement[] = [db.prepare('UPDATE care_plans SET template_version=?,updated_at=? WHERE id=?').bind(latest.version, now, plan.id)]; for (const item of defs.filter((item) => !existing.some((task) => portableTitle(task.title, person?.display_name || '', task.category).toLowerCase() === item.title.toLowerCase()))) { const id = crypto.randomUUID(); batch.push(db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, item.title.replaceAll('{{recipient_name}}', person?.display_name || ''), 'Unassigned', new Date(Date.now() + Number(item.due_offset_days) * 86400000).toISOString(), 'open', item.category, null), scope(db, 'task', id, recipientId, plan.id, now)); } const eventId = crypto.randomUUID(), traceId = crypto.randomUUID(); batch.push(db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(eventId, 'plan', 'Care plan upgraded', `Template version ${latest.version} was applied after owner approval.`, member.displayName, now), scope(db, 'event', eventId, recipientId, plan.id, now), db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(traceId, 'Owner requested template upgrade', `Version ${plan.template_version} → ${latest.version}`, 'Add new responsibilities without overwriting recipient changes', 'approved by owner', 'plan version manager', 'Plan upgraded', now), scope(db, 'trace', traceId, recipientId, plan.id, now)); await db.batch(batch); await audit(db, member, 'upgrade', 'plan', plan.id, `Upgraded to v${latest.version}`);
   } else if (body.action === 'run_check') {
-    if (!canWrite(member.role)) return forbidden();
-    const state = await loadState(db, member);
-    const { decision } = await runCareAgent(state.tasks, state.events, state.memories);
-    await db.batch([
-      db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'Manual care-state check', decision.evidence.join(' • '), `${decision.title}: ${decision.recommendation}`, decision.risk === 'high' ? 'human approval required' : 'allowed', 'care-state rules', 'Check completed', now),
-      db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), 'agent', 'Care plan checked', decision.rationale, 'Carestead agent', now),
-    ]);
-    await audit(db, member, 'run', 'agent', 'care-state', decision.title);
-  } else {
-    return Response.json({ error: 'Unsupported or incomplete action' }, { status: 400 });
-  }
-
-  return Response.json(await loadState(db, member));
+    const blocked = writable(); if (blocked) return blocked; const current = await state(db, member, recipientId, role); const { decision } = await runCareAgent(current.tasks, current.events, current.memories); const traceId = crypto.randomUUID(), eventId = crypto.randomUUID(); await db.batch([db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(traceId, 'Manual care-state check', decision.evidence.join(' • '), `${decision.title}: ${decision.recommendation}`, decision.risk === 'high' ? 'human approval required' : 'allowed', 'care-state rules', 'Check completed', now), scope(db, 'trace', traceId, recipientId, plan.id, now), db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(eventId, 'agent', 'Care plan checked', decision.rationale, 'Carestead agent', now), scope(db, 'event', eventId, recipientId, plan.id, now)]); await audit(db, member, 'run', 'agent', 'care-state', decision.title);
+  } else return Response.json({ error: 'Unsupported or incomplete action' }, { status: 400 });
+  return Response.json(await state(db, member, recipientId, role));
 }
