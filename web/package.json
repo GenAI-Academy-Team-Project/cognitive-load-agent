@@ -13,7 +13,7 @@
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
     "benchmark": "node benchmark/report.mjs",
-    "test:accessibility": "playwright test tests/accessibility.spec.ts"
+    "test:accessibility": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

@@ -165,6 +165,34 @@ export type CareNotification = {
   created_at: string;
 };
 
+export type ChatEvidence = { label: string; detail: string };
+
+export type ChatActionRequest = {
+  id: string;
+  action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check';
+  summary: string;
+  status: 'pending' | 'executed' | 'rejected';
+  requires_approval: 'true';
+  payload: Record<string, string>;
+};
+
+export type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  evidence: ChatEvidence[];
+  action: ChatActionRequest | null;
+  created_at: string;
+};
+
+export type ChatState = {
+  recipientId: string;
+  recipientName: string;
+  messages: ChatMessage[];
+  quickPrompts: string[];
+  capabilities: { voiceInput: boolean; spokenReplies: boolean; externalDelivery: boolean };
+};
+
 export type BenchmarkSummary = {
   scenarioCount: number;
   version: string;

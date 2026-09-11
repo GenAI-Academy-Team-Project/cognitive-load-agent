@@ -42,6 +42,13 @@ const schemaStatements = [
   `CREATE INDEX IF NOT EXISTS idx_rate_limit_actor_action_time ON rate_limit_events(actor_user_id, action, created_at)`,
   `CREATE TABLE IF NOT EXISTS error_events (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, route TEXT NOT NULL, action TEXT NOT NULL, error_code TEXT NOT NULL, actor_user_id TEXT NOT NULL, recipient_id TEXT, created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_error_events_created ON error_events(created_at)`,
+  `CREATE TABLE IF NOT EXISTS chat_threads (id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, member_id TEXT NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_thread_recipient_member ON chat_threads(recipient_id, member_id)`,
+  `CREATE TABLE IF NOT EXISTS chat_action_requests (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, recipient_id TEXT NOT NULL, actor_member_id TEXT NOT NULL, action_type TEXT NOT NULL, summary TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL, requires_approval TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT, executed_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_actions_recipient_status ON chat_action_requests(recipient_id, status, created_at)`,
+  `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, evidence_json TEXT NOT NULL, action_request_id TEXT, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time ON chat_messages(thread_id, created_at)`,
+  `PRAGMA optimize`,
 ];
 
 const seedStatements = [

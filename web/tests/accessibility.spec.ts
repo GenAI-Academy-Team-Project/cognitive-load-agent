@@ -11,6 +11,11 @@ test('core caregiver surfaces meet automated WCAG checks', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /good morning/i })).toBeVisible();
   await expectAccessible(page);
 
+  await page.getByRole('button', { name: /ask carestead about/i }).click();
+  await expect(page.getByRole('heading', { name: /ask about alex/i })).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Close' }).click();
+
   await page.getByRole('button', { name: 'Handover', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: /at a glance/i })).toBeVisible();
   await expectAccessible(page);

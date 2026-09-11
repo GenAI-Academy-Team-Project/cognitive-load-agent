@@ -287,3 +287,43 @@ export const errorEvents = sqliteTable('error_events', {
 }, (table) => [
   index('idx_error_events_created').on(table.createdAt),
 ]);
+
+export const chatThreads = sqliteTable('chat_threads', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  title: text('title').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_chat_thread_recipient_member').on(table.recipientId, table.memberId),
+]);
+
+export const chatActionRequests = sqliteTable('chat_action_requests', {
+  id: text('id').primaryKey(),
+  threadId: text('thread_id').notNull(),
+  recipientId: text('recipient_id').notNull(),
+  actorMemberId: text('actor_member_id').notNull(),
+  actionType: text('action_type').notNull(),
+  summary: text('summary').notNull(),
+  payloadJson: text('payload_json').notNull(),
+  status: text('status').notNull(),
+  requiresApproval: text('requires_approval').notNull(),
+  createdAt: text('created_at').notNull(),
+  decidedAt: text('decided_at'),
+  executedAt: text('executed_at'),
+}, (table) => [
+  index('idx_chat_actions_recipient_status').on(table.recipientId, table.status, table.createdAt),
+]);
+
+export const chatMessages = sqliteTable('chat_messages', {
+  id: text('id').primaryKey(),
+  threadId: text('thread_id').notNull(),
+  role: text('role').notNull(),
+  content: text('content').notNull(),
+  evidenceJson: text('evidence_json').notNull(),
+  actionRequestId: text('action_request_id'),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_chat_messages_thread_time').on(table.threadId, table.createdAt),
+]);

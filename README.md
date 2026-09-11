@@ -21,6 +21,9 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Consent, retention, recipient export, and verified permanent-deletion controls
 - Central input validation, request throttling, health checks, and privacy-safe error monitoring
 - Automated WCAG accessibility checks in continuous integration
+- Recipient-scoped pop-up chat with grounded answers and expandable evidence
+- Approval-gated chat tools for rescheduling, assignments, responsibilities, care checks, and in-app notifications
+- Browser voice input and spoken replies without retained audio
 
 ## Architecture
 
@@ -33,13 +36,16 @@ The lightweight RAG layer retrieves relevant tasks, events, and trusted facts di
 ![Carestead system architecture](docs/images/carestead-architecture.png)
 
 ```text
-Caregiver dashboard
+Caregiver dashboard + voice-enabled chat
        │
        ▼
-API action layer ─── human approval gate
+Recipient-scoped retrieval/orchestrator
+       │
+       ├── grounded answer + evidence
+       └── proposed tool ─── human approval gate
        │
        ├── care-state risk rules
-       ├── responsibility tools
+       ├── responsibility/calendar/notification tools
        └── evaluation trace writer
        │
        ▼
@@ -64,6 +70,8 @@ tasks · events · risks · memories · approvals · traces
 | Plan template manager | Instantiates built-in plans, records personal overrides, saves de-identified templates, clones structure, and applies opt-in upgrades |
 | Caregiver handover | Consolidates the recipient profile, latest event, unresolved risks, pending reviews, upcoming responsibilities, support contacts, and authorized care team |
 | Policy guardrails | Applies validation, authorization, consent status, throttling, approval policy, auditing, and privacy-safe error handling before actions |
+| Carestead chat | Saves a separate caregiver conversation for each recipient, retrieves only authorized profile records, exposes evidence, and turns action requests into reviewable proposals |
+| Voice controls | Uses supported browser speech recognition and speech synthesis; only the resulting text enters chat history and raw audio is not stored |
 
 The current release uses one care-state agent, not a multi-agent system. Its decision engine is intentionally deterministic so every rule can be tested against known outcomes. A future LLM adapter can assist with reasoning while remaining behind the same retrieval, policy, and approval controls.
 
@@ -100,15 +108,23 @@ Caregivers can copy the brief as plain text for a controlled handover, edit the 
 
 The notification inbox is recipient-scoped. Notifications linked to a consequential action begin in `needs_approval`; approving the associated plan releases them to `delivered`. Notifications from ordinary care checks are delivered in-app and can be marked read. Carestead intentionally does not send care details through email, SMS, or lock-screen push in this release.
 
+### Recipient chat, tools, and voice
+
+The floating **Ask Carestead** window is bound to the currently selected recipient. It answers from that person’s profile, responsibilities, timeline, risks, trusted facts, support contacts, and agent traces, and presents the exact records used under an expandable evidence section. Conversation history is stored in D1 per recipient and signed-in care-circle member rather than in Mem0.
+
+Chat requests to reschedule an appointment, assign transportation, add a responsibility, run a care check, or post a notification create a pending action card. No write occurs until an authorized owner or caregiver selects **Approve**. Execution rechecks recipient access, updates the relevant records, and saves an evaluation trace and audit entry. Notification delivery is currently in-app; external calendar, email, and SMS providers are deliberately reported as not connected.
+
+Voice input uses the browser’s available speech-recognition capability and spoken replies use browser speech synthesis. The transcript follows the recipient’s consent, retention, export, and deletion rules. Raw microphone audio is not saved, and typed input remains available when browser voice recognition is unavailable.
+
 ### Consent and retention
 
-Each recipient has a purpose-limited consent record with active/withdrawn status, granting identity and timestamps, and a selected 30-, 90-, 365-day, or no-expiry retention period. Withdrawing consent pauses care-record mutations, agent checks, and new notifications while still allowing the owner to restore consent or delete the data. The retention policy removes expired event, trace, notification, and error history during recipient-state loading.
+Each recipient has a purpose-limited consent record with active/withdrawn status, granting identity and timestamps, and a selected 30-, 90-, 365-day, or no-expiry retention period. Withdrawing consent pauses care-record mutations, chat/voice, agent checks, and new notifications while still allowing the owner to restore consent or delete the data. The retention policy removes expired event, trace, notification, chat, chat-action, and error history during recipient-state loading.
 
 ### Export and deletion
 
-Owners can download a recipient-scoped JSON export with a versioned schema and `no-store` response policy. The export contains the profile, contacts, care team, plans, responsibilities, events, memories, risks, approvals, traces, notifications, and consent record. Export requests are logged and rate-limited.
+Owners can download a recipient-scoped JSON export with a versioned schema and `no-store` response policy. The export contains the profile, contacts, care team, plans, responsibilities, events, memories, risks, approvals, traces, notifications, chat history, chat actions, and consent record. Export requests are logged and rate-limited.
 
-Permanent deletion requires the exact recipient display name, cannot delete the owner’s only remaining recipient, and removes the recipient profile, support contacts, plan, scoped operational records, notifications, consent, and access mappings. A minimal content-free deletion receipt remains for accountability.
+Permanent deletion requires the exact recipient display name, cannot delete the owner’s only remaining recipient, and removes the recipient profile, support contacts, plan, scoped operational records, notifications, chat history/actions, consent, and access mappings. A minimal content-free deletion receipt remains for accountability.
 
 ### Validation, throttling, and monitoring
 
@@ -116,7 +132,7 @@ All state-changing requests pass authentication, per-recipient authorization, ac
 
 ### Accessibility and non-clinical scope
 
-Playwright and axe-core tests cover the Overview, Handover, and Privacy & Data surfaces against WCAG A/AA rules. The GitHub Actions workflow runs this accessibility check on pushes and pull requests:
+Playwright and axe-core tests cover the Overview, recipient chat, Handover, and Privacy & Data surfaces against WCAG A/AA rules. A browser workflow test also verifies that chat retrieves evidence, proposes a reschedule without changing data, and executes only after approval. GitHub Actions runs these checks on pushes and pull requests:
 
 ```bash
 cd web
@@ -197,10 +213,13 @@ Benchmark files are in `web/benchmark/`:
 | `data_requests` | Export and content-free deletion accountability records |
 | `rate_limit_events` | Short-lived counters for per-user action throttling |
 | `error_events` | Privacy-safe request/error metadata for operational monitoring |
+| `chat_threads` | One durable recipient/member conversation boundary |
+| `chat_messages` | User/assistant transcripts, grounded evidence, and linked action cards |
+| `chat_action_requests` | Proposed tools, validated payloads, approval state, and execution timestamps |
 
 ## Supported API actions
 
-The `/api/state` endpoint exposes authenticated, validated, rate-limited, recipient-scoped reads and actions for responsibilities, memories, profiles, contacts, consent, notifications, approvals, agent checks, care-circle membership, plan templates, cloning, upgrades, and verified deletion. `/api/export` produces an owner-only recipient export. `/api/health` returns a non-sensitive availability check.
+The `/api/state` endpoint exposes authenticated, validated, rate-limited, recipient-scoped reads and actions for responsibilities, memories, profiles, contacts, consent, notifications, approvals, agent checks, care-circle membership, plan templates, cloning, upgrades, and verified deletion. `/api/chat` retrieves grounded recipient context, saves conversation history, proposes typed tools, and executes approved actions. `/api/export` produces an owner-only recipient export. `/api/health` returns a non-sensitive availability check.
 
 ## Run locally
 

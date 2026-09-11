@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { CareChat } from '@/components/care-chat';
 import type { CareTask, DashboardState, MemoryRecord, Risk, SupportContact } from '@/lib/types';
 
 type View = 'Overview' | 'Handover' | 'Notifications' | 'Care plan' | 'Responsibilities' | 'Timeline' | 'Memory' | 'Care circle' | 'Privacy & data' | 'Evaluations';
@@ -215,7 +216,8 @@ export default function Home() {
       <SupportContactDialog key={contactDialog === 'new' ? 'contact-new' : `contact-${contactDialog?.id ?? 'closed'}`} open={contactDialog !== null} contact={contactDialog === 'new' ? undefined : contactDialog ?? undefined} onOpenChange={(open) => { if (!open) setContactDialog(null); }} busy={busy} onSave={async (payload) => { const ok = await act(contactDialog === 'new' ? 'add_support_contact' : 'update_support_contact', contactDialog !== 'new' && contactDialog ? { ...payload, id: contactDialog.id } : payload, contactDialog === 'new' ? 'Support contact added.' : 'Support contact updated.'); if (ok) setContactDialog(null); }} />
       <ConsentDialog open={consentOpen} onOpenChange={setConsentOpen} consent={state?.consent} busy={busy} onSave={async (payload) => { const ok = await act('update_consent', payload, payload.consentStatus === 'active' ? 'Consent and retention settings saved.' : 'Consent withdrawn; care actions are now paused.'); if (ok) setConsentOpen(false); }} />
       <DeleteRecipientDialog open={deleteOpen} onOpenChange={setDeleteOpen} recipientName={state?.selectedRecipient.display_name ?? ''} busy={busy} onDelete={async (payload) => { const ok = await act('delete_recipient', payload, 'Recipient data was permanently deleted.'); if (ok) { setDeleteOpen(false); setView('Overview'); } }} />
-      {message && <button onClick={() => setMessage(null)} className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl"><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
+      {state && <CareChat recipientId={state.selectedRecipient.id} recipientName={state.profile.preferred_name || state.selectedRecipient.display_name} canWrite={writeAllowed} onActionCompleted={() => selectRecipient(state.selectedRecipient.id)} />}
+      {message && <button onClick={() => setMessage(null)} className="fixed right-4 bottom-20 z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl"><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
     </main>
   );
 }

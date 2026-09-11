@@ -7,6 +7,7 @@ const limits: Record<string, number> = {
   emergencyPlan: 1500, notes: 1000, title: 200, name: 100, displayName: 100,
   preferredName: 100, source: 200, organization: 200, relationship: 120,
   email: 254, phone: 40, timezone: 80, purpose: 1000,
+  message: 1200,
 };
 
 export function validatePayload(body: Record<string, unknown>) {
@@ -25,6 +26,7 @@ export function validatePayload(body: Record<string, unknown>) {
 const policies: Record<string, { limit: number; seconds: number }> = {
   run_check: { limit: 10, seconds: 60 }, invite_member: { limit: 10, seconds: 3600 },
   export: { limit: 5, seconds: 3600 }, delete_recipient: { limit: 3, seconds: 3600 },
+  chat_message: { limit: 30, seconds: 60 }, chat_action: { limit: 12, seconds: 60 },
 };
 
 export async function enforceRateLimit(db: D1Database, actorUserId: string, action: string) {
