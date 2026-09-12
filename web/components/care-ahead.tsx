@@ -30,7 +30,7 @@ type Props = {
   act: (action: string, payload?: Record<string, unknown>) => Promise<unknown>;
   navigate: (tab: string) => void;
 };
-const panel = 'rounded-2xl border bg-card p-5 md:p-6';
+const panel = 'care-organizer-panel min-w-0 rounded-2xl border p-5 md:p-6';
 const field = 'grid gap-2 text-sm font-medium';
 const select =
   'min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring';
@@ -64,11 +64,12 @@ export function WeekAhead(props: Props) {
       item.overloaded ||
       item.collisions.length ||
       item.unconfirmed.length ||
+      item.routines.length ||
       item.preferenceConflicts.length,
   );
   return (
     <div className="space-y-6">
-      <section className={`${panel} border-primary/30 bg-secondary/30`}>
+      <section className={`${panel} `}>
         <p className="text-sm font-medium text-primary">Your next seven days</p>
         <h2 className="mt-2 font-heading text-2xl font-semibold">
           {needsAttention.length
@@ -122,9 +123,11 @@ export function WeekAhead(props: Props) {
               <span className="block text-xs leading-5">
                 {item.unconfirmed.length} unconfirmed
               </span>
+              {item.routines.length > 0 && <span className="block text-xs leading-5">{item.routines.length} routines to review</span>}
             </button>
           ))}
         </div>
+        {state.anticipation.routines.some(routine => Date.parse(routine.next_at) < now.getTime()) && <p className="mt-4 text-sm"><button className="font-medium underline underline-offset-4" onClick={() => navigate('routines')}>Review overdue routines</button> and confirm their next dates.</p>}
         {overdue.length > 0 && (
           <p className="mt-4 text-sm font-medium text-amber-900">
             Also review {overdue.length} overdue{' '}
@@ -139,6 +142,7 @@ export function WeekAhead(props: Props) {
         )}
       </section>
       <section className={panel} aria-label="Selected day details">
+        {day.routines.length > 0 && <div className="mb-5 space-y-3"><p className="text-sm text-muted-foreground">These routines still need approval. Their time is not included in your assigned workload.</p>{day.routines.map(routine => <article key={routine.id} className="rounded-xl border p-3"><h3 className="text-sm font-semibold">{routine.title}</h3><p className="mt-1 text-xs">{when(routine.next_at, zone)}</p><Button className="mt-3" variant="outline" disabled={disabled} onClick={() => act('propose_routine', { id: routine.id })}>Review next occurrence</Button></article>)}</div>}
         <h3 className="font-heading text-xl font-semibold">
           {new Intl.DateTimeFormat('en-CA', {
             weekday: 'long',
@@ -160,7 +164,7 @@ export function WeekAhead(props: Props) {
             their times in “What if?”.
           </p>
         )}
-        {!day.tasks.length && (
+        {!day.tasks.length && !day.routines.length && (
           <p className="mt-4 text-sm text-muted-foreground">
             No upcoming responsibilities are recorded for this day. Add care
             tasks to make the forecast useful.

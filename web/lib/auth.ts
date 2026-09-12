@@ -24,8 +24,8 @@ export async function authenticatedUser(db: D1Database, request: Request): Promi
     .bind(tokenHash(token), new Date().toISOString()).first<AuthenticatedUser>();
 }
 
-export async function requireMembership(db: D1Database, request: Request) {
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) checkOrigin(request);
+export async function requireMembership(db: D1Database, request: Request, publicUrl: string | undefined) {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) checkOrigin(request, publicUrl);
   const user = await authenticatedUser(db, request);
   if (!user) return { error: Response.json({ error: 'Authentication required' }, { status: 401 }) } as const;
 

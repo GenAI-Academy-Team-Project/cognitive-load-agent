@@ -8,6 +8,25 @@ import { evaluateCareState } from '../lib/risk-engine';
 import { nextLocalDate, preferredMove, weekForecast, preparationDrafts } from '../lib/anticipation-engine';
 import type { CareMembership } from '../lib/auth';
 
+test('unapproved routines appear in the forecast without inflating workload', async () => {
+  await act('save_routine', { title: 'Supplies forecast', category: 'household', everyDays: 7, nextAt: tomorrow() });
+  const current = await state(); current.tasks = [];
+  const days = weekForecast(current, 'UTC');
+  expect(days.flatMap(day => day.routines).map(routine => routine.title)).toContain('Supplies forecast');
+  expect(days.reduce((sum, day) => sum + day.minutes, 0)).toBe(0);
+});
+
+test('preferred visits use quarter-hour slots and reject missing required facts', async () => {
+  const current = await state(), base = current.tasks.find(task => task.id === 'task-physio')!;
+  const task = { ...base, due_at: '2030-01-02T09:00:00Z', planning: { ...base.planning, owner_member_id: owner.memberId, duration_minutes: 20 } };
+  current.tasks = [task];
+  current.anticipation.preference = { memory_id: 'preference', memory_value: 'Afternoons', start_hour: 13, end_hour: 15 };
+  current.availability = [{ id: 'window', member_id: owner.memberId, start_at: '2030-01-02T13:15:00Z', end_at: '2030-01-02T13:45:00Z', categories: ['appointment'], capabilities: [] }];
+  expect(preferredMove(current, task, 'UTC', new Date('2030-01-01'))).toBe('2030-01-02T13:15:00.000Z');
+  task.planning.fact_ids = ['missing-fact'];
+  expect(preferredMove(current, task, 'UTC', new Date('2030-01-01'))).toBeNull();
+});
+
 test('personal capacity and digest settings remain scoped to caregiver and recipient', async () => {
   await act('save_attention', { dailyMinutes: 45, digestHour: 20, focusMode: false });
   expect((await state()).anticipation.settings).toMatchObject({ daily_minutes: 45, digest_hour: 20, focus_mode: false });
@@ -68,6 +87,10 @@ test('preparation tasks are approval gated, atomic, and reject a changed appoint
   expect((await state()).tasks).toHaveLength(before.tasks.length);
   await act('apply_proposal', { id: first.proposalId });
   expect((await state()).tasks).toHaveLength(before.tasks.length + 3);
+  const created = (await state()).tasks.filter(task => !before.tasks.some(previous => previous.id === task.id));
+  expect(created.every(task => task.planning.depends_on === 'task-physio')).toBe(true);
+  const moved = simulateMove((await state()).tasks, [], 'task-physio', later(tomorrow(), 1440 * 4), 'UTC');
+  expect(created.every(task => moved.changes.some(change => change.taskId === task.id))).toBe(true);
   await expect(act('apply_proposal', { id: duplicate.proposalId })).rejects.toThrow(/plan changed/);
   expect((await state()).tasks).toHaveLength(before.tasks.length + 3);
   await expect(act('propose_preparation', { taskId: 'task-physio' })).rejects.toThrow(/already exist/);

@@ -68,7 +68,7 @@ test('planning API enforces identity, recipient access, consent and export lifec
   const invitationResponse = await page.request.post('/api/state', { headers, data: { action: 'invite_member', recipientId, displayName: 'Planning viewer', email: 'planning-viewer@example.test', role: 'viewer' } });
   const invite = await invitationResponse.json() as { invitationUrl: string };
   const token = new URLSearchParams(invite.invitationUrl.split('#')[1]).get('invitation');
-  const signedUp = await guest.request.post('/api/auth/sign-up', { headers, data: { displayName: 'Planning viewer', email: 'planning-viewer@example.test', password: 'Planning viewer password 2026', confirmPassword: 'Planning viewer password 2026', invitation: token } });
+  const signedUp = await guest.request.post('/api/auth/sign-up', { headers, data: { displayName: 'Planning viewer', email: 'planning-viewer@example.test', password: 'Planning viewer password 2026!', confirmPassword: 'Planning viewer password 2026!', invitation: token } });
   expect(signedUp.ok(), await signedUp.text()).toBe(true);
   expect((await guest.request.get(`/api/planning?recipientId=${recipientId}`)).ok()).toBe(true);
   expect((await guest.request.post('/api/planning', { headers, data: { action: 'save_availability', recipientId, start, end, categories: ['general'], capabilities: [] } })).status()).toBe(403);
@@ -89,7 +89,7 @@ test('real caregiver accepts a coverage request across signed-in sessions', asyn
   const invite = await inviteResponse.json() as { invitationUrl: string };
   const context = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   const token = new URLSearchParams(invite.invitationUrl.split('#')[1]).get('invitation');
-  const signup = await context.request.post('/api/auth/sign-up', { headers, data: { displayName: 'Coverage helper', email: 'coverage-helper@example.test', password: 'Coverage helper password 2026', confirmPassword: 'Coverage helper password 2026', invitation: token } });
+  const signup = await context.request.post('/api/auth/sign-up', { headers, data: { displayName: 'Coverage helper', email: 'coverage-helper@example.test', password: 'Coverage helper password 2026!', confirmPassword: 'Coverage helper password 2026!', invitation: token } });
   expect(signup.ok(), await signup.text()).toBe(true);
   const ownerPost = (action: string, payload: object) => page.request.post('/api/planning', { headers, data: { action, recipientId, ...payload } });
   const helperPost = (action: string, payload: object) => context.request.post('/api/planning', { headers, data: { action, recipientId, ...payload } });

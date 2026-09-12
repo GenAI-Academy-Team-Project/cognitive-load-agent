@@ -314,7 +314,7 @@ async function executeActionImpl(db: D1Database, member: CareMembership, access:
 async function resolveContext(request: Request, recipientId: string) {
   const db = env.DB;
   await ensureDatabase(db);
-  const auth = await requireMembership(db, request);
+  const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL);
   if ('error' in auth) return { error: auth.error } as const;
   const access = await accessFor(db, auth.member, recipientId);
   if (!access) return { error: Response.json({ error: 'You do not have access to this care recipient' }, { status: 403 }) } as const;
@@ -391,7 +391,7 @@ export async function POST(request: Request) {
         actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
         response = { content: proposal.type === 'save_memory' ? 'Review this suggested fact. Saving confirms it is accurate and shares it with this recipient’s care circle. You can correct or archive it in Trusted facts.' : 'I prepared this action but have not changed anything yet. Review the details and approve it if they are correct.', evidence: [evidence('Proposed tool', proposal.type.replaceAll('_', ' ')), evidence('Safety policy', 'Explicit caregiver approval is required before any chat-initiated write.')] };
       } else if (proposal) {
-        response = { content: 'I can explain this change, but your viewer role cannot create or approve care-plan actions. Nothing has been changed.', evidence: [evidence('Requested tool', proposal.type.replaceAll('_', ' ')), evidence('Permission policy', 'Only recipient owners and caregivers may change care-plan records.')] };
+        response = { content: 'I can explain this change, but your Guest role cannot create or approve care-plan actions. Nothing has been changed.', evidence: [evidence('Requested tool', proposal.type.replaceAll('_', ' ')), evidence('Permission policy', 'Only recipient owners and caregivers may change care-plan records.')] };
       } else if ((message.toLowerCase().includes('reschedule') || /\bmove\b/i.test(message)) && !requestedDate(message, new Date())) {
         response = { content: 'I found the rescheduling request, but I need a date and time—for example, “tomorrow at 3:30 PM.” Nothing has been changed.', evidence: [] };
       } else {

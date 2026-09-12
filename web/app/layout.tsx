@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { DM_Sans, Manrope } from 'next/font/google';
+import { DM_Sans, Outfit } from 'next/font/google';
 import './globals.css';
 
 const body = DM_Sans({ variable: '--font-body', subsets: ['latin'] });
-const heading = Manrope({ variable: '--font-display', subsets: ['latin'] });
+const heading = Outfit({ variable: '--font-display', subsets: ['latin'] });
 
 export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',

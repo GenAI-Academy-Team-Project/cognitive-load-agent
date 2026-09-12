@@ -9,7 +9,7 @@ test('care ahead supports personalized planning, approved recurrence, visit note
     page.getByRole('heading', { name: /good morning/i }),
   ).toBeVisible();
   await page
-    .getByRole('button', { name: 'Care planning', exact: true })
+    .getByRole('button', { name: 'Care Organizer', exact: true })
     .first()
     .click();
   await expect(
@@ -48,11 +48,15 @@ test('care ahead supports personalized planning, approved recurrence, visit note
   await page
     .getByLabel('Responsibility', { exact: true })
     .fill('Weekly supply check');
-  const day = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const day = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
   await page
     .getByLabel('Next date and time', { exact: true })
     .fill(`${day}T15:00`);
   await page.getByRole('button', { name: 'Save routine', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Weekly supply check', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Your week ahead', exact: true }).click();
+  await page.locator('[aria-label="Seven-day care forecast"]').getByRole('button', { name: /1 routines to review/ }).click();
+  await expect(page.getByRole('region', { name: 'Selected day details' })).toContainText('Weekly supply check');
   await page
     .getByRole('button', { name: 'Review next occurrence', exact: true })
     .click();
@@ -73,7 +77,7 @@ test('care ahead supports personalized planning, approved recurrence, visit note
   await expect(proposal).toContainText('applied');
   await page.reload();
   await page
-    .getByRole('button', { name: 'Care planning', exact: true })
+    .getByRole('button', { name: 'Care Organizer', exact: true })
     .first()
     .click();
   await page

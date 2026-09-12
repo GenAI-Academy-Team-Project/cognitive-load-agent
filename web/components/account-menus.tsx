@@ -40,7 +40,7 @@ export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut,
     <DropdownMenu>
       <DropdownMenuTrigger aria-label={`Profile settings for ${user.displayName}`} className="flex min-w-0 items-center gap-2 rounded-lg p-1.5 text-left outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring">
         <span className="hidden text-right sm:block"><span className="block max-w-32 truncate text-xs font-medium">{user.displayName}</span><span className="block text-[10px] capitalize text-muted-foreground">{user.isGuest || user.role === 'viewer' ? 'Guest' : user.role}</span></span>
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d9eadf] text-sm font-semibold text-[#315944]">{user.displayName.slice(0, 2).toUpperCase()}</span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--care-success)] text-sm font-semibold text-[var(--care-success-ink)]">{user.displayName.slice(0, 2).toUpperCase()}</span>
         <ChevronDown className="size-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">

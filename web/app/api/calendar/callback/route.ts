@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   returnUrl.searchParams.set('view', 'Calendar');
   try {
     const db = env.DB; await ensureDatabase(db);
-    const auth = await requireMembership(db, request);
+    const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL);
     if ('error' in auth) throw new AppError('oauth_session', 401, 'Sign in and connect Google Calendar again.');
     const url = new URL(request.url);
     const rawState = url.searchParams.get('state') || '';
@@ -36,5 +36,5 @@ export async function GET(request: Request) {
     await recordError(env.DB, { requestId: crypto.randomUUID(), route: '/api/calendar/callback', action: 'connect', errorCode: error instanceof AppError ? error.code : 'unhandled' });
     returnUrl.searchParams.set('calendarNotice', error instanceof AppError ? error.message : 'Google connection failed. Please try again.');
   }
-  return new Response(null, { status: 303, headers: { Location: returnUrl.toString(), 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+  return new Response(null, { status: 303, headers: { Location: returnUrl.pathname + returnUrl.search, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }

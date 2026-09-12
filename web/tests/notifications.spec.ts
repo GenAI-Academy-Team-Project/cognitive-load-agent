@@ -33,7 +33,7 @@ test('notification tool previews exact content, requires approval, and posts to 
   expect(marked.status()).toBe(200);
   expect((await marked.json()).notifications.find((n: { id: string }) => n.id === notification.id).read_at).toBeTruthy();
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Notifications', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Notifications, \d+ unread$/ }).first().click();
   await expect(page.getByRole('heading', { name: 'Your delivery preferences' })).toBeVisible();
   await expect(page.getByText('in_app · posted', { exact: false })).toBeVisible();
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
@@ -66,7 +66,7 @@ test('read receipts and targeted inbox messages stay separate for each caregiver
   const invitation = new URLSearchParams(new URL((await invite.json()).invitationUrl, baseURL).hash.slice(1)).get('invitation');
   const context = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   try {
-    const signup = await context.request.post('/api/auth/sign-up', { headers, data: { invitation, email: 'notification-viewer@example.test', displayName: 'Notification Viewer', password: 'A long notification test password', confirmPassword: 'A long notification test password' } });
+    const signup = await context.request.post('/api/auth/sign-up', { headers, data: { invitation, email: 'notification-viewer@example.test', displayName: 'Notification Viewer', password: 'A long notification test password 2026!', confirmPassword: 'A long notification test password 2026!' } });
     expect(signup.status()).toBe(201);
     const shared = initial.notifications.find((item: { title: string }) => item.title !== 'Notification tool test');
     expect(shared).toBeTruthy();

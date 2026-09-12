@@ -43,7 +43,7 @@ type Action = (
 const field = 'grid gap-2 text-sm font-medium';
 const selectStyle =
   'min-h-10 min-w-0 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring';
-const panel = 'rounded-2xl border bg-card p-5 md:p-6';
+const panel = 'care-organizer-panel min-w-0 rounded-2xl border p-5 md:p-6';
 const when = (iso: string, zone: string) =>
   new Intl.DateTimeFormat('en-CA', {
     dateStyle: 'medium',
@@ -232,8 +232,8 @@ export function CarePlanning(props: Props) {
     }
   }
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="care-organizer space-y-6" data-organizer-tone={tab === "break" ? "peach" : tab === "dump" ? "plum" : tab === "attention" ? "amber" : "sky"}>
+      <div className="care-page-heading">
         <p className="text-sm font-medium text-primary">
           A little room to breathe
         </p>
@@ -245,7 +245,7 @@ export function CarePlanning(props: Props) {
           Every change stays reviewable.
         </p>
       </div>
-      <fieldset className="flex flex-wrap gap-2" aria-label="Planning tools">
+      <fieldset className="care-organizer-tools flex flex-wrap gap-2 rounded-2xl border p-3" aria-label="Planning tools">
         {tabs.map(({ id, title, icon: Icon }) => (
           <Button
             key={id}
@@ -278,7 +278,7 @@ export function CarePlanning(props: Props) {
           {tab === 'attention' && <AttentionDigest state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
           {tab === 'break' && (
             <section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
-              <div className={`${panel} border-primary/30 bg-secondary/40`}>
+              <div className={`${panel} `}>
                 <Coffee className="size-8 text-primary" />
                 <h2 className="mt-5 font-heading text-2xl font-semibold">
                   When do you need a break?
@@ -1304,7 +1304,7 @@ export function SinceAway(props: Props) {
   const { state, act, busy, error, message } = usePlanning(props);
   if (!state) return null;
   return (
-    <section className={`${panel} mb-6 border-primary/30`}>
+    <section data-care-tone="sky" className={`${panel} mb-6 border-primary/30`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-primary">
@@ -1370,7 +1370,7 @@ export function MemoryConflicts(props: Props) {
   if (!state) return null;
   const zone = props.dashboard.selectedRecipient.timezone;
   return (
-    <section className={`${panel} mb-6`}>
+    <section data-care-tone="plum" className={`${panel} mb-6`}>
       <h2 className="font-heading text-xl font-semibold">
         Keep care facts in agreement
       </h2>

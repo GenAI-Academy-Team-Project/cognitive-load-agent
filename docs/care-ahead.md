@@ -1,6 +1,6 @@
 # Care ahead
 
-Open **Care planning → Your week ahead**. This release adds five connected planning features to the existing review and caregiver-acceptance flow.
+Open **Care Organizer → Your week ahead**. This release adds five connected planning features to the existing review and caregiver-acceptance flow.
 
 ## Weekly forecast and preferences
 
@@ -50,3 +50,7 @@ npx playwright test tests/care-ahead.spec.ts
 ```
 
 Service tests cover approval/acceptance, duplicate prevention, stale preferences and routines, overnight load, DST, recipient/member isolation, and omitted past preparation dates. Browser tests cover saved preferences, recurring-task approval, visit notes, mobile layout, accessibility, access checks, and consent withdrawal.
+
+## Organizer integration checks
+
+The forecast includes routines awaiting approval on their next date and links overdue routines to date review. Unapproved routine time is not counted as assigned workload. Visit suggestions check 15-minute starts and exclude tasks with missing required verified facts. Newly generated preparation tasks retain their appointment dependency for visit briefs and scheduling simulations. Existing preparation tasks are not automatically relinked.

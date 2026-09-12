@@ -4,6 +4,7 @@ import { calendarSchema } from './calendar-schema';
 import { planningSchema } from './planning-schema';
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS auth_password_resets (account_id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, expires_at TEXT NOT NULL)`,
   ...notificationSchema,
   ...calendarSchema,
   ...recipientLockSchema,

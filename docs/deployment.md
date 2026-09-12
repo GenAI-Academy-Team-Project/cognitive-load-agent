@@ -3,7 +3,7 @@
 ## Overview
 
 Carestead runs on two environments during development and testing:
-- **Local Development**: Direct Vite dev server on HTTPS (carestead.com:5173)
+- **Local Development**: Direct Vite dev server on HTTPS (carestead.com:8083)
 - **Docker Preview**: Wrangler Workers emulation with dual ports (HTTP:8080, HTTPS:8083)
 
 Both environments use the same hostname (`carestead.com`) and configuration format for consistency.
@@ -12,7 +12,7 @@ Both environments use the same hostname (`carestead.com`) and configuration form
 ```bash
 make host-config  # One-time: configure /etc/hosts
 make install      # One-time: install dependencies
-make dev          # Local: https://carestead.com:5173
+make dev          # Local: https://carestead.com:8083
 # OR
 make up           # Docker: http://carestead.com:8080 or https://carestead.com:8083
 ```
@@ -47,8 +47,8 @@ ls web/.certs/                  # Should list both .pem files
 Local development runs the **Vite dev server** directly on your machine (not in Docker). This is for rapid development with hot module reloading.
 
 - **When to use**: During active development (fastest feedback loop)
-- **Port**: 5173 (Vite's default dev server port, separate from Docker)
-- **Database**: In-memory D1 (no persistence between restarts)
+- **Port**: 8083 for HTTPS; 8080 for HTTP
+- **Database**: Local persisted D1 in `web/.wrangler` (tests use isolated databases)
 - **Performance**: Fast HMR and instant page reloads
 
 ### Start Development Server
@@ -58,14 +58,14 @@ make install     # First time: install locked dependencies
 make dev         # Start Vite dev server
 ```
 
-**Access**: https://carestead.com:5173
+**Access**: https://carestead.com:8083
 
-**Note**: Port 5173 is Vite's default and is only used for local dev. Docker preview uses ports 8080 (HTTP) and 8083 (HTTPS).
+**Note**: The local launcher uses the same ports for development and Docker: 8083 for HTTPS, and 8080 for HTTP. With certificates installed, HTTP redirects to HTTPS.
 
 ### Features
 - Hot module replacement (HMR) - see changes instantly
 - HTTPS with local certificates
-- In-memory D1 database (no persistence)
+- Local persisted D1 database
 - Real-time code updates
 - Faster feedback than Docker for active development
 
@@ -115,8 +115,8 @@ The `make up` command will:
 ### Container Details
 - **Image**: carestead:local
 - **Ports** (fixed, non-negotiable):
-  - 8080 → HTTP traffic (no fallback)
-  - 8083 → HTTPS traffic (no fallback)
+  - 8080 → HTTP-to-HTTPS redirect, or direct HTTP without certificates
+  - 8083 → HTTPS when certificates are present
 - **Binding**: 127.0.0.1 (localhost)
 - **Database**: Persistent SQLite volume (`carestead-data`)
 - **Config**: Reads `web/.dev.vars` from host
@@ -154,10 +154,10 @@ All environments expose a health check endpoint:
 
 ```bash
 # Local development (HTTPS only)
-curl https://carestead.com:5173/api/health
+curl https://carestead.com:8083/api/health
 
 # Docker preview (HTTP)
-curl http://carestead.com:8080/api/health
+curl -L http://carestead.com:8080/api/health
 
 # Docker preview (HTTPS)
 curl https://carestead.com:8083/api/health
@@ -165,7 +165,7 @@ curl https://carestead.com:8083/api/health
 
 Expected response: `200 OK`
 
-**Note**: The health check container probe runs on HTTP port 8080 for compatibility.
+**Note**: The container probe follows the HTTP redirect to the HTTPS health endpoint when TLS is enabled. Its HTTPS trust bypass is confined to the loopback health probe.
 
 ---
 
@@ -179,7 +179,7 @@ The `web/.dev.vars` file controls both development and Docker environments:
 # Calendar integration
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_secret
-GOOGLE_REDIRECT_URI=https://carestead.com:8080/api/calendar/callback
+GOOGLE_REDIRECT_URI=https://carestead.com:8083/api/calendar/callback
 GOOGLE_TOKEN_KEY=random_32_hex_chars
 
 # Browser notifications
@@ -224,15 +224,58 @@ make test-config            # Deployment config validation
 
 **Error**: "UNSAFE_LEGACY_RENEGOTIATION_DISABLED"
 
-Solution: Certificates need regeneration.
-```bash
-# Remove old certificates
-rm web/.certs/*.pem
+The launcher loads existing certificates; it does not generate them. Install
+[mkcert](https://github.com/FiloSottile/mkcert) and create a trusted local pair. On
+macOS, from the repository root:
 
-# Run dev server to auto-generate
-make dev
-# Then stop (Ctrl+C) and try again
+```bash
+brew install mkcert
+mkcert -install
+mkdir -p web/.certs
+mkcert -cert-file web/.certs/carestead.pem -key-file web/.certs/carestead-key.pem carestead.com localhost 127.0.0.1 ::1
 ```
+
+Restart after replacing certificates. Docker mounts them read-only; keys stay out
+of the image. With both files present, development and Docker use HTTPS on 8083,
+and HTTP on 8080 redirects with status 307 while preserving the method and path.
+The redirect is not cached, so changing protocols does not leave a permanent
+browser redirect behind. Without the pair, the main server uses HTTP on 8080.
+To explicitly use HTTP while retaining the files, run `CARESTEAD_HTTPS=0 make dev`
+or `CARESTEAD_HTTPS=0 make up`.
+
+### Origin configuration and 403 errors
+
+Set `AUTH_PUBLIC_URL` in `web/.dev.vars` to the exact main browser origin:
+`https://carestead.com:8083` for HTTPS, or `http://carestead.com:8080` in HTTP mode.
+Restart after changing bindings. For cloud deployment, put the public HTTPS origin
+in `web/.secrets.cloudflare`; `make cloud-secrets-apply` uploads it. The deployment
+workflow also accepts `AUTH_PUBLIC_URL` from GitHub environment secrets.
+
+Authentication and all membership-protected API mutations validate Origin against
+the request URL or `AUTH_PUBLIC_URL`. This supports TLS termination in front of
+the Worker without trusting arbitrary forwarding headers. Missing, opaque,
+cross-site, and mismatched-port origins remain rejected. A 403 saying **Open
+Carestead in this browser and try again.** indicates an origin mismatch; other
+403 messages may indicate missing recipient access or insufficient permissions.
+
+Open the main URL and sign in before making API requests. Browser POSTs should go
+directly to that origin; following an HTTP-to-HTTPS redirect can lose Origin or
+session information. Match `GOOGLE_REDIRECT_URI` to the same origin followed by
+`/api/calendar/callback`.
+
+Run the focused regression suites from `web`, using unused test ports:
+
+```bash
+CARESTEAD_TEST_PORT=43429 npx playwright test --config playwright.navigation-api.config.ts
+CARESTEAD_TEST_HTTPS=1 CARESTEAD_TEST_PORT=43439 npx playwright test --config playwright.navigation-api.config.ts
+npx playwright test --config playwright.unit.config.ts session-origin.spec.ts
+```
+
+These tests use isolated databases and generated non-secret `.dev.vars.review-*`
+files, not the real integration bindings. HTTPS tests require the certificate pair
+and bypass local trust only in the test client. They verify navigation, all API
+route families, representative writes, and origin rejection. They do not send
+provider messages or complete a real Google OAuth flow.
 
 ### Port Already in Use
 
@@ -285,7 +328,7 @@ docker compose -f compose.local.yaml logs web | tail -20
 
 ### Local Development
 - **HTTP**: Not recommended (Vite dev uses HTTPS)
-- **HTTPS**: https://carestead.com:5173
+- **HTTPS**: https://carestead.com:8083
 
 ### Docker Preview
 - **HTTP**: http://carestead.com:8080
@@ -299,7 +342,7 @@ docker compose -f compose.local.yaml logs web | tail -20
 
 | Environment | Hostname | HTTP Port | HTTPS Port | Access URLs |
 |---|---|---|---|---|
-| Local Dev | carestead.com | N/A | 5173 | https://carestead.com:5173 |
+| Local Dev | carestead.com | 8080 → 8083 | 8083 | https://carestead.com:8083 |
 | Docker | carestead.com | 8080 | 8083 | http://carestead.com:8080 or https://carestead.com:8083 |
 | Production | carestead.com | 80 → 443 | 443 | https://carestead.com |
 
@@ -315,7 +358,7 @@ docker compose -f compose.local.yaml logs web | tail -20
 
 After local setup works:
 1. Run tests: `make test`
-2. Verify health: `curl https://carestead.com:8080/api/health`
+2. Verify health: `curl https://carestead.com:8083/api/health`
 3. Check logs: `make logs`
 4. Deploy to production: See `docs/deployment.md`
 

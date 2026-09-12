@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const requestId = crypto.randomUUID();
   try {
     const db = env.DB; await ensureDatabase(db);
-    const auth = await requireMembership(db, request); if ('error' in auth) return auth.error;
+    const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error;
     const recipientId = new URL(request.url).searchParams.get('recipientId') || '';
     const context = await calendarContext(db, auth.member, recipientId);
     const connection = await connectionFor(context);
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID(); let action = ''; let recipientId = '';
   try {
     const db = env.DB; await ensureDatabase(db);
-    const auth = await requireMembership(db, request); if ('error' in auth) return auth.error;
+    const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error;
     const body = await request.json() as Record<string, unknown>;
     action = field(body, 'action', 40); recipientId = field(body, 'recipientId', 100);
     const context = await calendarContext(db, auth.member, recipientId);
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     if (action !== 'reject') requireGoogleConfig(await config());
     if (action === 'connect') {
       const c = requireGoogleConfig(await config());
-      if (new URL(c.GOOGLE_REDIRECT_URI).origin !== new URL(request.url).origin) throw new AppError('oauth_origin', 503, 'Google Calendar must be connected from the configured app address.');
+      if (new URL(c.GOOGLE_REDIRECT_URI).origin !== request.headers.get('origin')) throw new AppError('oauth_origin', 503, 'Google Calendar must be connected from the configured app address.');
       const state = randomToken(); const verifier = randomToken();
       await db.batch([
         db.prepare('DELETE FROM google_oauth_states WHERE expires_at<? OR member_id=?').bind(new Date().toISOString(), auth.member.memberId),

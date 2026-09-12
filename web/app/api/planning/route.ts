@@ -18,7 +18,7 @@ async function handle(request: Request) {
     actorUserId = '';
   try {
     await ensureDatabase(env.DB);
-    const auth = await requireMembership(env.DB, request);
+    const auth = await requireMembership(env.DB, request, env.AUTH_PUBLIC_URL);
     if ('error' in auth) return auth.error;
     actorUserId = auth.member.id;
     let body: Record<string, unknown> = {};

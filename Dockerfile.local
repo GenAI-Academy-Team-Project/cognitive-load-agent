@@ -19,6 +19,6 @@ RUN mkdir -p /app/.wrangler/state && chown -R node:node /app/.wrangler
 USER node
 EXPOSE 8080 8083
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://127.0.0.1:8080/api/health',r=>{if(r.statusCode===308)require('https').get('https://127.0.0.1:8083/api/health',{rejectUnauthorized:false},s=>process.exit(s.statusCode===200?0:1)).on('error',()=>process.exit(1));else process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
+  CMD node -e "require('http').get('http://127.0.0.1:8080/api/health',r=>{if([307,308].includes(r.statusCode))require('https').get('https://127.0.0.1:8083/api/health',{rejectUnauthorized:false},s=>process.exit(s.statusCode===200?0:1)).on('error',()=>process.exit(1));else process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 ENV CARESTEAD_CONTAINER=1
 CMD ["npm", "run", "start"]

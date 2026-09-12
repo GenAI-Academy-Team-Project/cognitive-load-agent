@@ -7,7 +7,7 @@ const limits: Record<string, number> = {
   emergencyPlan: 1500, notes: 1000, title: 200, name: 100, displayName: 100,
   preferredName: 100, source: 200, organization: 200, relationship: 120,
   email: 254, phone: 40, timezone: 80, purpose: 1000,
-  message: 1200,
+  message: 1200, category: 80,
 };
 
 export function validatePayload(body: Record<string, unknown>) {

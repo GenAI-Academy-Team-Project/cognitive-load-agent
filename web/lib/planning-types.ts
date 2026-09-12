@@ -86,6 +86,7 @@ export type Simulation = {
   alternatives: { label: string; dueAt: string }[];
 };
 export type ProposalPayload = {
+  preparationFor?: string;
   rootTaskId?: string;
   preferenceEvidence?: CarePreference;
   generated?: GeneratedBatch;
