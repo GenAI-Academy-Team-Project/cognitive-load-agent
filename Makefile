@@ -7,7 +7,7 @@ help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 install: ## Install locked dependencies
 	cd web && npm ci
-dev: ## Start the local development server
+dev: ## Start the local development server on https://carestead.com:5173
 	cd web && npm run dev
 build: ## Build the local Workers bundle
 	cd web && npm run build
@@ -18,7 +18,7 @@ test: ## Run Playwright tests (install Chromium first)
 test-notifications: ## Test notification tool adapters without sending real messages
 	cd web && npx playwright test --config playwright.notifications.config.ts
 check: lint build ## Lint and build
-up: local-init ## Build and start Docker preview on localhost:3000
+up: local-init ## Build and start Docker preview on https://carestead.com:8080
 	docker compose -f compose.local.yaml up --build --force-recreate -d --wait
 local-init: ## Create local runtime settings without overwriting an existing file
 	cd web && node scripts/local-init.mjs
