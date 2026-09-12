@@ -42,6 +42,15 @@ ls web/.certs/                  # Should list both .pem files
 
 ## Local Development
 
+### What is Local Development?
+
+Local development runs the **Vite dev server** directly on your machine (not in Docker). This is for rapid development with hot module reloading.
+
+- **When to use**: During active development (fastest feedback loop)
+- **Port**: 5173 (Vite's default dev server port, separate from Docker)
+- **Database**: In-memory D1 (no persistence between restarts)
+- **Performance**: Fast HMR and instant page reloads
+
 ### Start Development Server
 
 ```bash
@@ -51,11 +60,14 @@ make dev         # Start Vite dev server
 
 **Access**: https://carestead.com:5173
 
+**Note**: Port 5173 is Vite's default and is only used for local dev. Docker preview uses ports 8080 (HTTP) and 8083 (HTTPS).
+
 ### Features
-- Hot module replacement (HMR)
+- Hot module replacement (HMR) - see changes instantly
 - HTTPS with local certificates
-- In-memory D1 database
+- In-memory D1 database (no persistence)
 - Real-time code updates
+- Faster feedback than Docker for active development
 
 ### Environment
 
@@ -74,13 +86,27 @@ Edit `web/.dev.vars` to configure integrations (optional):
 
 ## Docker Preview
 
+### Port Requirements
+
+⚠️ **Important**: The Docker container requires these specific ports to be available:
+- **HTTP**: Port 8080 (required, no fallback)
+- **HTTPS**: Port 8083 (required, no fallback)
+
+If these ports are in use, startup will **fail with an error message** showing which process is using them and instructions to free the port. You must resolve the port conflict before restarting.
+
 ### Start Docker Container
 
 ```bash
 make host-config # Configure /etc/hosts with carestead.com (one-time, may prompt for password)
 make local-init  # Create .dev.vars (one-time, non-destructive)
-make up          # Build and start Docker container (handles host-config automatically)
+make up          # Build and start Docker container
 ```
+
+The `make up` command will:
+1. Check /etc/hosts configuration
+2. Verify port availability (8080, 8083)
+3. Create .dev.vars if needed
+4. Build and start the container
 
 **Access**:
 - HTTP: http://carestead.com:8080
@@ -88,9 +114,9 @@ make up          # Build and start Docker container (handles host-config automat
 
 ### Container Details
 - **Image**: carestead:local
-- **Ports**: 
-  - 8080 → HTTP traffic
-  - 8083 → HTTPS traffic
+- **Ports** (fixed, non-negotiable):
+  - 8080 → HTTP traffic (no fallback)
+  - 8083 → HTTPS traffic (no fallback)
 - **Binding**: 127.0.0.1 (localhost)
 - **Database**: Persistent SQLite volume (`carestead-data`)
 - **Config**: Reads `web/.dev.vars` from host
@@ -210,30 +236,26 @@ make dev
 
 ### Port Already in Use
 
-**Docker HTTP (8080)**: 
+The startup process will **fail** if required ports (8080 for HTTP, 8083 for HTTPS) are unavailable. You must free these ports before restarting.
+
+**To resolve**:
+
 ```bash
-# Find and stop conflicting process
-lsof -i :8080
+# 1. Identify process using the port
+lsof -i :8080              # Check HTTP port
+lsof -i :8083              # Check HTTPS port
+
+# 2. Kill the conflicting process
 kill -9 <PID>
 
-# Or use different port
-HTTP_PORT=9000 make up
+# 3. Or stop the existing Docker container
+make down                   # Gracefully stops container and frees ports
+
+# 4. Restart on defined ports
+make up                     # Must use defined ports (8080, 8083)
 ```
 
-**Docker HTTPS (8083)**:
-```bash
-# Find and stop conflicting process
-lsof -i :8083
-kill -9 <PID>
-
-# Or use different port
-HTTPS_PORT=9083 make up
-```
-
-**Both ports**:
-```bash
-HTTP_PORT=9000 HTTPS_PORT=9083 make up
-```
+**Important**: The service **will not** start on alternative ports. The defined ports (8080, 8083) must be available for startup to proceed. This ensures consistency across all environments.
 
 **Dev Server**: Port 5173 in use
 ```bash

@@ -18,10 +18,16 @@ test: ## Run Playwright tests (install Chromium first)
 test-notifications: ## Test notification tool adapters without sending real messages
 	cd web && npx playwright test --config playwright.notifications.config.ts
 check: lint build ## Lint and build
-up: local-init host-config ## Build and start Docker preview (HTTP :8080, HTTPS :8083)
+up: local-init host-config check-ports ## Build and start Docker preview (HTTP :8080, HTTPS :8083)
 	docker compose -f compose.local.yaml up --build --force-recreate -d --wait
+	@echo "✓ Docker container started successfully"
+	@echo "  HTTP:  http://carestead.com:${HTTP_PORT:-8080}"
+	@echo "  HTTPS: https://carestead.com:${HTTPS_PORT:-8083}"
 host-config: ## Ensure /etc/hosts has carestead.com entry
-	@grep -q "127.0.0.1 carestead.com" /etc/hosts || (echo "Adding carestead.com to /etc/hosts (may prompt for password)"; echo "127.0.0.1 carestead.com" | sudo tee -a /etc/hosts > /dev/null)
+	@grep -q "127.0.0.1 carestead.com" /etc/hosts || (echo "Adding carestead.com to /etc/hosts (may prompt for password)"; echo "127.0.0.1 carestead.com" | sudo tee -a /etc/hosts > /dev/null && echo "✓ Added carestead.com to /etc/hosts")
+	@echo "✓ /etc/hosts configured"
+check-ports: ## Verify required Docker ports are available (HTTP 8080, HTTPS 8083)
+	@bash scripts/check-ports.sh
 local-init: ## Create local runtime settings without overwriting an existing file
 	cd web && node scripts/local-init.mjs
 down: ## Stop Docker preview, keeping the database volume
