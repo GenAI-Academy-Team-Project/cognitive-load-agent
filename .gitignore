@@ -8,11 +8,29 @@ Thumbs.db
 .env*
 .dev.vars*
 .secrets*
+.certs/
 !.env.cloudflare.example
 !.dev.vars.example
 !.secrets.cloudflare.example
 *.pem
 *.key
+*.crt
+*.cert
+*.cer
+
+# Configuration files with potential credentials
+local.*.json
+*.local.json
+config.local.*
+local-config.*
+
+# Sensitive API/credential files
+credentials.json
+secrets.json
+api-keys.json
+tokens.json
+*.credentials
+*.credentials.json
 
 # Dependencies, generated deployment state, and build/test output
 node_modules/
