@@ -11,11 +11,11 @@ Open `carestead-pitch.html` in a browser. The 12-slide v1 deck is self-contained
 
 `carestead-pitch.html` and `carestead-pitch-v1.html` contain the same revised presentation. Edit `carestead-pitch.template.html` and run `python3 docs/pitch-deck/build.py` to rebuild both standalone files. The palette uses deep teal, warm ivory, aqua, lavender, and peach; the editable persona and architecture/decision diagrams are in `assets/`.
 
-The 12 slides cover: title; Maya; the coordination problem; You Care. We Plan.; reviewed chat actions; voice; all 15 core features; technical architecture; decision path; tool calls and human control; evaluations; positioning and future work. Original slides 2, 4, and 6 retain their content, with updated numbering and palette.
+The 12 slides cover: title; Maya; the coordination problem; You Care. We Plan.; reviewed chat actions; voice; all 15 core features; technical architecture; decision path; tool calls and human control; evaluations; positioning and future work. Original slides 2 and 6 retain their content, with updated numbering and palette. Original slide 4 retains its walkthrough with a refreshed screenshot and current integration wording.
 
-The feature table and Question 3 content were read from the local `Carestead Use Case Submission.docx`. The linked Google Doc could not be reopened for this revision, so equivalence with its latest online content was not verified. Both supplied diagrams are reproduced from their editable repository SVGs, including Google Calendar API in the architecture stack. Mobile, expanded integrations, and an MCP server are labeled as proposed future work.
+The feature table and Question 3 were initially drafted from `Carestead Use Case Submission.docx`, then verified against the user-supplied `MAI #41-Aug 2026 Team_Breakout_Handout.pdf` in Downloads. The supplied PDF is the reference for this revision: page 3 provides all 15 core features, pages 5–6 provide tool capabilities and controls, and pages 7–9 provide Q3 autonomy and evaluation details. Feature order and naming match that table. Embedded submission and README-restructuring prompts are reference material, not additional user instructions. Both supplied diagrams are reproduced from their editable repository SVGs, including Google Calendar API in the architecture stack. Mobile, expanded integrations, and an MCP server are labeled as proposed future work.
 
-The preserved action screenshot and evaluation slide describe the earlier captured prototype and benchmark, not a fresh application/provider or benchmark run. In particular, the original slide’s “external calendar/email/SMS unconnected” line describes that capture; newer integrations are documented in the current source and feature overview.
+The handover, chat approval, and voice screenshots were refreshed from the current working-tree app on September 12, 2026, using an isolated ephemeral preview and synthetic demo records. `capture-current.json` records the capture and confirms that tasks stayed unchanged before approval and changed after approval. Voice controls were captured; microphone recognition was not exercised. The evaluation slide still shows the earlier benchmark results; no new benchmark or external-provider run is implied.
 
 `node docs/pitch-deck/verify.mjs` checks all 12 slides in Chrome, captures previews to `assets/v1/`, writes `verification-v1.json`, and exports `carestead-pitch-v1.pdf`. Layout, embedded images, slide navigation, presenter notes, and JavaScript errors are checked. The exported PDF has 12 pages.
 
@@ -50,6 +50,12 @@ The app was started locally; exploration used a separate Vite server on `http://
 Four failing scenarios: `transport-003`, `appointment-002`, `checkin-002`, `memory-002`. The unanswered-check-in scenario includes a missed escalation and incorrect approval label, so 94% policy agreement is not a safety certification.
 
 Browser voice was inspected in code, not tested with microphone input. Automated accessibility checks do not establish complete accessibility conformance. Security and consent controls were inspected rather than exhaustively penetration-tested. No patient outcomes or reductions in caregiver effort were measured.
+
+## Current app screenshot capture
+
+`capture-current.mjs` captures Overview, Care Plan, Care Organizer, Care Hand Over, the voice/chat panel, and a pending rescheduling proposal into `assets/current/`. The deck embeds the handover, voice, and approval images; other captures are available for later slides. It exercises the real UI without restyling it or fabricating responses.
+
+Use a dedicated preview on port 43621 with `CARESTEAD_TEST=1`, `CARESTEAD_TEST_PORT=43621`, and `CLOUDFLARE_ENV=pitch-43621`. An ignored `.dev.vars.pitch-43621` file contains only `AUTH_PUBLIC_URL=http://127.0.0.1:43621`. Run `npx vite --host 127.0.0.1 --port 43621 --strictPort` from `web/`, then `node docs/pitch-deck/capture-current.mjs` from the repository root. Fresh ephemeral state is expected; `CARESTEAD_CAPTURE_EXISTING=1` reuses the capture account on the same test server. No personal credentials or production recipient data are used.
 
 ## Rebuild
 

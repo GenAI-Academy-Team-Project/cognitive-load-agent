@@ -2,7 +2,7 @@ export type ListRecord = Record<string, unknown>;
 export function asListRecord(value: unknown): ListRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as ListRecord : {};
 }
-const searchableFields = ['title', 'detail', 'name', 'display_name', 'email', 'owner', 'category', 'categories', 'kind', 'type', 'status', 'channel', 'target_name', 'value', 'source', 'contributor', 'trigger', 'evidence', 'decision', 'outcome', 'tool', 'action', 'subject', 'attribute', 'relationship', 'organization', 'notes', 'label', 'reason', 'error', 'error_code', 'capabilities'];
+const searchableFields = ['title', 'detail', 'name', 'display_name', 'email', 'owner', 'category', 'categories', 'kind', 'type', 'status', 'channel', 'target_name', 'value', 'source', 'contributor', 'trigger', 'evidence', 'decision', 'outcome', 'tool', 'action', 'subject', 'attribute', 'relationship', 'organization', 'notes', 'label', 'reason', 'error', 'error_code', 'capabilities', 'delivery_state', 'content', 'start_at', 'end_at'];
 export function listSearchText(value: unknown): string {
   const record = asListRecord(value);
   const text = searchableFields.map((key) => {
@@ -23,7 +23,7 @@ export function listNeedsAttention(value: unknown, now: number): boolean {
   return Number.isFinite(due) && due < now;
 }
 export const listFacetFields = [
-  ['status', 'Status'], ['category', 'Category'], ['owner', 'Owner'], ['channel', 'Channel'], ['severity', 'Severity'], ['priority', 'Priority'], ['kind', 'Type'], ['role', 'Role'], ['source', 'Source'], ['contributor', 'Contributor'], ['relationship', 'Relationship'],
+  ['status', 'Status'], ['delivery_state', 'Delivery status'], ['category', 'Category'], ['owner', 'Owner'], ['channel', 'Channel'], ['severity', 'Severity'], ['priority', 'Priority'], ['kind', 'Type'], ['role', 'Role'], ['source', 'Source'], ['contributor', 'Contributor'], ['relationship', 'Relationship'],
 ] as const;
 export const listFilterLabel = (value: string) => value.replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
 

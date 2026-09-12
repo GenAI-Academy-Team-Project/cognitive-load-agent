@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureDatabase } from '../db/bootstrap';
-import { approveCalendarAction, calendarContext, proposeCalendarAction, type CalendarContext } from '../lib/calendar-service';
+import { approveCalendarAction, editCalendarAction, calendarContext, proposeCalendarAction, type CalendarContext } from '../lib/calendar-service';
 import { localToInstant } from '../lib/calendar-time';
-import { exchangeCode, openToken, sealToken, type GoogleEvent } from '../lib/google-calendar';
+import { calendarRequest, exchangeCode, openToken, sealToken, type GoogleEvent } from '../lib/google-calendar';
 
 // Execute the production SQL against SQLite, with D1's transactional batch semantics.
 function database(sqlite: DatabaseSync): D1Database {
@@ -164,4 +164,59 @@ test('revoked credentials require reconnection and never write an event', async 
   await expect(approveCalendarAction(context, config, id)).rejects.toThrow(/revoked/);
   expect(sqlite.prepare('SELECT status FROM google_connections').get()).toMatchObject({ status: 'reconnect_required' });
   expect(writes).toHaveLength(0);
+});
+
+test('calendar reads reject redirects without forwarding credentials', async () => {
+  let requests = 0;
+  globalThis.fetch = async (_url, init) => {
+    requests++;
+    expect(init?.redirect).toBe('manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://other.example' } });
+  };
+  await expect(calendarRequest('access-secret', 'users/me/calendarList')).rejects.toThrow(/could not be loaded/);
+  expect(requests).toBe(1);
+});
+
+test('calendar read outages do not report an unconfirmed event action', async () => {
+  globalThis.fetch = async () => new Response(null, { status: 503 });
+  await expect(calendarRequest('access-secret', 'users/me/calendarList')).rejects.toThrow(/Refresh to try again/);
+  await expect(calendarRequest('access-secret', 'calendars/primary/events', { method: 'POST' })).rejects.toThrow(/did not confirm/);
+  globalThis.fetch = async () => { throw new TypeError('Network failure'); };
+  await expect(calendarRequest('access-secret', 'users/me/calendarList')).rejects.toThrow(/Refresh to try again/);
+});
+
+
+test('editing a proposal saves locally and approval sends the revised invitation once', async () => {
+  const id = await proposeCalendarAction(context, config, draft);
+  await editCalendarAction(context, config, id, { ...draft, title: 'Updated visit', attendees: 'new@example.test', location: 'New clinic' });
+  expect(writes).toHaveLength(0);
+  await approveCalendarAction(context, config, id);
+  expect(writes).toHaveLength(1);
+  expect(writes[0].body).toMatchObject({ summary: 'Updated visit', location: 'New clinic', attendees: [{ email: 'new@example.test' }] });
+});
+
+test('editing enforces permissions, validation and unresolved Google results', async () => {
+  const id = await proposeCalendarAction(context, config, draft);
+  await expect(editCalendarAction({ ...context, role: 'viewer' }, config, id, draft)).rejects.toThrow(/Only owners/);
+  await expect(editCalendarAction({ ...context, consent: false }, config, id, draft)).rejects.toThrow(/withdrawn/);
+  await expect(editCalendarAction({ ...context, recipientId: 'other' }, config, id, draft)).rejects.toThrow(/not found/);
+  await expect(editCalendarAction(context, config, id, { ...draft, attendees: 'invalid' })).rejects.toThrow(/valid guest/);
+  for (const status of ['executing', 'uncertain', 'executed', 'rejected']) {
+    sqlite.prepare('UPDATE calendar_actions SET status=? WHERE id=?').run(status, id);
+    await expect(editCalendarAction(context, config, id, draft)).rejects.toThrow(/cannot be edited/);
+  }
+  expect(writes).toHaveLength(0);
+});
+
+test('editing a reschedule preserves event details and rechecks external changes', async () => {
+  const create = await proposeCalendarAction(context, config, draft);
+  await approveCalendarAction(context, config, create);
+  const id = await proposeCalendarAction(context, config, { ...draft, kind: 'reschedule', appointmentId: create });
+  const edited = { ...draft, title: 'Ignored title', attendees: 'other@example.test', startLocal: '2030-01-16T10:00', endLocal: '2030-01-16T11:00' };
+  await editCalendarAction(context, config, id, edited);
+  const row = sqlite.prepare('SELECT payload_json FROM calendar_actions WHERE id=?').get(id) as { payload_json: string };
+  expect(JSON.parse(row.payload_json)).toMatchObject({ title: draft.title, attendees: ['maya@example.test'], start: '2030-01-16T15:00:00.000Z' });
+  expect(writes).toHaveLength(1);
+  googleEvents.get(create.replaceAll('-', ''))!.etag = 'external-edit';
+  await expect(editCalendarAction(context, config, id, edited)).rejects.toThrow(/changed in Google/);
 });

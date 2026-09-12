@@ -8,8 +8,8 @@ html = (P / "carestead-pitch.template.html").read_text()
 
 def embed(match):
     name = match.group(1)
-    if name == "voice-chat":
-        asset = P.parent / "screenshots" / "voice-chat.png"
+    if name in {"voice-chat", "handover", "chat-approval"}:
+        asset = P / "assets" / "current" / (name + ".png")
     else:
         extension = ".svg" if name == "maya-persona" or name.endswith("-v1") else ".png"
         asset = P / "assets" / (name + extension)

@@ -1,6 +1,8 @@
 'use client';
+import { PaginatedList } from './paginated-list';
 
 import { useEffect, useState } from 'react';
+import { PrivateInput } from './private-value';
 import { integrationKeys, type IntegrationId, type IntegrationStatus } from '@/lib/integration-types';
 
 const descriptions: Record<IntegrationId, { title: string; detail: string; next: string }> = {
@@ -41,8 +43,8 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
       const response = await fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, enabled, ...(config ? { config } : {}) }) });
       const result = await response.json() as Settings & { error?: string };
       if (!response.ok) throw new Error(result.error || 'Integration could not be updated.');
-      setData(result); if (config) setDrafts(current => ({ ...current, [item.id]: {} })); setNotice('Integration settings saved.'); onChanged();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Integration could not be updated.'); }
+      setData(result); if (config) setDrafts(current => ({ ...current, [item.id]: {} })); setNotice('Integration settings saved.'); onChanged(); return true;
+    } catch (e) { setError(e instanceof Error ? e.message : 'Integration could not be updated.'); return false; }
     finally { setBusy(null); }
   }
   function edit(id: IntegrationId, key: string, value: string | null) {
@@ -57,7 +59,7 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
     {!data && !error && <output className="mt-6 block text-sm">Loading integrations…</output>}
     {data && <>
       {!data.canManage && <p className="mt-4 text-sm text-muted-foreground">A care-circle owner manages these switches.</p>}
-      <div className="mt-7 divide-y overflow-hidden rounded-[22px] border bg-card">{data.integrations.map((item) => {
+      <div className="mt-7 divide-y overflow-hidden rounded-[22px] border bg-card"><PaginatedList label="Integrations" removal={{ individual: false, disabled: busy !== null || !data.canManage, canRemove: record => Boolean(record.enabled), description: 'Switch off all enabled integrations for the care circle. Saved credentials and provider data remain.', remove: async ids => { for (const id of ids) { const item = data.integrations.find(item => item.id === id); if (!item || !await save(item, false)) return false; } return true; } }} records={data.integrations.map(item => ({ ...item, title: descriptions[item.id].title, status: item.enabled ? 'enabled' : 'disabled' }))}>{data.integrations.map((item) => {
         const copy = descriptions[item.id];
         return <div key={item.id} className="p-5 sm:p-6">
           <div className="flex items-center justify-between gap-4"><div><h2 className="font-heading text-lg font-semibold">{copy.title}</h2><p className="mt-1 text-xs text-muted-foreground">{!item.configured ? 'Credentials required' : item.enabled ? 'On · credentials configured' : 'Off · credentials configured'}</p></div>
@@ -73,7 +75,7 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
           </div>
           {data.canManage && <details className="mt-4 rounded-xl border p-4">
             <summary className="cursor-pointer text-sm font-medium">Environment configuration</summary>
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved overrides take precedence over .dev.vars and deployment environment values. Leave an input blank to keep its current value. Values are encrypted on the server and fully masked here.</p>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved overrides take precedence over .dev.vars and deployment environment values. Leave an input blank to keep its current value. Saved values are encrypted on the server and stay hidden. Use the eye button to check a new value before saving.</p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">Saving overrides requires a server encryption key. <a href={`${repositoryDocs}deployment.md#encrypted-integration-overrides`} target="_blank" rel="noopener noreferrer" className="text-primary underline">Encrypted override setup (GitHub)</a></p>
             {item.id === 'ntfy' && <p className="mt-2 text-xs text-muted-foreground">NTFY_ACCESS_TOKEN is optional. Use a token belonging to the selected server.</p>}
             <form className="mt-4 space-y-4" autoComplete="off" onSubmit={event => {
@@ -87,7 +89,7 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
                 return <div key={key}>
                   <label htmlFor={`${item.id}-${key}`} className="block break-all text-xs font-medium">{key}</label>
                   <p id={`${item.id}-${key}-source`} className="mt-1 text-xs text-muted-foreground">{reset ? 'Will use environment after saving' : source === 'override' ? 'Saved override · value hidden' : source === 'environment' ? 'Environment · value hidden' : 'Not configured'}</p>
-                  <input id={`${item.id}-${key}`} type="password" autoComplete="new-password" spellCheck={false} autoCapitalize="none" aria-describedby={`${item.id}-${key}-source`} value={drafts[item.id]?.[key] ?? ''} placeholder={source === 'missing' ? 'Enter value' : '••••••••'} disabled={busy !== null || reset} maxLength={8192} onChange={event => edit(item.id, key, event.target.value)} className="mt-2 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm" />
+                  <PrivateInput label={key} id={`${item.id}-${key}`} type="password" autoComplete="new-password" spellCheck={false} autoCapitalize="none" aria-describedby={`${item.id}-${key}-source`} value={drafts[item.id]?.[key] ?? ''} placeholder={source === 'missing' ? 'Enter value' : '••••••••'} disabled={busy !== null || reset} maxLength={8192} onChange={event => edit(item.id, key, event.target.value)} className="mt-2 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm" />
                   {(source === 'override' || reset) && <button type="button" disabled={busy !== null} onClick={() => edit(item.id, key, reset ? '' : null)} className="mt-2 text-xs underline">{reset ? 'Keep saved override' : 'Use environment value'}</button>}
                 </div>;
               })}
@@ -95,7 +97,7 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
             </form>
           </details>}
         </div>;
-      })}</div>
+      })}</PaginatedList></div>
       <p className="mt-4 text-xs leading-5 text-muted-foreground">Credentials configured does not confirm provider access. Switching off pauses the service; it does not cancel requests already sent or delete provider data.</p>
     </>}
   </section>;

@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-09-12T21:06:34.744Z",
+  "source": "Current working-tree app, isolated ephemeral database",
+  "data": "Synthetic seeded records",
+  "screenshots": [
+    "handover",
+    "care-plan",
+    "care-organizer",
+    "voice-chat",
+    "chat-approval",
+    "chat-panel"
+  ],
+  "voiceControlsVisible": true,
+  "voiceInputTested": false,
+  "noTaskChangeBeforeApproval": true,
+  "taskChangedAfterApproval": true
+}

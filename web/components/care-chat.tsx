@@ -1,4 +1,5 @@
 'use client';
+import { PaginatedList } from './paginated-list';
 
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Check, Mic, MicOff, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
@@ -135,7 +136,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
             <div className="space-y-4 px-4 py-5" aria-live="polite" aria-busy={busy}>
               {!chat && !error && <div className="flex items-center gap-2 rounded-2xl border bg-card p-4 text-sm text-muted-foreground"><Sparkles className="size-4 animate-pulse text-primary" />Preparing the recipient-specific care context…</div>}
               {chat?.messages.length === 0 && <Welcome recipientName={recipientName} />}
-              {(chat?.recipientId === recipientId ? chat.messages : []).map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy} onDecide={decide} />)}
+              <PaginatedList label="Chat history" records={chat?.recipientId === recipientId ? [...chat.messages].reverse() : []} resetKey={recipientId}>{(chat?.recipientId === recipientId ? [...chat.messages].reverse() : []).map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy} onDecide={decide} />)}</PaginatedList>
               {busy && <div className="w-fit rounded-2xl rounded-bl-md border bg-card px-4 py-3 text-sm text-muted-foreground">Checking the care plan…</div>}
               {error && <div role="alert" className="rounded-xl border border-[#e5c6bd] bg-[var(--care-rose)] p-3 text-sm text-[#7e3224]">{error}</div>}
             </div>

@@ -879,7 +879,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
           </p>
         )}
         <div className="mt-4 divide-y">
-          {urgent.map((item) => (
+          <PaginatedList label="Urgent updates" records={urgent} resetKey={dashboard.selectedRecipient.id}>{urgent.map((item) => (
             <article key={item.id} className="py-3">
               <h3 className="text-sm font-semibold">{item.title}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -891,7 +891,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
                 </p>
               )}
             </article>
-          ))}
+          ))}</PaginatedList>
         </div>
       </section>
       <section data-care-tone="sky" className={panel}>
@@ -914,7 +914,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
           </Button>
         ) : (
           <div className="mt-4 divide-y">
-            {routine.length ? (
+            <PaginatedList label="Routine updates" records={routine} resetKey={dashboard.selectedRecipient.id}>{routine.length ? (
               routine.map((item) => (
                 <article key={item.id} className="py-3">
                   <h4 className="text-sm font-semibold">{item.title}</h4>
@@ -927,7 +927,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
               <p className="text-sm text-muted-foreground">
                 No routine updates are waiting.
               </p>
-            )}
+            )}</PaginatedList>
           </div>
         )}
         <Button

@@ -78,7 +78,7 @@ function parseJson<T>(value: string | null, fallback: T): T {
 async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessage[]> {
   const messages = await rows<MessageRow>(db, `SELECT m.*,a.action_type,a.summary action_summary,a.status action_status,a.requires_approval action_requires_approval,a.payload_json action_payload_json
     FROM chat_messages m LEFT JOIN chat_action_requests a ON a.id=m.action_request_id
-    WHERE m.thread_id=? ORDER BY m.created_at DESC,m.id DESC LIMIT 60`, [threadId]);
+    WHERE m.thread_id=? ORDER BY m.created_at DESC,m.id DESC`, [threadId]);
   return messages.reverse().map((message) => ({
     id: message.id,
     role: message.role,

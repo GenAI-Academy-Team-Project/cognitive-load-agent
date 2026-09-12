@@ -1,9 +1,10 @@
 'use client';
+import { PaginatedList } from './paginated-list';
 
 import { useEffect, useState } from 'react';
 import { validNtfyTopic } from '@/lib/notification-types';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
+import { PrivateInput, PrivateValue } from './private-value';
 
 type Settings = {
   ntfyEnabled: boolean; ntfyServerUrl: string | null;
@@ -59,8 +60,8 @@ export function NotificationSettings({ recipientId }: { recipientId: string }) {
     {notice && <output className="mt-3 block text-sm">{notice}</output>}
     {settings && <>
       <form className="mt-4 space-y-4" onSubmit={(event) => { event.preventDefault(); void act(() => save({ action: 'save_preferences', emailEnabled: settings.emailEnabled, smsEnabled: settings.smsEnabled, phone: settings.phone })); }}>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.emailEnabled} onChange={(event) => setSettings({ ...settings, emailEnabled: event.target.checked })} disabled={busy || (!settings.channels.includes('email') && !settings.emailEnabled)} />Email me at {settings.email}{!settings.channels.includes('email') && ' (off or missing credentials — see Integrations)'}</label>
-        <label htmlFor="notification-phone" className="grid max-w-sm gap-2 text-sm">Your SMS number<Input id="notification-phone" value={settings.phone} onChange={(event) => setSettings({ ...settings, phone: event.target.value })} type="tel" placeholder="+14165550123" maxLength={16} disabled={busy} /></label>
+        <div className="flex flex-wrap items-center gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={settings.emailEnabled} onChange={(event) => setSettings({ ...settings, emailEnabled: event.target.checked })} disabled={busy || (!settings.channels.includes('email') && !settings.emailEnabled)} />Email me at</label><PrivateValue value={settings.email} kind="email" label="email address" />{!settings.channels.includes('email') && ' (off or missing credentials — see Integrations)'}</div>
+        <div className="grid max-w-sm gap-2 text-sm"><label htmlFor="notification-phone">Your SMS number</label><PrivateInput kind="phone" label="SMS number" id="notification-phone" value={settings.phone} onChange={(event) => setSettings({ ...settings, phone: event.target.value })} type="tel" placeholder="+14165550123" maxLength={16} disabled={busy} /><p className="text-xs text-muted-foreground">Use the eye button to view or edit your saved number.</p></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.smsEnabled} onChange={(event) => setSettings({ ...settings, smsEnabled: event.target.checked })} disabled={busy || (!settings.channels.includes('sms') && !settings.smsEnabled)} />I own this number and agree to receive care updates by SMS.{!settings.channels.includes('sms') && ' (off or missing credentials — see Integrations)'}</label>
         <p className="text-xs text-muted-foreground">Messages may contain the approved care details. Disable a channel here to stop future sends. SMS carrier charges may apply.</p>
         <Button variant="outline" disabled={busy} type="submit">Save delivery preferences</Button>
@@ -68,9 +69,9 @@ export function NotificationSettings({ recipientId }: { recipientId: string }) {
       <div className="mt-5 border-t pt-4">
         <h3 className="font-medium">ntfy mobile push</h3>
         <p className="mt-1 text-sm">{settings.ntfyEnabled ? 'A topic is saved for your mobile notifications.' : 'Install the ntfy app on your phone and subscribe to your own topic.'}</p>
-        {settings.ntfyServerUrl && <p className="mt-1 text-sm">Use this server in ntfy: {settings.ntfyServerUrl}</p>}
+        {settings.ntfyServerUrl && <p className="mt-1 flex flex-wrap items-center gap-1 text-sm">Use this server in ntfy: <PrivateValue value={settings.ntfyServerUrl} label="ntfy server URL" /></p>}
         <p className="mt-1 text-xs text-muted-foreground">Use a private, access-controlled topic for care details. Anyone with access to the topic receives its messages; public topics can be read by anyone who knows their name. Notifications may appear on your lock screen.</p>
-        <label htmlFor="ntfy-topic" className="mt-3 grid max-w-sm gap-2 text-sm">Your ntfy topic<Input id="ntfy-topic" type="password" autoComplete="off" value={ntfyTopic} maxLength={64} onChange={(event) => setNtfyTopic(event.target.value)} disabled={busy || !settings.channels.includes('ntfy')} placeholder={settings.ntfyEnabled ? 'Enter a topic to replace it' : 'Topic subscribed to on your phone'} /></label>
+        <div className="mt-3 grid max-w-sm gap-2 text-sm"><label htmlFor="ntfy-topic">Your ntfy topic</label><PrivateInput label="ntfy topic" id="ntfy-topic" type="password" autoComplete="off" value={ntfyTopic} maxLength={64} onChange={(event) => setNtfyTopic(event.target.value)} disabled={busy || !settings.channels.includes('ntfy')} placeholder={settings.ntfyEnabled ? 'Enter a topic to replace it' : 'Topic subscribed to on your phone'} /></div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="outline" disabled={busy || !settings.channels.includes('ntfy') || !validNtfyTopic(ntfyTopic)} onClick={() => act(async () => { await save({ action: 'enable_ntfy', topic: ntfyTopic }); setNtfyTopic(''); })}>{settings.ntfyEnabled ? 'Replace ntfy topic' : 'Enable ntfy mobile push'}</Button>
           {settings.ntfyEnabled && <Button variant="outline" disabled={busy} onClick={() => act(() => save({ action: 'disable_ntfy' }))}>Disable ntfy mobile push</Button>}
@@ -82,7 +83,7 @@ export function NotificationSettings({ recipientId }: { recipientId: string }) {
       <p className="mt-5 text-sm">In Ask Carestead, try <strong>“Email me: Please review the care plan.”</strong> You can also use ntfy, SMS, Push, or In-app followed by an exact caregiver name and a colon.</p>
       <h3 className="mt-5 font-medium">Recent delivery attempts</h3>
       <p className="mt-1 text-xs text-muted-foreground">Accepted means the provider accepted the request, not that someone received or read it. If an attempt stays “sending” or says “unknown”, check the provider before sending again.</p>
-      <ul className="mt-3 space-y-3">{settings.deliveries.map((item) => <li className="rounded-xl border p-3 text-sm" key={item.action_id}><p>{item.title || 'Caregiver update'} → {item.target_name}</p><p className="mt-1 text-xs text-muted-foreground">{item.channel} · {item.status} · {new Date(item.created_at).toLocaleString()}{item.error_code && ` · ${item.error_code}`}</p></li>)}</ul>
+      <ul className="mt-3 space-y-3"><PaginatedList label="Delivery history" layout="list" records={settings.deliveries.map(item => ({ ...item, id: item.action_id }))} resetKey={recipientId}>{settings.deliveries.map((item) => <li className="rounded-xl border p-3 text-sm" key={item.action_id}><p>{item.title || 'Caregiver update'} → {item.target_name}</p><p className="mt-1 text-xs text-muted-foreground">{item.channel} · {item.status} · {new Date(item.created_at).toLocaleString()}{item.error_code && ` · ${item.error_code}`}</p></li>)}</PaginatedList></ul>
       {!settings.deliveries.length && <p className="mt-2 text-sm text-muted-foreground">No delivery attempts yet.</p>}
     </>}
   </section>;
