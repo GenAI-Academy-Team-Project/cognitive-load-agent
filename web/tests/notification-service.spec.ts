@@ -122,7 +122,7 @@ test('provider rejections and timeouts are recorded without claiming delivery or
 test('provider redirects fail without forwarding the notification or retrying', async () => {
   globalThis.fetch = async (url, init) => {
     if (init?.redirect !== 'manual') throw new TypeError('Unsupported or unsafe redirect mode');
-    sends.push({ url: String(url), init });
+    sends.push({ url: url instanceof Request ? url.url : url.toString(), init });
     return new Response(null, { status: 307, headers: { Location: 'https://other.example/emails' } });
   };
   const action = await proposal();
@@ -180,12 +180,12 @@ test('ntfy mobile push sends approved Unicode text once and conceals the topic',
   expect(sends).toHaveLength(0);
   const id = crypto.randomUUID();
   sqlite.prepare('INSERT INTO chat_action_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, 'thread', 'recipient-alex', 'actor', 'send_notification', p.summary, JSON.stringify(p.payload), 'pending', 'true', '2030', null, null);
-  globalThis.fetch = async (url, init) => { sends.push({ url: String(url), init }); return Response.json({ id: 'receipt', event: 'message', topic }); };
+  globalThis.fetch = async (url, init) => { sends.push({ url: url instanceof Request ? url.url : url.toString(), init }); return Response.json({ id: 'receipt', event: 'message', topic }); };
   expect(await executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).toContain('accepted');
   expect(sends[0].url).toBe('https://ntfy.sh/');
   expect(JSON.parse(sends[0].init!.body as string)).toEqual({ topic, title: request.title, message: request.detail, priority: 3 });
   expect(sends[0].init!.headers).toMatchObject({ Authorization: 'Bearer synthetic-token' });
-  expect(sends[0].init!.redirect).toBe('error');
+  expect(sends[0].init!.redirect).toBe('manual');
   expect(sqlite.prepare('SELECT destination FROM notification_deliveries').get()?.destination).toBe('Registered ntfy topic');
   await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).rejects.toThrow('already attempted');
   expect(sends).toHaveLength(1);
