@@ -1,4 +1,5 @@
 import { sites } from '@openai/sites-vite-plugin';
+import { existsSync, readFileSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig, type Plugin } from 'vite';
@@ -50,7 +51,13 @@ const localBindingConfig = {
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
+  const certPath = new URL('./.certs/carestead.pem', import.meta.url);
+  const keyPath = new URL('./.certs/carestead-key.pem', import.meta.url);
+  // Use local certificates when available; CI and local tests still use HTTP.
+  const localHttps = command === 'serve' && !cloudDeployment
+    && process.env.CARESTEAD_TEST !== '1'
+    && existsSync(certPath) && existsSync(keyPath);
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -62,7 +69,14 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: { watch: { ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}), ignored: ['**/.playwright-runs/**', '**/test-results/**', '**/playwright-report/**'] } },
+    server: {
+      ...(localHttps ? {
+        host: 'carestead.com',
+        https: { cert: readFileSync(certPath), key: readFileSync(keyPath) },
+      } : {}),
+      allowedHosts: ['carestead.com'],
+      watch: { ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}), ignored: ['**/.playwright-runs/**', '**/test-results/**', '**/playwright-report/**'] },
+    },
     plugins: [
       vinext(),
       ...(cloudDeployment ? [] : [sites()]),
