@@ -31,7 +31,7 @@ export function PaginatedList({ children, records, label, pageSize = 6, resetKey
   const page = selection.key === pageKey ? Math.min(selection.page, pages - 1) : 0;
   if (selection.key !== pageKey || selection.page !== page) setSelection({ page, key: pageKey });
   const wrap = (content: ReactNode) => layout === 'table' ? <tr><td colSpan={20}>{content}</td></tr> : layout === 'list' ? <li className="list-none">{content}</li> : content;
-  const controls = data && (data.length > 1 || active) && <fieldset aria-label={`Filter ${label}`} className="care-filters col-span-full min-w-0 space-y-3 rounded-2xl border bg-card p-4">
+  const controls = data && (data.length > 0 || active) && <fieldset aria-label={`Filter ${label}`} className="care-filters col-span-full min-w-0 space-y-3 rounded-2xl border bg-card p-4">
     <legend className="sr-only">Filter {label.toLocaleLowerCase()}</legend>
     <p className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal aria-hidden="true" className="size-4 text-primary" />Find in {label.toLocaleLowerCase()}</p>
     <div className="grid min-w-0 gap-3">

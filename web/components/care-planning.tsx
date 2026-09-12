@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedList } from './paginated-list';
+
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
@@ -232,7 +234,7 @@ export function CarePlanning(props: Props) {
     }
   }
   return (
-    <div className="care-organizer space-y-6" data-organizer-tone={tab === "break" ? "peach" : tab === "dump" ? "plum" : tab === "attention" ? "amber" : "sky"}>
+    <div className="care-organizer space-y-6" data-organizer-tone={["break", "help"].includes(tab) ? "peach" : ["dump", "routines"].includes(tab) ? "plum" : tab === "attention" ? "amber" : "sky"}>
       <div className="care-page-heading">
         <p className="text-sm font-medium text-primary">
           A little room to breathe
@@ -277,8 +279,8 @@ export function CarePlanning(props: Props) {
           {tab === 'visits' && <AppointmentPreparation state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
           {tab === 'attention' && <AttentionDigest state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
           {tab === 'break' && (
-            <section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
-              <div className={`${panel} `}>
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+              <div data-care-tone="peach" className={panel}>
                 <Coffee className="size-8 text-primary" />
                 <h2 className="mt-5 font-heading text-2xl font-semibold">
                   When do you need a break?
@@ -310,7 +312,7 @@ export function CarePlanning(props: Props) {
                   Prepare my coverage plan <ArrowRight />
                 </Button>
               </div>
-              <div className={panel}>
+              <div data-care-tone="sky" className={panel}>
                 <h2 className="font-heading text-xl font-semibold">
                   Coverage you can count on
                 </h2>
@@ -356,7 +358,7 @@ export function CarePlanning(props: Props) {
             </section>
           )}
           {tab === 'simulate' && (
-            <section className={panel}>
+            <section data-care-tone="sky" className={panel}>
               <h2 className="font-heading text-2xl font-semibold">
                 Try a different time
               </h2>
@@ -472,7 +474,7 @@ export function CarePlanning(props: Props) {
                 disabled={!writable || busy}
                 onError={setError}
               />
-              <section className={panel}>
+              <section data-care-tone="peach" className={panel}>
                 <HeartHandshake className="size-7 text-primary" />
                 <h2 className="mt-3 font-heading text-2xl font-semibold">
                   One small thing helps.
@@ -542,7 +544,7 @@ export function CarePlanning(props: Props) {
                 and simulations useful. Default durations are estimates; review
                 them here.
               </p>
-              {state.tasks.filter(isOpen).map((task) => (
+              <PaginatedList label="Task planning" records={state.tasks.filter(isOpen)} resetKey={dashboard.selectedRecipient.id}>{state.tasks.filter(isOpen).map((task) => (
                 <TaskPlanning
                   key={`${task.id}:${taskSignature(task)}:${task.accepted}`}
                   task={task}
@@ -550,7 +552,7 @@ export function CarePlanning(props: Props) {
                   act={act}
                   disabled={!writable || busy}
                 />
-              ))}
+              ))}</PaginatedList>
               {!state.tasks.some(isOpen) && (
                 <Empty>Add a responsibility to begin planning.</Empty>
               )}
@@ -560,7 +562,12 @@ export function CarePlanning(props: Props) {
             <h2 className="font-heading text-xl font-semibold">
               Requests waiting for you
             </h2>
-            {state.offers
+            <PaginatedList label="Coverage requests" records={state.offers
+              .filter(
+                (offer) =>
+                  offer.member_id === state.memberId &&
+                  offer.status === 'pending',
+              )} resetKey={dashboard.selectedRecipient.id}>{state.offers
               .filter(
                 (offer) =>
                   offer.member_id === state.memberId &&
@@ -598,7 +605,7 @@ export function CarePlanning(props: Props) {
                     </Button>
                   </div>
                 </div>
-              ))}
+              ))}</PaginatedList>
             {!state.offers.some(
               (offer) =>
                 offer.member_id === state.memberId &&
@@ -609,7 +616,7 @@ export function CarePlanning(props: Props) {
             <h2 className="font-heading text-xl font-semibold">
               Reviewable plans
             </h2>
-            {state.proposals.map((proposal) => (
+            <PaginatedList label="Reviewable plans" records={state.proposals} resetKey={dashboard.selectedRecipient.id}>{state.proposals.map((proposal) => (
               <ProposalCard
                 key={proposal.id}
                 proposal={proposal}
@@ -618,7 +625,7 @@ export function CarePlanning(props: Props) {
                 act={act}
                 disabled={!writable || busy}
               />
-            ))}
+            ))}</PaginatedList>
             {!state.proposals.length && (
               <Empty>
                 Your coverage plans, simulations, and organized updates will
@@ -646,6 +653,7 @@ function TaskPlanning({
   const caregivers = state.members.filter((member) => member.role !== 'viewer');
   return (
     <form
+      data-care-tone={task.category === "medication" ? "plum" : ["transport", "appointment", "mobility"].includes(task.category) ? "sky" : "peach"}
       className={panel}
       onSubmit={(event) => {
         event.preventDefault();
@@ -775,7 +783,7 @@ function AvailabilityEditor({
   const [start, setStart] = useState(() => localInput(future(60), zone));
   const [end, setEnd] = useState(() => localInput(future(120), zone));
   return (
-    <section className={panel}>
+    <section data-care-tone="sky" className={panel}>
       <h2 className="font-heading text-2xl font-semibold">
         When can you help?
       </h2>
@@ -976,7 +984,7 @@ function BrainDump({
     );
   }
   return (
-    <section className={panel}>
+    <section data-care-tone="plum" className={panel}>
       <h2 className="font-heading text-2xl font-semibold">
         Get it out of your head.
       </h2>
@@ -1178,7 +1186,7 @@ function ProposalCard({
 }) {
   const payload = proposal.payload;
   return (
-    <article className={panel}>
+    <article data-care-tone={proposal.status === "pending" ? "amber" : "sky"} className={panel}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-heading text-lg font-semibold">{payload.title}</h3>
         <Badge variant="outline">

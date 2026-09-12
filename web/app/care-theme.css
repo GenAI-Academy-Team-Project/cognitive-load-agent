@@ -58,3 +58,8 @@
 }
 /* Header actions also reflow when the user enlarges text. */
 main > div > section > header [data-slot="button"] { max-width: 100%; }
+/* Content panels keep the same shape while their purpose controls the fill. */
+.care-organizer-panel { align-self: start; }
+.care-organizer-panel[data-care-tone] > :is(h2, h3) { color: var(--foreground); }
+.care-organizer-panel > svg { color: var(--care-ink, var(--primary)); }
+.care-organizer-panel :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background-color: var(--card); color: var(--foreground); }

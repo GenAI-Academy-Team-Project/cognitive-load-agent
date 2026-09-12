@@ -1,0 +1,91 @@
+{
+  "slides": [
+    {
+      "slide": "1. Title",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "2. Meet Maya",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "3. Why this problem matters",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "4. Recipient model and handover",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "5. Practical support and actions",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "6. Voice and chat actions",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "7. Core product features",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "8. Carestead technical architecture",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "9. Carestead decision path",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "10. Tool calls and human control",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "11. Evaluations",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    },
+    {
+      "slide": "12. Positioning and future work",
+      "overflow": false,
+      "footerInside": true,
+      "images": true,
+      "clippedText": []
+    }
+  ],
+  "navigation": true,
+  "notes": true,
+  "pageErrors": []
+}

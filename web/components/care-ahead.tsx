@@ -1,5 +1,7 @@
 'use client';
 
+import { PaginatedList } from './paginated-list';
+
 import { useEffect, useState } from 'react';
 import {
   ArrowRight,
@@ -69,7 +71,7 @@ export function WeekAhead(props: Props) {
   );
   return (
     <div className="space-y-6">
-      <section className={`${panel} `}>
+      <section data-care-tone="sky" className={panel}>
         <p className="text-sm font-medium text-primary">Your next seven days</p>
         <h2 className="mt-2 font-heading text-2xl font-semibold">
           {needsAttention.length
@@ -91,7 +93,7 @@ export function WeekAhead(props: Props) {
               key={item.date}
               aria-pressed={selected === index}
               onClick={() => setSelected(index)}
-              className={`min-w-0 rounded-xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-ring ${selected === index ? 'border-primary bg-background ring-1 ring-primary' : 'bg-background/70'}`}
+              className={`min-w-0 rounded-xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-ring ${selected === index ? 'border-primary bg-secondary text-secondary-foreground ring-2 ring-primary' : 'bg-card'}`}
             >
               <span className="block text-sm font-medium">
                 {new Intl.DateTimeFormat('en-CA', {
@@ -129,7 +131,7 @@ export function WeekAhead(props: Props) {
         </div>
         {state.anticipation.routines.some(routine => Date.parse(routine.next_at) < now.getTime()) && <p className="mt-4 text-sm"><button className="font-medium underline underline-offset-4" onClick={() => navigate('routines')}>Review overdue routines</button> and confirm their next dates.</p>}
         {overdue.length > 0 && (
-          <p className="mt-4 text-sm font-medium text-amber-900">
+          <p className="mt-4 text-sm font-medium text-[var(--care-amber-ink)]">
             Also review {overdue.length} overdue{' '}
             {overdue.length === 1 ? 'responsibility' : 'responsibilities'}.{' '}
             <button
@@ -141,7 +143,7 @@ export function WeekAhead(props: Props) {
           </p>
         )}
       </section>
-      <section className={panel} aria-label="Selected day details">
+      <section data-care-tone="peach" className={panel} aria-label="Selected day details">
         {day.routines.length > 0 && <div className="mb-5 space-y-3"><p className="text-sm text-muted-foreground">These routines still need approval. Their time is not included in your assigned workload.</p>{day.routines.map(routine => <article key={routine.id} className="rounded-xl border p-3"><h3 className="text-sm font-semibold">{routine.title}</h3><p className="mt-1 text-xs">{when(routine.next_at, zone)}</p><Button className="mt-3" variant="outline" disabled={disabled} onClick={() => act('propose_routine', { id: routine.id })}>Review next occurrence</Button></article>)}</div>}
         <h3 className="font-heading text-xl font-semibold">
           {new Intl.DateTimeFormat('en-CA', {
@@ -152,14 +154,14 @@ export function WeekAhead(props: Props) {
           }).format(new Date(day.date))}
         </h3>
         {day.overloaded && (
-          <p className="mt-3 text-sm text-amber-900">
+          <p className="mt-3 text-sm text-[var(--care-amber-ink)]">
             Your planned care exceeds your daily limit by{' '}
             {day.minutes - state.anticipation.settings.daily_minutes} minutes.
             Review coverage below or use “I need a break”.
           </p>
         )}
         {day.collisions.length > 0 && (
-          <p className="mt-3 text-sm text-amber-900">
+          <p className="mt-3 text-sm text-[var(--care-amber-ink)]">
             {day.collisions.length} of your responsibilities overlap. Review
             their times in “What if?”.
           </p>
@@ -280,7 +282,7 @@ function PlanningPreferences({ state, disabled, act }: Props) {
   const { settings, preference, preferenceNeedsReview, verifiedMemories } =
     state.anticipation;
   return (
-    <details className={panel}>
+    <details data-care-tone="plum" className={panel}>
       <summary className="flex cursor-pointer items-center gap-2 font-medium">
         <SlidersHorizontal className="size-4" /> Make this plan fit your family
       </summary>
@@ -360,7 +362,7 @@ function PlanningPreferences({ state, disabled, act }: Props) {
             the hours it means. Suggestions will use this window.
           </p>
           {preferenceNeedsReview && (
-            <output className="block text-sm text-amber-900">
+            <output className="block text-sm text-[var(--care-amber-ink)]">
               The source fact changed or needs review. This preference is paused
               until you confirm a current source.
             </output>
@@ -422,7 +424,7 @@ export function CareRoutines({ state, dashboard, act, disabled }: Props) {
   const [reset, setReset] = useState(0);
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <div className={panel}>
+      <div data-care-tone="plum" className={panel}>
         <h2 className="font-heading text-2xl font-semibold">
           The things that come around again.
         </h2>
@@ -533,12 +535,12 @@ export function CareRoutines({ state, dashboard, act, disabled }: Props) {
       </div>
       <div className="space-y-4">
         {!state.anticipation.routines.length && (
-          <p className={`${panel} text-sm text-muted-foreground`}>
+          <p data-care-tone="sky" className={`${panel} text-sm text-muted-foreground`}>
             Add a routine to stop rebuilding the same responsibility each week.
           </p>
         )}
-        {state.anticipation.routines.map((routine) => (
-          <article key={routine.id} className={panel}>
+        <PaginatedList label="Care routines" records={state.anticipation.routines} resetKey={dashboard.selectedRecipient.id}>{state.anticipation.routines.map((routine) => (
+          <article key={routine.id} data-care-tone="sky" className={panel}>
             <h3 className="font-heading text-lg font-semibold">
               {routine.title}
             </h3>
@@ -569,7 +571,7 @@ export function CareRoutines({ state, dashboard, act, disabled }: Props) {
               </Button>
             </div>
           </article>
-        ))}
+        ))}</PaginatedList>
       </div>
     </section>
   );
@@ -597,7 +599,7 @@ export function AppointmentPreparation({
   const [followUpDate, setFollowUpDate] = useState('');
   if (!task)
     return (
-      <p className={`${panel} text-sm`}>
+      <p data-care-tone="sky" className={`${panel} text-sm`}>
         Add an appointment to your responsibilities or Calendar to prepare a
         visit brief.
       </p>
@@ -635,7 +637,7 @@ export function AppointmentPreparation({
   ].join('\n');
   return (
     <div className="space-y-6">
-      <section className={panel}>
+      <section data-care-tone="sky" className={panel}>
         <h2 className="font-heading text-2xl font-semibold">
           Walk in with your questions ready.
         </h2>
@@ -677,7 +679,7 @@ export function AppointmentPreparation({
         </Button>
       </section>
       <div className="grid gap-6 xl:grid-cols-2">
-        <section className={panel}>
+        <section data-care-tone="plum" className={panel}>
           <h3 className="font-heading text-xl font-semibold">
             Your questions and follow-up
           </h3>
@@ -767,7 +769,7 @@ export function AppointmentPreparation({
             </div>
           )}
         </section>
-        <section className={panel}>
+        <section data-care-tone="peach" className={panel}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-heading text-xl font-semibold">Visit brief</h3>
             <Button
@@ -845,7 +847,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
   const showDigest = showNow || ready || !settings.focus_mode;
   return (
     <div className="space-y-6">
-      <section className={`${panel} border-primary/30`}>
+      <section data-care-tone="amber" className={panel}>
         <p className="text-sm font-medium text-primary">
           Your attention, protected
         </p>
@@ -892,7 +894,7 @@ export function AttentionDigest({ state, dashboard, navigate }: Props) {
           ))}
         </div>
       </section>
-      <section className={panel}>
+      <section data-care-tone="sky" className={panel}>
         <h3 className="font-heading text-xl font-semibold">
           Your routine update digest
         </h3>

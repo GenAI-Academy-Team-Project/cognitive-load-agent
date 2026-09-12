@@ -26,3 +26,11 @@ Use the CSS tokens and data-care-tone attributes. Reuse colors when meaning repe
 ## Verification
 
 Check contrast after token changes, responsive and intermediate widths, enlarged text, keyboard focus, filtering and pagination. Inspect screenshots as well as automated results. Use an isolated CARESTEAD_TEST_PORT when other browser tests are running.
+
+## Organizer panels and list controls
+
+Apply `data-care-tone` to the actual organizer content panels, not just the page wrapper. Week forecasts use sky with peach day details; recurring-care forms use plum with sky routine cards; visit preparation uses sky, plum notes and a peach brief; attention uses amber decisions with a sky digest; breaks use peach requests with sky coverage. Task cards follow responsibility category. Keep form fields on the shared card surface for readable input boundaries.
+
+Use `PaginatedList` for record collections: risks, responsibilities, templates, activity, facts, people, notifications, evaluations, handover contacts/team, and organizer tasks, routines, coverage requests and proposals. Pass the same records used to render the children and a recipient reset key. Pages contain six records; search and facet changes return to the first page. Do not paginate select options, fixed metrics, or short summary previews.
+
+The browser checks assert purpose-colored organizer panels as well as accessibility. List regression checks use 13 records to verify search, empty results, reset and navigation to the last page.

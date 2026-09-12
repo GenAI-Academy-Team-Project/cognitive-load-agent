@@ -138,17 +138,23 @@ for (const width of [390, 1440]) {
   });
 }
 
-for (const width of [390, 1440]) {
+for (const width of [320, 390, 1440]) {
   test(`organizer tools share layout and accessible colors at ${width}px`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto('/?view=Care%20planning');
+    await page.goto('/?view=Care%20Organizer');
     const tools = page.getByRole('group', { name: 'Planning tools', exact: true });
     await expect(page.locator('.care-organizer-panel').first()).toBeVisible();
     for (const name of ['Your week ahead', 'Recurring care', 'Visit preparation', 'My attention', 'I need a break', 'What if?', 'Organize an update', 'I can help', 'Task planning']) {
       await tools.getByRole('button', { name, exact: true }).click();
       await expect(tools.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
+      const panels = page.locator('.care-organizer .care-organizer-panel[data-care-tone]');
+      expect(await panels.count(), `${name} needs a purpose-colored content panel`).toBeGreaterThan(0);
+      if (['Your week ahead', 'Recurring care', 'Visit preparation', 'My attention', 'I need a break', 'I can help'].includes(name)) {
+        const tones = await panels.evaluateAll(elements => elements.map(el => el.getAttribute('data-care-tone')));
+        expect(new Set(tones).size, `${name} should distinguish adjacent sections`).toBeGreaterThanOrEqual(2);
+      }
       const scan = await new AxeBuilder({ page }).include('.care-organizer').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(scan.violations, name).toEqual([]);
       if (['Recurring care', 'I need a break'].includes(name)) await page.screenshot({ path: testInfo.outputPath(name.replaceAll(' ', '-') + '-' + width + '.png'), fullPage: true });
