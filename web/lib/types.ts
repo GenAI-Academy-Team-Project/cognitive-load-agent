@@ -103,6 +103,12 @@ export type CarePlan = {
   override_count: number;
 };
 
+export type TemplateResponsibility = {
+  title: string;
+  category: string;
+  due_offset_days: string | number;
+};
+
 export type PlanTemplate = {
   id: string;
   template_key: string;
@@ -114,6 +120,7 @@ export type PlanTemplate = {
   status: string;
   task_count: number;
   rule_count: number;
+  responsibilities?: TemplateResponsibility[];
 };
 
 export type RecipientProfile = {
