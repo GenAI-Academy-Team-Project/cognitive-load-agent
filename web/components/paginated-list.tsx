@@ -61,6 +61,7 @@ export function PaginatedList({
   layout = 'block',
   resultsHeading,
   removal,
+  controlsPosition = 'before',
 }: {
   children: ReactNode;
   records?: readonly unknown[];
@@ -70,6 +71,7 @@ export function PaginatedList({
   layout?: 'block' | 'list' | 'table';
   resultsHeading?: string;
   removal?: ListRemoval;
+  controlsPosition?: 'before' | 'after';
 }) {
   const inherited = useContext(ListRemovalContext)[label];
   const actions = removal || inherited;
@@ -426,7 +428,7 @@ export function PaginatedList({
   );
   return (
     <>
-      {controls && wrap(controls)}
+      {controlsPosition === 'before' && controls && wrap(controls)}
       {resultsHeading &&
         wrap(
           <div className="col-span-full mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -438,7 +440,7 @@ export function PaginatedList({
             </span>
           </div>,
         )}
-      {removeControls && wrap(removeControls)}
+      {controlsPosition === 'before' && removeControls && wrap(removeControls)}
       {items
         .slice(page * pageSize, (page + 1) * pageSize)
         .map((item, offset) => {
@@ -510,6 +512,19 @@ export function PaginatedList({
           </p>,
         )}
       {navigation && wrap(navigation)}
+      {controlsPosition === 'after' &&
+        (controls || removeControls) &&
+        wrap(
+          <details className="col-span-full min-w-0 border-t pt-4">
+            <summary className="cursor-pointer text-sm font-medium">
+              Filter and manage {label.toLocaleLowerCase()}
+            </summary>
+            <div className="mt-3 space-y-3">
+              {controls}
+              {removeControls}
+            </div>
+          </details>,
+        )}
       {actions && wrap(confirmation)}
     </>
   );

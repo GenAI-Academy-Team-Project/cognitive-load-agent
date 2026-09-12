@@ -33,6 +33,7 @@ try {
   await page.getByRole('textbox', { name: /message carestead/i }).fill('What should I review today?');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await page.getByText(/has \d+ open risk/i).last().waitFor();
+  await page.getByText(/has \d+ open risk/i).last().evaluate(el => el.scrollIntoView({ block: 'start' }));
   await ready();
   await dialog.screenshot({ path: `${out}/voice-chat.png` });
   report.voiceControlsVisible = await page.getByRole('button', { name: 'Start voice input', exact: true }).isVisible();

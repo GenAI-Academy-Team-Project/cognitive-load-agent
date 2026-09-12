@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { PrivateInput, PrivateValue } from './private-value';
 
 type Settings = {
-  ntfyEnabled: boolean; ntfyServerUrl: string | null;
+  ntfyEnabled: boolean; ntfyTopic: string | null; ntfyServerUrl: string | null;
   email: string; emailEnabled: boolean; smsEnabled: boolean; phone: string; pushEnabled: boolean;
   vapidPublicKey: string | null; channels: string[];
   deliveries: { action_id: string; channel: string; status: string; error_code: string | null; created_at: string; target_name: string; title: string | null }[];
@@ -71,7 +71,8 @@ export function NotificationSettings({ recipientId }: { recipientId: string }) {
         <p className="mt-1 text-sm">{settings.ntfyEnabled ? 'A topic is saved for your mobile notifications.' : 'Install the ntfy app on your phone and subscribe to your own topic.'}</p>
         {settings.ntfyServerUrl && <p className="mt-1 flex flex-wrap items-center gap-1 text-sm">Use this server in ntfy: <PrivateValue value={settings.ntfyServerUrl} label="ntfy server URL" /></p>}
         <p className="mt-1 text-xs text-muted-foreground">Use a private, access-controlled topic for care details. Anyone with access to the topic receives its messages; public topics can be read by anyone who knows their name. Notifications may appear on your lock screen.</p>
-        <div className="mt-3 grid max-w-sm gap-2 text-sm"><label htmlFor="ntfy-topic">Your ntfy topic</label><PrivateInput label="ntfy topic" id="ntfy-topic" type="password" autoComplete="off" value={ntfyTopic} maxLength={64} onChange={(event) => setNtfyTopic(event.target.value)} disabled={busy || !settings.channels.includes('ntfy')} placeholder={settings.ntfyEnabled ? 'Enter a topic to replace it' : 'Topic subscribed to on your phone'} /></div>
+        {settings.ntfyTopic && <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1 text-sm"><span className="font-medium">Current ntfy topic:</span><PrivateValue key={settings.ntfyTopic} value={settings.ntfyTopic} label="current ntfy topic" /></div>}
+        <div className="mt-3 grid max-w-sm gap-2 text-sm"><label htmlFor="ntfy-topic">{settings.ntfyEnabled ? 'New ntfy topic' : 'Your ntfy topic'}</label><PrivateInput label="ntfy topic" id="ntfy-topic" type="password" autoComplete="off" value={ntfyTopic} maxLength={64} onChange={(event) => setNtfyTopic(event.target.value)} disabled={busy || !settings.channels.includes('ntfy')} placeholder={settings.ntfyEnabled ? 'Enter a topic to replace it' : 'Topic subscribed to on your phone'} /></div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="outline" disabled={busy || !settings.channels.includes('ntfy') || !validNtfyTopic(ntfyTopic)} onClick={() => act(async () => { await save({ action: 'enable_ntfy', topic: ntfyTopic }); setNtfyTopic(''); })}>{settings.ntfyEnabled ? 'Replace ntfy topic' : 'Enable ntfy mobile push'}</Button>
           {settings.ntfyEnabled && <Button variant="outline" disabled={busy} onClick={() => act(() => save({ action: 'disable_ntfy' }))}>Disable ntfy mobile push</Button>}

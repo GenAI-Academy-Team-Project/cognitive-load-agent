@@ -272,9 +272,18 @@ export function NotificationComposer({
         </div>
       </form>
       {pending.length > 0 && (
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 space-y-4 border-t pt-5">
+          <div>
+            <h3 className="font-heading text-lg font-semibold">
+              Review and approve
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Check the recipient, channel, and message below before sending.
+            </p>
+          </div>
           <PaginatedList
             label="Notification drafts"
+            controlsPosition="after"
             records={pending}
             resetKey={recipientId}
             removal={{
