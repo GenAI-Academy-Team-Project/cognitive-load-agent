@@ -37,7 +37,7 @@ async function handle(request: Request) {
       if (access.consent !== 'active' && !(body.action === 'disable_ntfy' || body.action === 'disable_push' || (body.action === 'save_preferences' && body.emailEnabled === false && body.smsEnabled === false))) throw new AppError('consent_inactive', 409, 'Restore consent before enabling notifications.');
       if (body.action === 'enable_ntfy') {
         const server = ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL);
-        if (!server) throw new AppError('channel_unconfigured', 409, 'Enable ntfy in Integrations first.');
+        if (!server) throw new AppError('channel_unconfigured', 409, 'Enable mobile push in Integrations first.');
         if (!validNtfyTopic(body.topic)) throw new AppError('invalid_ntfy_topic', 400, 'Enter a topic of 1–64 letters, digits, underscores or hyphens, excluding reserved names.');
         await env.DB.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET server_url=excluded.server_url,topic=excluded.topic,updated_at=excluded.updated_at').bind(recipientId, memberId, server, body.topic, now).run();
       } else if (body.action === 'disable_ntfy') {

@@ -6,7 +6,7 @@ import { PrivateInput } from './private-value';
 import { integrationKeys, type IntegrationId, type IntegrationStatus } from '@/lib/integration-types';
 
 const descriptions: Record<IntegrationId, { title: string; detail: string; next: string }> = {
-  ntfy: { title: 'ntfy mobile notifications', detail: 'Send approved updates to the ntfy app on your phone.', next: 'Subscribe to your topic in ntfy, then save it in Notifications. Each message requires approval.' },
+  ntfy: { title: 'Mobile push', detail: 'Send approved updates to your mobile push app.', next: 'Subscribe to your topic in your mobile push app, then save it in Notifications. Each message requires approval.' },
   calendar: { title: 'Google Calendar', detail: 'Create appointments in a connected Google calendar. Your local tasks and timeline always remain available.', next: 'Connect your Google account in Calendar, then approve each appointment.' },
   sms: { title: 'Twilio SMS', detail: 'Send approved messages to opted-in caregivers. In-app notifications always remain available.', next: 'Save your phone number and SMS preference in Notifications. Each message requires approval.' },
   email: { title: 'Email delivery', detail: 'Send approved care updates through Resend.', next: 'Enable your email preference in Notifications. Each message requires approval.' },
@@ -14,7 +14,7 @@ const descriptions: Record<IntegrationId, { title: string; detail: string; next:
 };
 const repositoryDocs = 'https://github.com/GenAI-Academy-Team-Project/cognitive-load-agent/blob/main/docs/';
 const setup: Record<IntegrationId, { detail: string; doc: string }> = {
-  ntfy: { detail: 'Install ntfy and subscribe to a topic on the configured server. Each caregiver must save that topic and opt in under Notifications. Use an access-controlled topic for care details; a publisher token alone does not make a topic private. Changing servers requires saving preferences again.', doc: 'notification-setup.md#ntfy-mobile-push' },
+  ntfy: { detail: 'Open your mobile push app and subscribe to a topic on the configured server. Each caregiver must save that topic and opt in under Notifications. Use an access-controlled topic for care details; a publisher token alone does not make a topic private. Changing servers requires saving preferences again.', doc: 'notification-setup.md#ntfy-mobile-push' },
   calendar: { detail: 'Enable Calendar API in Google Cloud, configure the OAuth consent screen and a Web application client, add test users when in testing, and register the exact callback URL. Each caregiver must connect their account and choose an owned calendar.', doc: 'google-calendar-setup.md#google-cloud-and-runtime-values' },
   sms: { detail: 'Configure an SMS-capable Twilio sender and complete provider sender setup for your destination countries. Trial accounts may restrict destinations. Each receiving caregiver must save their own number and opt in for the selected recipient.', doc: 'notification-setup.md#local-configuration' },
   email: { detail: 'Verify the sender/domain in Resend and use that sender for outgoing mail. Each receiving caregiver must enable email for the selected recipient; delivery uses their Carestead account email.', doc: 'notification-setup.md#local-configuration' },
@@ -77,7 +77,7 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
             <summary className="cursor-pointer text-sm font-medium">Environment configuration</summary>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved overrides take precedence over .dev.vars and deployment environment values. Leave an input blank to keep its current value. Saved values are encrypted on the server and stay hidden. Use the eye button to check a new value before saving.</p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">Saving overrides requires a server encryption key. <a href={`${repositoryDocs}deployment.md#encrypted-integration-overrides`} target="_blank" rel="noopener noreferrer" className="text-primary underline">Encrypted override setup (GitHub)</a></p>
-            {item.id === 'ntfy' && <p className="mt-2 text-xs text-muted-foreground">NTFY_ACCESS_TOKEN is optional. Use a token belonging to the selected server.</p>}
+            {item.id === 'ntfy' && <p className="mt-2 text-xs text-muted-foreground">The access token is optional. Use a token belonging to the selected server.</p>}
             <form className="mt-4 space-y-4" autoComplete="off" onSubmit={event => {
               event.preventDefault();
               const config = Object.fromEntries(Object.entries(drafts[item.id] || {}).filter(([, value]) => value === null || value.trim()));

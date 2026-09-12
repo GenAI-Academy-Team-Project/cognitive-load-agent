@@ -515,8 +515,8 @@ export function PaginatedList({
       {controlsPosition === 'after' &&
         (controls || removeControls) &&
         wrap(
-          <details className="col-span-full min-w-0 border-t pt-4">
-            <summary className="cursor-pointer text-sm font-medium">
+          <details className="col-span-full mt-5 min-w-0 rounded-2xl border bg-card p-4 sm:p-5">
+            <summary className="cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
               Filter and manage {label.toLocaleLowerCase()}
             </summary>
             <div className="mt-3 space-y-3">

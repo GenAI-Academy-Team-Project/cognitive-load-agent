@@ -17,7 +17,7 @@ The feature table and Question 3 were initially drafted from `Carestead Use Case
 
 The handover, chat approval, and voice screenshots were refreshed from the current working-tree app on September 12, 2026, using an isolated ephemeral preview and synthetic demo records. `capture-current.json` records the capture and confirms that tasks stayed unchanged before approval and changed after approval. Voice controls were captured; microphone recognition was not exercised. The evaluation slide still shows the earlier benchmark results; no new benchmark or external-provider run is implied.
 
-`node docs/pitch-deck/verify.mjs` checks all 12 slides in Chrome, captures previews to `assets/v1/`, writes `verification-v1.json`, and exports `carestead-pitch-v1.pdf`. Layout, embedded images, slide navigation, presenter notes, and JavaScript errors are checked. The exported PDF has 12 pages.
+`node docs/pitch-deck/verify.mjs` checks all 12 slides in Chrome, captures previews to `assets/v1/`, writes `verification-v1.json`, and exports `carestead-pitch-v1.pdf`. Layout, embedded images, slide navigation, presenter notes, and JavaScript errors are checked. The layout review also measures text inside SVG cards, overlapping sibling blocks, internal text overflow, and footer clearance. All 12 slides are checked at 1440×900, 1280×720, and 390×844; Maya’s labels use explicit line breaks to stay inside their cards. Architecture and decision-path wording, shapes, and connections are unchanged by this layout revision. The exported PDF has 12 pages.
 
 ## Sources and evidence
 

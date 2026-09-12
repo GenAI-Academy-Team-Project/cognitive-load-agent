@@ -1,5 +1,5 @@
 import { effectiveIntegrations } from '@/lib/integration-settings';
-import { executeNotification, parseNotificationRequest, prepareNotification } from '@/lib/notification-service';
+import { editNotification, executeNotification, parseNotificationRequest, prepareNotification, prepareNotifications } from '@/lib/notification-service';
 import { configuredChannels, sendNotificationTool } from '@/lib/notification-types';
 import { currentMemories } from '@/lib/current-memories';
 import { evaluateCareState } from '@/lib/risk-engine';
@@ -40,7 +40,7 @@ type ProposedAction = {
   summary: string;
   payload: Record<string, string>;
 };
-type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'propose_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
+type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'propose_notification' | 'edit_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
 
 const quickPrompts = [
   'What should I review today?',
@@ -352,7 +352,7 @@ export async function POST(request: Request) {
   let preview: Body = {};
   try {
     preview = await request.json() as Body;
-    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'propose_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
+    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'propose_notification', 'edit_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
     const context = await resolveContext(request, preview.recipientId);
     if ('error' in context) return context.error;
     const { db, member, access, threadId } = context;
@@ -360,10 +360,12 @@ export async function POST(request: Request) {
     if (preview.action === 'propose_notification') {
       await enforceRateLimit(db, member.id, 'chat_action');
       if (!canWrite(access.accessRole)) throw new AppError('forbidden', 403, 'Your role cannot prepare notifications.');
-      const proposal = await prepareNotification(db, await effectiveIntegrations(db, env), access.recipientId, preview.notification);
-      const actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
-      await saveMessage(db, threadId, 'assistant', 'Review the caregiver, channel, and exact message before approving delivery.', [], actionId, now);
-      await audit(db, member, 'propose', 'chat_action', actionId, proposal.summary);
+      const proposals = await prepareNotifications(db, await effectiveIntegrations(db, env), access.recipientId, preview.notification);
+      for (const proposal of proposals) {
+        const actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
+        await saveMessage(db, threadId, 'assistant', 'Review the caregiver, channel, and exact message before approving delivery.', [], actionId, now);
+        await audit(db, member, 'propose', 'chat_action', actionId, proposal.summary);
+      }
     } else if (preview.action === 'message') {
       await enforceRateLimit(db, member.id, 'chat_message');
       if (typeof preview.message !== 'string' || preview.message.length > 1200) throw new AppError('invalid_message', 400, 'Enter a message of up to 1200 characters.');
@@ -414,7 +416,11 @@ export async function POST(request: Request) {
       const action = await db.prepare('SELECT * FROM chat_action_requests WHERE id=? AND thread_id=? AND recipient_id=?').bind(preview.actionId, threadId, access.recipientId).first<ActionRow>();
       if (!action) throw new AppError('action_not_found', 404, 'Action request not found');
       if (action.status !== 'pending') throw new AppError('action_already_decided', 409, 'This action was already decided');
-      if (preview.action === 'reject_action') {
+      if (preview.action === 'edit_notification') {
+        if (action.action_type !== 'send_notification') throw new AppError('notification_not_editable', 409, 'Choose a notification draft.');
+        const id = await editNotification(db, await effectiveIntegrations(db, env), access.recipientId, member.memberId, action.id, preview.notification);
+        await audit(db, member, 'edit', 'chat_action', id, 'Edited an unsent notification draft; fresh approval required.');
+      } else if (preview.action === 'reject_action') {
         const rejected = await db.prepare("UPDATE chat_action_requests SET status='rejected',decided_at=? WHERE id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM notification_deliveries WHERE action_id=?)").bind(now, action.id, action.id).run();
         if (!rejected.meta.changes) throw new AppError('action_already_decided', 409, 'This action was already decided or delivery started.');
         await saveMessage(db, threadId, 'assistant', 'Action cancelled. No care-plan data was changed.', [], null, now);
