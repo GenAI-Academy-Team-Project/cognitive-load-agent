@@ -41,6 +41,8 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
   const [listening, setListening] = useState(false);
   const [spokenReplies, setSpokenReplies] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const currentRecipient = useRef(recipientId);
+  useEffect(() => { currentRecipient.current = recipientId; }, [recipientId]);
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const lastSpokenId = useRef<string | null>(null);
 
@@ -76,6 +78,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
       const result = await response.json() as ChatState | { error: string };
       if (!response.ok) throw new Error('error' in result ? result.error : 'Chat request failed');
       const next = result as ChatState;
+      if (currentRecipient.current !== recipientId) return false;
       setChat(next);
       const latest = [...next.messages].reverse().find((message) => message.role === 'assistant');
       if (spokenReplies && latest && latest.id !== lastSpokenId.current) { lastSpokenId.current = latest.id; speak(latest.content); }
@@ -132,13 +135,19 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
             <div className="space-y-4 px-4 py-5" aria-live="polite" aria-busy={busy}>
               {!chat && !error && <div className="flex items-center gap-2 rounded-2xl border bg-white p-4 text-sm text-muted-foreground"><Sparkles className="size-4 animate-pulse text-primary" />Preparing the recipient-specific care context…</div>}
               {chat?.messages.length === 0 && <Welcome recipientName={recipientName} />}
-              {chat?.messages.map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy} onDecide={decide} />)}
+              {(chat?.recipientId === recipientId ? chat.messages : []).map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy} onDecide={decide} />)}
               {busy && <div className="w-fit rounded-2xl rounded-bl-md border bg-white px-4 py-3 text-sm text-muted-foreground">Checking the care plan…</div>}
               {error && <div role="alert" className="rounded-xl border border-[#e5c6bd] bg-[#fffaf8] p-3 text-sm text-[#7e3224]">{error}</div>}
             </div>
           </ScrollArea>
 
           <div className="border-t bg-white p-4">
+            {chat?.memory && <details className="mb-3 rounded-xl border p-3 text-xs">
+              <summary className="cursor-pointer font-medium">Memory · {chat.memory.enabled && chat.memory.configured ? 'semantic recall enabled' : 'local recall'}</summary>
+              <p className="mt-2 leading-5">Suggest a fact with “Remember that…”. Saving confirms and shares it with this care circle. External recall sends verified facts and your search questions to Mem0 to find related information. Private chat history is not uploaded.</p>
+              {chat.memory.canManage && <Button variant="outline" size="sm" className="mt-2" disabled={busy || (!chat.memory.configured && !chat.memory.enabled && !chat.memory.cleanupPending)} onClick={() => request({ action: chat.memory.enabled || chat.memory.cleanupPending ? 'disable_memory' : 'enable_memory' })}>{chat.memory.cleanupPending ? 'Retry external cleanup' : chat.memory.enabled ? 'Disable and delete external memory' : 'Enable external recall'}</Button>}
+              {!chat.memory.configured && <p className="mt-2 text-muted-foreground">External recall is off or needs credentials. An owner can review it in Integrations. Verified facts remain available locally.</p>}
+            </details>}
             {chat?.messages.length === 0 && <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{chat.quickPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)} disabled={busy} className="shrink-0 rounded-full border bg-[#f8fbf9] px-3 py-1.5 text-left text-xs text-[#315944] hover:bg-secondary disabled:opacity-50">{prompt}</button>)}</div>}
             <div className="rounded-2xl border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
               <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 resize-none border-0 p-2 shadow-none focus-visible:ring-0" disabled={busy} />
@@ -151,7 +160,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
                 <Button type="button" size="icon-sm" onClick={() => send()} disabled={!draft.trim() || busy} aria-label="Send message"><Send /></Button>
               </div>
             </div>
-            <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">Care coordination only—not medical advice. External calendar and messaging providers are not connected.</p>
+            <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">Care coordination only—not medical advice. Messages require approval. Enable delivery channels in Notifications.</p>
           </div>
         </SheetContent>
       </Sheet>
@@ -168,6 +177,6 @@ function Message({ message, canWrite, busy, onDecide }: { message: ChatMessage; 
   return <article className={user ? 'ml-8' : 'mr-5'} aria-label={`${user ? 'You' : 'Carestead'} said`}>
     <div className={user ? 'rounded-2xl rounded-br-md bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground' : 'rounded-2xl rounded-bl-md border bg-white px-4 py-3 text-sm leading-6'}>{message.content}</div>
     {!user && message.evidence.length > 0 && <details className="mt-2 rounded-xl border bg-white px-3 py-2"><summary className="cursor-pointer text-xs font-medium text-primary">Evidence used · {message.evidence.length}</summary><div className="mt-2 space-y-2">{message.evidence.map((item, index) => <div key={`${item.label}-${index}`} className="border-l-2 border-[#b9d5c3] pl-2"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#315944]">{item.label}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{item.detail}</p></div>)}</div></details>}
-    {message.action && <div className="mt-2 rounded-2xl border border-[#b9d5c3] bg-[#f4faf6] p-4"><div className="flex items-center justify-between gap-2"><Badge variant="outline" className="bg-white text-[#315944]">Approval required</Badge><span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{message.action.action_type.replaceAll('_', ' ')}</span></div><p className="mt-3 text-sm font-medium leading-5">{message.action.summary}</p>{message.action.status === 'pending' ? <div className="mt-4 flex gap-2"><Button size="sm" onClick={() => onDecide(message.action!.id, 'approve_action')} disabled={!canWrite || busy}><Check />Approve</Button><Button size="sm" variant="outline" onClick={() => onDecide(message.action!.id, 'reject_action')} disabled={!canWrite || busy}><X />Cancel</Button></div> : <p className="mt-3 flex items-center gap-1.5 text-xs font-medium capitalize text-[#315944]"><Check className="size-3.5" />{message.action.status}</p>}</div>}
+    {message.action && <div className="mt-2 rounded-2xl border border-[#b9d5c3] bg-[#f4faf6] p-4"><div className="flex items-center justify-between gap-2"><Badge variant="outline" className="bg-white text-[#315944]">Approval required</Badge><span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{message.action.action_type.replaceAll('_', ' ')}</span></div><p className="mt-3 text-sm font-medium leading-5">{message.action.summary}</p>{message.action.action_type === 'send_notification' && <div className="mt-3 space-y-2 text-sm"><p>Channel: {message.action.payload.channel || 'in_app'}</p>{message.action.payload.targetName && <p>To: {message.action.payload.targetName} · {message.action.payload.destinationLabel}</p>}<p className="font-medium">{message.action.payload.title}</p><p className="whitespace-pre-wrap break-words">{message.action.payload.detail}</p>{message.action.payload.channel && message.action.payload.channel !== 'in_app' && <p className="text-xs text-muted-foreground">This exact text leaves Carestead and may appear on a lock screen.</p>}</div>}{message.action.status === 'pending' ? <div className="mt-4 flex gap-2"><Button size="sm" onClick={() => onDecide(message.action!.id, 'approve_action')} disabled={!canWrite || busy}><Check />{message.action.action_type === 'save_memory' ? 'Save as trusted fact' : 'Approve'}</Button><Button size="sm" variant="outline" onClick={() => onDecide(message.action!.id, 'reject_action')} disabled={!canWrite || busy}><X />Cancel</Button></div> : <p className="mt-3 flex items-center gap-1.5 text-xs font-medium capitalize text-[#315944]"><Check className="size-3.5" />{message.action.status}</p>}</div>}
   </article>;
 }

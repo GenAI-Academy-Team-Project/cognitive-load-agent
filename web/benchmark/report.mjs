@@ -1,17 +1,13 @@
+import { evaluateCareState } from '../lib/risk-engine.ts';
 import { readFile } from 'node:fs/promises';
 
 const scenarios = JSON.parse(await readFile(new URL('./scenarios.json', import.meta.url), 'utf8'));
 
 function evaluate(tasks, events, memories) {
-  const medicationTask = tasks.find((task) => task.category === 'medication' && task.status !== 'complete');
-  if (medicationTask) {
-    const memory = memories.find((item) => item.kind === 'medication');
-    const event = events.find((item) => item.type === 'medication');
-    return { severity: 'high', approval: true, action: 'medication_pickup', evidence: [medicationTask.title, memory?.value ?? '', event?.detail ?? ''] };
-  }
-  const unowned = tasks.find((task) => task.owner === 'Unassigned' && task.status !== 'complete');
-  if (unowned) return { severity: 'medium', approval: false, action: 'assign_owner', evidence: [unowned.title, unowned.due_at] };
-  return { severity: 'low', approval: false, action: 'monitor', evidence: ['Task ownership check', 'Medication completion check'] };
+  const decision = evaluateCareState(tasks, events, memories, new Date('2026-09-11T16:00:00Z'));
+  const value = decision.recommendation.toLowerCase();
+  const action = value.includes('pick') || value.includes('refill') ? 'medication_pickup' : value.includes('assign') ? 'assign_owner' : 'monitor';
+  return { severity: decision.risk, approval: decision.risk === 'high', action, evidence: decision.evidence };
 }
 
 const totals = { retrieval: 0, expectedEvidence: 0, decision: 0, policy: 0, action: 0, passed: 0 };

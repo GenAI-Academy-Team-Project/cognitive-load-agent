@@ -6,6 +6,8 @@ const body = DM_Sans({ variable: '--font-body', subsets: ['latin'] });
 const heading = Manrope({ variable: '--font-display', subsets: ['latin'] });
 
 export const metadata: Metadata = {
+  manifest: '/manifest.webmanifest',
+  icons: { apple: '/carestead-icon-192.png' },
   metadataBase: new URL('https://carestead.frincy-clement.chatgpt.site'),
   title: 'Carestead | Care coordination',
   description: 'A caregiver coordination workspace that detects risks, organizes responsibilities, and keeps every decision accountable.',

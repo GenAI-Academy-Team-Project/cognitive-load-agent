@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">Carestead caregiver user journey</title>
-  <desc id="desc">A six-step caregiver journey from selecting a care recipient through reviewing the daily brief, asking Carestead, reviewing evidence, approving actions, and handing over with an outcome trace.</desc>
+  <desc id="desc">A seven-stage caregiver journey: create an account or sign in, select an authorized recipient, review the brief, ask Carestead, inspect evidence, approve or decline, execute allowed actions, and hand over.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbf8f1"/><stop offset="1" stop-color="#eef4ee"/></linearGradient>
     <linearGradient id="band" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#173f31"/><stop offset=".6" stop-color="#356a50"/><stop offset="1" stop-color="#b25b42"/></linearGradient>
@@ -10,14 +10,14 @@
   </defs>
   <rect width="1600" height="900" fill="url(#bg)"/><path d="M0 790C240 700 390 855 620 780s450-20 620 25 260-5 360-60v155H0z" fill="#dfe9df"/>
   <text x="800" y="82" text-anchor="middle" class="serif ink" font-size="58" font-weight="700">A caregiver’s journey</text>
-  <text x="800" y="124" text-anchor="middle" class="sans muted" font-size="20" letter-spacing="5">FROM ORIENTATION TO A SAFE HANDOVER</text>
+  <text x="800" y="124" text-anchor="middle" class="sans muted" font-size="20" letter-spacing="5">FROM SIGN-IN TO A SAFE HANDOVER</text>
   <rect x="130" y="172" width="1340" height="10" rx="5" fill="url(#band)"/>
 
-  <path d="M347 342H394M718 342H765M1089 342H1136" stroke="#547a65" stroke-width="4" marker-end="url(#arrow)"/>
-  <path d="M1240 542H1193M869 542H822M498 542H451" stroke="#547a65" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M347 342H451M718 342H822M1089 342H1193" stroke="#547a65" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M1100 647H1089M729 647H718M358 647H347" stroke="#547a65" stroke-width="4" marker-end="url(#arrow)"/>
   <path d="M1350 432c0 65-17 92-63 104" fill="none" stroke="#547a65" stroke-width="4" marker-end="url(#arrow)"/>
 
-  <g transform="translate(100 220)" filter="url(#s)"><rect class="card" width="247" height="225" rx="25"/><circle cx="40" cy="40" r="25" fill="#285943"/><text x="40" y="47" text-anchor="middle" class="step">1</text><path class="icon" d="M102 38a22 22 0 1 0 0 44 22 22 0 0 0 0-44zm-35 78c6-25 64-25 70 0"/><text x="24" y="151" class="label">Choose a person</text><text x="24" y="183" class="copy">Recipient scope keeps</text><text x="24" y="207" class="copy">every record isolated.</text></g>
+  <g transform="translate(100 220)" filter="url(#s)"><rect class="card" width="247" height="225" rx="25"/><circle cx="40" cy="40" r="25" fill="#285943"/><text x="40" y="47" text-anchor="middle" class="step">1</text><path class="icon" d="M102 38a22 22 0 1 0 0 44 22 22 0 0 0 0-44zm-35 78c6-25 64-25 70 0"/><text x="24" y="151" class="label">Sign in + select</text><text x="24" y="183" class="copy">Create account or sign in.</text><text x="24" y="207" class="copy">Choose an allowed person.</text></g>
   <g transform="translate(471 220)" filter="url(#s)"><rect class="card" width="247" height="225" rx="25"/><circle cx="40" cy="40" r="25" fill="#285943"/><text x="40" y="47" text-anchor="middle" class="step">2</text><path class="icon" d="M77 40h49v59H77zM87 54h29M87 66h29M87 78h19M134 48h25M134 62h25M134 76h17"/><text x="24" y="151" class="label">Review the brief</text><text x="24" y="183" class="copy">See risks, changes, and</text><text x="24" y="207" class="copy">today’s responsibilities.</text></g>
   <g transform="translate(842 220)" filter="url(#s)"><rect class="card" width="247" height="225" rx="25"/><circle cx="40" cy="40" r="25" fill="#285943"/><text x="40" y="47" text-anchor="middle" class="step">3</text><path class="icon" d="M73 42h65v44H99l-18 16V86h-8zM91 59h30M91 70h20M153 44v39M145 65h16"/><text x="24" y="151" class="label">Ask Carestead</text><text x="24" y="183" class="copy">Type or speak a question</text><text x="24" y="207" class="copy">about the current state.</text></g>
   <g transform="translate(1213 220)" filter="url(#s)"><rect class="card" width="247" height="225" rx="25"/><circle cx="40" cy="40" r="25" fill="#b77b18"/><text x="40" y="47" text-anchor="middle" class="step">4</text><path class="icon" d="M75 70s17-25 42-25 42 25 42 25-17 25-42 25-42-25-42-25zm42-11a11 11 0 1 0 0 22 11 11 0 0 0 0-22"/><text x="24" y="151" class="label">Inspect evidence</text><text x="24" y="183" class="copy">Answers cite the exact</text><text x="24" y="207" class="copy">profile records retrieved.</text></g>

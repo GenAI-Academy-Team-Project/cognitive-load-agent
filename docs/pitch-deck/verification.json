@@ -1,0 +1,54 @@
+[
+  {
+    "slide": "1. Persona and promise",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "2. Why this problem matters",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "3. Recipient model and handover",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "4. Practical support and actions",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "5. Solution flow and architecture",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "6. Evaluations",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "slide": "7. Safety and next step",
+    "overflow": false,
+    "footerBottom": 778.5,
+    "slideBottom": 822.5,
+    "images": true
+  },
+  {
+    "notes": true
+  }
+]
