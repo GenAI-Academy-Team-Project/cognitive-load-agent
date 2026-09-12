@@ -70,6 +70,7 @@ export type CareCircleMember = {
 };
 
 export type CurrentUser = {
+  isGuest?: boolean;
   id: string;
   email: string;
   displayName: string;
@@ -102,6 +103,12 @@ export type CarePlan = {
   override_count: number;
 };
 
+export type TemplateResponsibility = {
+  title: string;
+  category: string;
+  due_offset_days: string | number;
+};
+
 export type PlanTemplate = {
   id: string;
   template_key: string;
@@ -113,6 +120,7 @@ export type PlanTemplate = {
   status: string;
   task_count: number;
   rule_count: number;
+  responsibilities?: TemplateResponsibility[];
 };
 
 export type RecipientProfile = {
@@ -169,7 +177,7 @@ export type ChatEvidence = { label: string; detail: string };
 
 export type ChatActionRequest = {
   id: string;
-  action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check';
+  action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check' | 'save_memory';
   summary: string;
   status: 'pending' | 'executed' | 'rejected';
   requires_approval: 'true';
@@ -190,6 +198,8 @@ export type ChatState = {
   recipientName: string;
   messages: ChatMessage[];
   quickPrompts: string[];
+  tools?: unknown[];
+  notificationChannels?: string[];
   capabilities: { voiceInput: boolean; spokenReplies: boolean; externalDelivery: boolean };
 };
 
@@ -206,6 +216,7 @@ export type BenchmarkSummary = {
 };
 
 export type DashboardState = {
+  confirmedCoverage: number;
   risks: Risk[];
   tasks: CareTask[];
   events: CareEvent[];

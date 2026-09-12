@@ -1,0 +1,29 @@
+# LOCAL runtime bindings for make dev and make up. Copy to web/.dev.vars.
+# Optional integrations stay disabled when blank.
+# Calendar callback: http://localhost:3000/api/calendar/callback
+# Use separate local credentials/keys; never add Cloudflare API tokens here.
+# Calendar: fill all four values to enable. Keep GOOGLE_TOKEN_KEY stable.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+# Generate once per environment: openssl rand -hex 32
+GOOGLE_TOKEN_KEY=
+
+# Email: configure both values (quote a sender display name).
+RESEND_API_KEY=
+NOTIFICATION_EMAIL_FROM=
+
+# SMS: configure all three values.
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+# Browser push: configure all three values; keep keys stable.
+# Generate from web/: npx web-push generate-vapid-keys --json
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=
+
+# ntfy mobile push: HTTPS server origin (e.g. https://ntfy.sh), optional publisher token
+NTFY_SERVER_URL=
+NTFY_ACCESS_TOKEN=

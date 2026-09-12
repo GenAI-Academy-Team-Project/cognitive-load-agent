@@ -12,12 +12,12 @@ export function evaluateCareState(
   tasks: CareTask[],
   events: CareEvent[],
   memories: MemoryRecord[],
+  now = new Date(),
 ): AgentDecision {
-  const medicationTask = tasks.find(
-    (task) => task.category === "medication" && task.status !== "complete",
-  );
-  const refillMemory = memories.find((memory) => memory.kind === "medication");
-  const recentMedicationEvent = events.find((event) => event.type === "medication");
+  const open = tasks.filter((task) => task.status !== 'complete' && task.status !== 'archived');
+  const medicationTask = open.filter((task) => task.category === 'medication' && Number.isFinite(Date.parse(task.due_at)) && Date.parse(task.due_at) <= now.getTime() + 24 * 3600000).sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at))[0];
+  const refillMemory = memories.find((memory) => memory.kind === "medication" && memory.status === "verified");
+  const recentMedicationEvent = events.filter((event) => event.type === "medication" && Date.parse(event.occurred_at) <= now.getTime() && Date.parse(event.occurred_at) >= now.getTime() - 7 * 86400000).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))[0];
 
   if (medicationTask) {
     return {
@@ -26,7 +26,7 @@ export function evaluateCareState(
       rationale:
         "An open medication responsibility is close to its due time and no completed pickup is recorded.",
       recommendation:
-        "Confirm the pharmacy refill, ask Maya to pick it up, and notify Alex only after approval.",
+        `Confirm the pharmacy refill and review pickup coverage${medicationTask.owner !== "Unassigned" ? ` with ${medicationTask.owner}` : " with an available caregiver"}. Request acceptance before treating it as covered.`,
       evidence: [
         medicationTask.title,
         refillMemory?.value ?? "No verified refill preference",
@@ -35,9 +35,7 @@ export function evaluateCareState(
     };
   }
 
-  const unownedTask = tasks.find(
-    (task) => task.owner === "Unassigned" && task.status !== "complete",
-  );
+  const unownedTask = open.find((task) => task.owner === "Unassigned");
   if (unownedTask) {
     return {
       risk: "medium",
@@ -48,6 +46,8 @@ export function evaluateCareState(
     };
   }
 
+  const overdue = open.find((task) => Date.parse(task.due_at) < now.getTime());
+  if (overdue) return { risk: 'medium', title: 'Responsibility is overdue', rationale: 'The recorded deadline has passed without completion.', recommendation: `Review ${overdue.title} with ${overdue.owner}.`, evidence: [overdue.title, overdue.due_at] };
   return {
     risk: "low",
     title: "No urgent coordination gaps found",

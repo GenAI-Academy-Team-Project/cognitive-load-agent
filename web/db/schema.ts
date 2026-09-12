@@ -1,4 +1,5 @@
-import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from 'drizzle-orm';
+import { check, integer, primaryKey, index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const risks = sqliteTable("risks", {
   id: text("id").primaryKey(),
@@ -327,3 +328,167 @@ export const chatMessages = sqliteTable('chat_messages', {
 }, (table) => [
   index('idx_chat_messages_thread_time').on(table.threadId, table.createdAt),
 ]);
+
+
+export const authAccounts = sqliteTable('auth_accounts', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+export const authSessions = sqliteTable('auth_sessions', {
+  tokenHash: text('token_hash').primaryKey(),
+  accountId: text('account_id').notNull(),
+  expiresAt: text('expires_at').notNull(),
+}, (table) => [index('idx_auth_sessions_expiry').on(table.expiresAt)]);
+export const authInvitations = sqliteTable('auth_invitations', {
+  memberId: text('member_id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: text('expires_at').notNull(),
+});
+
+export const googleConnections = sqliteTable('google_connections', {
+  memberId: text('member_id').primaryKey(),
+  id: text('id').notNull().unique(),
+  googleSub: text('google_sub').notNull(),
+  email: text('email').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  status: text('status').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const googleOauthStates = sqliteTable('google_oauth_states', {
+  stateHash: text('state_hash').primaryKey(),
+  memberId: text('member_id').notNull(),
+  sessionHash: text('session_hash').notNull(),
+  recipientId: text('recipient_id').notNull(),
+  verifier: text('verifier').notNull(),
+  expiresAt: text('expires_at').notNull(),
+});
+
+export const calendarBindings = sqliteTable('calendar_bindings', {
+  memberId: text('member_id').notNull(),
+  recipientId: text('recipient_id').notNull(),
+  connectionId: text('connection_id').notNull(),
+  calendarId: text('calendar_id').notNull(),
+  calendarName: text('calendar_name').notNull(),
+}, (table) => [uniqueIndex('idx_calendar_binding_member_recipient').on(table.memberId, table.recipientId)]);
+
+export const calendarAppointments = sqliteTable('calendar_appointments', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  connectionId: text('connection_id').notNull(),
+  calendarId: text('calendar_id').notNull(),
+  eventId: text('event_id').notNull(),
+  taskId: text('task_id').notNull(),
+  title: text('title').notNull(),
+  startAt: text('start_at').notNull(),
+  endAt: text('end_at').notNull(),
+  timezone: text('timezone').notNull(),
+  location: text('location').notNull(),
+  attendeesJson: text('attendees_json').notNull(),
+  reminderMinutes: text('reminder_minutes').notNull(),
+  status: text('status').notNull(),
+  htmlLink: text('html_link').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [index('idx_calendar_appointments_recipient').on(table.recipientId, table.startAt), uniqueIndex('idx_calendar_active_task').on(table.taskId).where(sql`status = 'confirmed'`)]);
+
+export const calendarActions = sqliteTable('calendar_actions', {
+  id: text('id').primaryKey(),
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  connectionId: text('connection_id').notNull(),
+  kind: text('kind').notNull(),
+  payloadJson: text('payload_json').notNull(),
+  status: text('status').notNull(),
+  error: text('error'),
+  htmlLink: text('html_link'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [index('idx_calendar_actions_recipient').on(table.recipientId, table.memberId, table.createdAt)]);
+
+export const recipientLocks = sqliteTable('recipient_locks', {
+  recipientId: text('recipient_id').primaryKey(),
+  lockToken: text('lock_token'),
+  lockUntil: text('lock_until'),
+});
+
+export const taskPlanning = sqliteTable('task_planning', {
+  taskId: text('task_id').primaryKey(), recipientId: text('recipient_id').notNull(), ownerMemberId: text('owner_member_id').notNull(),
+  durationMinutes: integer('duration_minutes').notNull(), dependsOn: text('depends_on').notNull(), backupMemberId: text('backup_member_id').notNull(), requirementsJson: text('requirements_json').notNull(), acceptedSignature: text('accepted_signature').notNull(),
+}, (table) => [index('idx_task_planning_recipient').on(table.recipientId)]);
+export const caregiverAvailability = sqliteTable('caregiver_availability', {
+  id: text('id').primaryKey(), recipientId: text('recipient_id').notNull(), memberId: text('member_id').notNull(), startAt: text('start_at').notNull(), endAt: text('end_at').notNull(), categoriesJson: text('categories_json').notNull(), capabilitiesJson: text('capabilities_json').notNull(),
+}, (table) => [index('idx_availability_recipient').on(table.recipientId, table.startAt)]);
+export const planningProposals = sqliteTable('planning_proposals', {
+  id: text('id').primaryKey(), recipientId: text('recipient_id').notNull(), memberId: text('member_id').notNull(), kind: text('kind').notNull(), status: text('status').notNull(), payloadJson: text('payload_json').notNull(), createdAt: text('created_at').notNull(),
+}, (table) => [index('idx_planning_proposals_recipient').on(table.recipientId, table.createdAt)]);
+export const coverageOffers = sqliteTable('coverage_offers', {
+  id: text('id').primaryKey(), recipientId: text('recipient_id').notNull(), proposalId: text('proposal_id').notNull(), taskId: text('task_id').notNull(), memberId: text('member_id').notNull(), status: text('status').notNull(), signature: text('signature').notNull(), createdAt: text('created_at').notNull(),
+}, (table) => [uniqueIndex('idx_pending_coverage_task').on(table.taskId).where(sql`${table.status} = 'pending'`)]);
+export const handoverCheckpoints = sqliteTable('handover_checkpoints', {
+  recipientId: text('recipient_id').notNull(), memberId: text('member_id').notNull(), snapshotJson: text('snapshot_json').notNull(), acknowledgedAt: text('acknowledged_at').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipientId, table.memberId] })]);
+export const memoryFacts = sqliteTable('memory_facts', {
+  memoryId: text('memory_id').primaryKey(), recipientId: text('recipient_id').notNull(), subject: text('subject').notNull(), attribute: text('attribute').notNull(), validUntil: text('valid_until').notNull(), supersededBy: text('superseded_by').notNull(),
+}, (table) => [index('idx_memory_facts_recipient').on(table.recipientId)]);
+export const planningGuards = sqliteTable('planning_guards', {
+  id: text('id').primaryKey(), valid: integer('valid').notNull(),
+}, (table) => [check('planning_guard_valid', sql`${table.valid} = 1`)]);
+
+export const attentionSettings = sqliteTable('attention_settings', {
+  recipientId: text('recipient_id').notNull(), memberId: text('member_id').notNull(), dailyMinutes: integer('daily_minutes').notNull(), digestHour: integer('digest_hour').notNull(), focusMode: integer('focus_mode').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipientId, table.memberId] })]);
+export const carePreferences = sqliteTable('care_preferences', {
+  recipientId: text('recipient_id').primaryKey(), memoryId: text('memory_id').notNull(), memoryValue: text('memory_value').notNull(), startHour: integer('start_hour').notNull(), endHour: integer('end_hour').notNull(),
+});
+export const careRoutines = sqliteTable('care_routines', {
+  id: text('id').primaryKey(), recipientId: text('recipient_id').notNull(), title: text('title').notNull(), category: text('category').notNull(), everyDays: integer('every_days').notNull(), nextAt: text('next_at').notNull(), updatedAt: text('updated_at').notNull(),
+}, (table) => [index('idx_care_routines_recipient').on(table.recipientId)]);
+export const appointmentNotes = sqliteTable('appointment_notes', {
+  recipientId: text('recipient_id').notNull(), memberId: text('member_id').notNull(), taskId: text('task_id').notNull(), questions: text('questions').notNull(), followUp: text('follow_up').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipientId, table.memberId, table.taskId] })]);
+export const generatedBatches = sqliteTable('generated_batches', {
+  recipientId: text('recipient_id').notNull(), sourceKey: text('source_key').notNull(), createdAt: text('created_at').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipientId, table.sourceKey] })]);
+
+
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  emailEnabled: integer('email_enabled').notNull().default(0),
+  smsEnabled: integer('sms_enabled').notNull().default(0),
+  phone: text('phone').notNull().default(''),
+  pushJson: text('push_json'),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipientId, table.memberId] })]);
+
+export const notificationDeliveries = sqliteTable('notification_deliveries', {
+  actionId: text('action_id').primaryKey(),
+  notificationId: text('notification_id').notNull().unique(),
+  recipientId: text('recipient_id').notNull(),
+  memberId: text('member_id').notNull(),
+  channel: text('channel').notNull(),
+  destination: text('destination').notNull(),
+  status: text('status').notNull(),
+  providerId: text('provider_id'),
+  errorCode: text('error_code'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [index('idx_notification_deliveries_recipient').on(table.recipientId, table.createdAt)]);
+
+export const notificationReads = sqliteTable('notification_reads', {
+  notificationId: text('notification_id').notNull(),
+  memberId: text('member_id').notNull(),
+  readAt: text('read_at').notNull(),
+}, (table) => [primaryKey({ columns: [table.notificationId, table.memberId] })]);
+
+export const ntfyPreferences = sqliteTable('ntfy_preferences', {
+  recipient_id: text('recipient_id').notNull(),
+  member_id: text('member_id').notNull(),
+  server_url: text('server_url').notNull(),
+  topic: text('topic').notNull(),
+  updated_at: text('updated_at').notNull(),
+}, (table) => [primaryKey({ columns: [table.recipient_id, table.member_id] })]);

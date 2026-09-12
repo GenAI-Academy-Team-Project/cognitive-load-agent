@@ -28,8 +28,24 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local environment
+# local environment and credentials
 .env*
+!.env.cloudflare.example
+.dev.vars*
+!.dev.vars.example
+.secrets*
+!.secrets.cloudflare.example
+.certs/
+*.pem.local
+*.key.local
+credentials.json
+secrets.json
+api-keys.json
+tokens.json
+*.credentials
+*.credentials.json
+config.local.*
+local.*.json
 
 # deployment and generated files
 .vercel
@@ -38,3 +54,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/wrangler.deploy.json
+
+/.playwright-runs/

@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/.next
+**/.vinext
+**/.wrangler
+**/.env*
+**/.dev.vars*
+**/*.pem
+**/*.key
+**/wrangler.deploy.json
+**/test-results
+**/playwright-report
+**/.DS_Store
+.git
+docs
+*.docx
+**/.secrets*

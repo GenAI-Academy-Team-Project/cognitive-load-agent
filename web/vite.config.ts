@@ -1,13 +1,30 @@
 import { sites } from '@openai/sites-vite-plugin';
+import { existsSync, readFileSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
 
 const { d1, r2 } = hostingConfig;
+const cloudDeployment = process.env.CARESTEAD_CLOUD === '1';
+
+// The Cloudflare plugin emits local preview bindings next to its build output.
+// Cloud releases use remote Worker secrets and must not package that local file.
+const excludeLocalSecrets: Plugin = {
+  name: 'carestead-exclude-local-secrets',
+  enforce: 'post',
+  generateBundle: {
+    order: 'post',
+    handler(_options, bundle) {
+      for (const name of Object.keys(bundle)) {
+        if (/(^|\/)\.dev\.vars(?:\.|$)/.test(name)) delete bundle[name];
+      }
+    },
+  },
+};
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
@@ -34,7 +51,13 @@ const localBindingConfig = {
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
+  const certPath = new URL('./.certs/carestead.pem', import.meta.url);
+  const keyPath = new URL('./.certs/carestead-key.pem', import.meta.url);
+  // Use local certificates when available; CI and local tests still use HTTP.
+  const localHttps = command === 'serve' && !cloudDeployment
+    && process.env.CARESTEAD_TEST !== '1'
+    && existsSync(certPath) && existsSync(keyPath);
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -46,17 +69,28 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      host: 'carestead.com',
+      port: localHttps ? 8083 : 8080,
+      strictPort: true,
+      ...(localHttps ? {
+        https: { cert: readFileSync(certPath), key: readFileSync(keyPath) },
+      } : {}),
+      allowedHosts: ['carestead.com'],
+      watch: { ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}), ignored: ['**/.playwright-runs/**', '**/test-results/**', '**/playwright-report/**'] },
+    },
     plugins: [
       vinext(),
-      sites(),
+      ...(cloudDeployment ? [] : [sites()]),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
-        config: localBindingConfig,
-        inspectorPort: isCodexSeatbeltSandbox ? false : undefined,
+        ...(cloudDeployment
+          ? { configPath: './wrangler.deploy.json' }
+          : { config: localBindingConfig }),
+        persistState: process.env.CARESTEAD_TEST === '1' && process.env.CARESTEAD_PERSISTENCE_TEST !== '1' ? false : undefined,
+        inspectorPort: isCodexSeatbeltSandbox || process.env.CARESTEAD_TEST === '1' ? false : undefined,
       }),
+      ...(cloudDeployment ? [excludeLocalSecrets] : []),
     ],
   };
 });

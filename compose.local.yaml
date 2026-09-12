@@ -1,0 +1,31 @@
+# Local preview only. Run make local-init before using Compose directly.
+# HTTP on 8080, HTTPS on 8083
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: carestead:local
+    init: true
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8083:8083"
+    volumes:
+      - carestead-data:/app/.wrangler/state
+      - type: bind
+        source: ./web/.certs
+        target: /app/.certs
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./web/.dev.vars
+        target: /app/dist/server/.dev.vars
+        read_only: true
+        bind:
+          create_host_path: false
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  carestead-data:
