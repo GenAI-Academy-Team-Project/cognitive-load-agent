@@ -1,72 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">Carestead core product features</title>
-  <desc id="desc">Eight connected capabilities surround a care recipient: reusable plans, daily coordination, handover, grounded chat and voice, risk detection, approval-aware actions, durable memory, and privacy and evaluation.</desc>
+  <desc id="desc">Eight caregiver capabilities connect to one recipient-centered care state.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbf8f1"/><stop offset="1" stop-color="#edf3ed"/></linearGradient>
     <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173f31"/><stop offset="1" stop-color="#2f6750"/></linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#173f31" flood-opacity=".13"/></filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#173f31" flood-opacity=".12"/></filter>
     <style>
-      .sans{font-family:Inter,Arial,sans-serif}.serif{font-family:Georgia,serif}.ink{fill:#173a2e}.muted{fill:#62736b}.card{fill:#fffdf8;stroke:#d7dfd8;stroke-width:2}.num{font:700 18px Inter,Arial,sans-serif;fill:#fff}.label{font:700 25px Inter,Arial,sans-serif;fill:#173a2e}.copy{font:400 17px Inter,Arial,sans-serif;fill:#62736b}.line{fill:none;stroke:#8ba695;stroke-width:3}.icon{fill:none;stroke:#285b46;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+      .sans{font-family:Inter,Arial,sans-serif}.serif{font-family:Georgia,serif}.ink{fill:#173a2e}.muted{fill:#62736b}
+      .card{fill:#fffdf8;stroke:#d4ded6;stroke-width:2}.label{font:700 22px Inter,Arial,sans-serif;fill:#173a2e}.copy{font:400 15px Inter,Arial,sans-serif;fill:#62736b}
+      .num{font:700 17px Inter,Arial,sans-serif;fill:#fff}.line{fill:none;stroke:#8ba695;stroke-width:3}
     </style>
   </defs>
   <rect width="1600" height="900" fill="url(#bg)"/>
-  <circle cx="1450" cy="95" r="150" fill="#e5c982" opacity=".16"/><circle cx="95" cy="820" r="180" fill="#90aa96" opacity=".13"/>
-  <text x="800" y="84" text-anchor="middle" class="serif ink" font-size="58" font-weight="700">Carestead at a glance</text>
-  <text x="800" y="124" text-anchor="middle" class="sans muted" font-size="20" letter-spacing="5">ONE CALM PLACE FOR CARE COORDINATION</text>
+  <circle cx="1490" cy="80" r="150" fill="#e5c982" opacity=".15"/><circle cx="70" cy="850" r="170" fill="#90aa96" opacity=".12"/>
+  <text x="800" y="72" text-anchor="middle" class="serif ink" font-size="52" font-weight="700">Carestead at a glance</text>
+  <text x="800" y="108" text-anchor="middle" class="sans muted" font-size="17" letter-spacing="4">ONE CALM PLACE FOR CARE COORDINATION</text>
 
-  <path class="line" d="M530 298H610M990 298H1070M530 592H610M990 592H1070M475 355L650 405M1125 355L950 405M475 535L650 485M1125 535L950 485"/>
+  <path class="line" d="M540 250H620M980 250H1060M540 395H620M980 395H1060M540 540H620M980 540H1060M540 685H680M920 685H1060"/>
 
   <g filter="url(#shadow)">
-    <rect x="590" y="285" width="420" height="330" rx="34" fill="url(#hero)"/>
-    <circle cx="800" cy="390" r="64" fill="#f2dfad"/>
-    <circle cx="800" cy="373" r="20" fill="#234c3b"/><path d="M758 432c7-31 77-31 84 0" fill="#234c3b"/>
-    <text x="800" y="500" text-anchor="middle" class="serif" fill="#fffdf8" font-size="30" font-weight="700">The person at the center</text>
-    <text x="800" y="540" text-anchor="middle" class="sans" fill="#dce9df" font-size="19">One recipient-scoped care state</text>
-    <text x="800" y="572" text-anchor="middle" class="sans" fill="#dce9df" font-size="19">shared safely across the care circle</text>
+    <rect x="620" y="230" width="360" height="420" rx="32" fill="url(#hero)"/>
+    <circle cx="800" cy="350" r="58" fill="#f2dfad"/>
+    <circle cx="800" cy="333" r="18" fill="#234c3b"/><path d="M763 385c7-27 67-27 74 0" fill="#234c3b"/>
+    <text x="800" y="440" text-anchor="middle" class="serif" fill="#fffdf8" font-size="28" font-weight="700">The person</text>
+    <text x="800" y="474" text-anchor="middle" class="serif" fill="#fffdf8" font-size="28" font-weight="700">at the center</text>
+    <text x="800" y="520" text-anchor="middle" class="sans" fill="#dce9df" font-size="17">One recipient-scoped care state</text>
+    <text x="800" y="550" text-anchor="middle" class="sans" fill="#dce9df" font-size="17">shared across the care circle</text>
+    <line x1="690" y1="580" x2="910" y2="580" stroke="#6f8e7e"/>
+    <text x="800" y="617" text-anchor="middle" class="sans" fill="#f2dfad" font-size="14" font-weight="700" letter-spacing="1.6">PROFILE • PLAN • CURRENT STATE</text>
   </g>
 
-  <g transform="translate(80 190)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#315f49"/><text x="52" y="59" text-anchor="middle" class="num">1</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M98 43h38M98 55h27M100 83h34v32h-34zM108 83v-8h18v8"/>
-    <text x="158" y="55" class="label">Reusable care plans</text><text x="40" y="105" class="copy">Start from a template, personalize responsibilities,</text><text x="40" y="133" class="copy">and safely clone structure for another person.</text>
-  </g>
-  <g transform="translate(1070 190)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#315f49"/><text x="52" y="59" text-anchor="middle" class="num">2</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M96 40h42v38H96zM106 34v12M128 34v12M104 58h8M120 58h8M104 68h8"/>
-    <text x="158" y="55" class="label">Daily coordination</text><text x="40" y="105" class="copy">See responsibilities, appointments, assignments,</text><text x="40" y="133" class="copy">notifications, and what needs attention next.</text>
-  </g>
-  <g transform="translate(80 370)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#315f49"/><text x="52" y="59" text-anchor="middle" class="num">3</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M96 42h42v48H96zM104 53h26M104 64h26M104 75h17M139 78l14 14M146 72v13h13"/>
-    <text x="158" y="55" class="label">Live handover brief</text><text x="40" y="105" class="copy">Consolidate profile, current risks, next reviews,</text><text x="40" y="133" class="copy">key people, providers, and support systems.</text>
-  </g>
-  <g transform="translate(1070 370)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#b65a3f"/><text x="52" y="59" text-anchor="middle" class="num">4</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M95 42h45v34H116l-13 12V76h-8zM106 56h23M106 66h15M148 45v30M148 82v8"/>
-    <text x="158" y="55" class="label">Grounded chat + voice</text><text x="40" y="105" class="copy">Ask about the selected person, inspect evidence,</text><text x="40" y="133" class="copy">and use speech without retaining raw audio.</text>
-  </g>
-  <g transform="translate(80 550)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#b57a17"/><text x="52" y="59" text-anchor="middle" class="num">5</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M118 38l27 11v19c0 20-13 32-27 39-14-7-27-19-27-39V49zM118 55v18M118 84v1"/>
-    <text x="158" y="55" class="label">Explainable risk checks</text><text x="40" y="105" class="copy">Detect conflicts and missed care tasks using visible</text><text x="40" y="133" class="copy">rules, source records, and scoreable traces.</text>
-  </g>
-  <g transform="translate(1070 550)">
-    <rect class="card" width="450" height="165" rx="24"/>
-    <circle cx="52" cy="52" r="25" fill="#b65a3f"/><text x="52" y="59" text-anchor="middle" class="num">6</text>
-    <path transform="translate(24 0) scale(.72)" class="icon" d="M92 64l17 17 34-38M94 96h47M117 96v18"/>
-    <text x="158" y="55" class="label">Approval-aware actions</text><text x="40" y="105" class="copy">Agents propose; authorized caregivers approve or</text><text x="40" y="133" class="copy">decline before consequential tools can execute.</text>
-  </g>
-  <g transform="translate(330 735)">
-    <rect class="card" width="450" height="120" rx="24"/><circle cx="52" cy="52" r="25" fill="#315f49"/><text x="52" y="59" text-anchor="middle" class="num">7</text>
-    <text x="94" y="48" class="label">Durable structured memory</text><text x="94" y="80" class="copy">Source-linked facts, review history, and audit.</text>
-  </g>
-  <g transform="translate(820 735)">
-    <rect class="card" width="450" height="120" rx="24"/><circle cx="52" cy="52" r="25" fill="#315f49"/><text x="52" y="59" text-anchor="middle" class="num">8</text>
-    <text x="94" y="48" class="label">Accounts + privacy</text><text x="94" y="80" class="copy">Sign-in, invitations, roles, and data controls.</text>
-  </g>
+  <g transform="translate(70 190)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#315f49"/><text x="48" y="48" text-anchor="middle" class="num">1</text><text x="88" y="42" class="label">Reusable care plans</text><text x="88" y="72" class="copy">Start from a template and personalize it.</text><text x="88" y="96" class="copy">Clone the structure safely for another person.</text></g>
+  <g transform="translate(70 335)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#315f49"/><text x="48" y="48" text-anchor="middle" class="num">2</text><text x="88" y="42" class="label">Daily coordination</text><text x="88" y="72" class="copy">See tasks, appointments, owners, and alerts.</text><text x="88" y="96" class="copy">Focus on what needs attention next.</text></g>
+  <g transform="translate(70 480)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#315f49"/><text x="48" y="48" text-anchor="middle" class="num">3</text><text x="88" y="42" class="label">Live handover brief</text><text x="88" y="72" class="copy">Combine current risks, next reviews, and contacts.</text><text x="88" y="96" class="copy">Give the next caregiver one concise summary.</text></g>
+  <g transform="translate(70 625)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#b57a17"/><text x="48" y="48" text-anchor="middle" class="num">4</text><text x="88" y="42" class="label">Explainable risk checks</text><text x="88" y="72" class="copy">Detect conflicts, gaps, and missed care tasks.</text><text x="88" y="96" class="copy">Show the rule and source records behind each risk.</text></g>
+
+  <g transform="translate(1060 190)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#b65a3f"/><text x="48" y="48" text-anchor="middle" class="num">5</text><text x="88" y="42" class="label">Grounded chat and voice</text><text x="88" y="72" class="copy">Ask about the selected person and see evidence.</text><text x="88" y="96" class="copy">Use speech without retaining raw audio.</text></g>
+  <g transform="translate(1060 335)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#b65a3f"/><text x="48" y="48" text-anchor="middle" class="num">6</text><text x="88" y="42" class="label">Approval-aware actions</text><text x="88" y="72" class="copy">Review each consequential change before it runs.</text><text x="88" y="96" class="copy">Approve, decline, or edit the exact proposal.</text></g>
+  <g transform="translate(1060 480)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#315f49"/><text x="48" y="48" text-anchor="middle" class="num">7</text><text x="88" y="42" class="label">Durable structured memory</text><text x="88" y="72" class="copy">Store source-linked facts and review status.</text><text x="88" y="96" class="copy">Keep changes and outcomes in the activity history.</text></g>
+  <g transform="translate(1060 625)" filter="url(#shadow)"><rect class="card" width="470" height="120" rx="22"/><circle cx="48" cy="42" r="23" fill="#315f49"/><text x="48" y="48" text-anchor="middle" class="num">8</text><text x="88" y="42" class="label">Privacy, access, and evaluation</text><text x="88" y="72" class="copy">Enforce consent, roles, retention, and deletion.</text><text x="88" y="96" class="copy">Score retrieval, decisions, actions, and outcomes.</text></g>
+
+  <text x="800" y="830" text-anchor="middle" class="sans muted" font-size="16">Care plan • Care Circle • Responsibilities • Calendar • Timeline • Organizer • Handover • Chat and voice</text>
 </svg>
