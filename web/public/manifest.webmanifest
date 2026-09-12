@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "Carestead",
+  "short_name": "Carestead",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f7",
+  "theme_color": "#315944",
+  "icons": [
+    {
+      "src": "/carestead-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/carestead-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

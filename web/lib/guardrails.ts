@@ -24,6 +24,8 @@ export function validatePayload(body: Record<string, unknown>) {
 }
 
 const policies: Record<string, { limit: number; seconds: number }> = {
+  renew_invitation: { limit: 10, seconds: 3600 },
+  auth_email: { limit: 10, seconds: 900 }, auth_ip: { limit: 40, seconds: 900 },
   run_check: { limit: 10, seconds: 60 }, invite_member: { limit: 10, seconds: 3600 },
   export: { limit: 5, seconds: 3600 }, delete_recipient: { limit: 3, seconds: 3600 },
   chat_message: { limit: 30, seconds: 60 }, chat_action: { limit: 12, seconds: 60 },

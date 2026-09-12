@@ -1,3 +1,10 @@
+import { effectiveIntegrations } from '@/lib/integration-settings';
+import { executeNotification, parseNotificationRequest, prepareNotification } from '@/lib/notification-service';
+import { configuredChannels, sendNotificationTool } from '@/lib/notification-types';
+import { currentMemories } from '@/lib/current-memories';
+import { evaluateCareState } from '@/lib/risk-engine';
+import { integrationFor, memoryCandidate, memoryLease, recallMemory, setMemoryEnabled } from '@/lib/care-memory';
+import { localToInstant } from '@/lib/calendar-time';
 import { env } from 'cloudflare:workers';
 
 import { ensureDatabase } from '@/db/bootstrap';
@@ -8,7 +15,7 @@ import type { CareEvent, CareTask, ChatActionRequest, ChatEvidence, ChatMessage,
 export const runtime = 'edge';
 
 type Access = { recipientId: string; accessRole: CareRole; recipientName: string };
-type ActionRow = Omit<ChatActionRequest, 'payload'> & { payload_json: string };
+type ActionRow = Omit<ChatActionRequest, 'payload'> & { payload_json: string; thread_id: string };
 type MessageRow = Omit<ChatMessage, 'evidence' | 'action'> & {
   evidence_json: string;
   action_request_id: string | null;
@@ -32,10 +39,11 @@ type ProposedAction = {
   summary: string;
   payload: Record<string, string>;
 };
-type Body = { action?: 'message' | 'approve_action' | 'reject_action'; recipientId?: string; message?: string; actionId?: string };
+type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'enable_memory' | 'disable_memory' | 'propose_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
 
 const quickPrompts = [
   'What should I review today?',
+  'Remember that afternoon appointments are preferred.',
   'Are there any calendar conflicts?',
   'Who are the key support contacts?',
   'Reschedule the physiotherapy appointment to tomorrow at 3:30 PM',
@@ -69,8 +77,8 @@ function parseJson<T>(value: string | null, fallback: T): T {
 async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessage[]> {
   const messages = await rows<MessageRow>(db, `SELECT m.*,a.action_type,a.summary action_summary,a.status action_status,a.requires_approval action_requires_approval,a.payload_json action_payload_json
     FROM chat_messages m LEFT JOIN chat_action_requests a ON a.id=m.action_request_id
-    WHERE m.thread_id=? ORDER BY m.created_at ASC LIMIT 60`, [threadId]);
-  return messages.map((message) => ({
+    WHERE m.thread_id=? ORDER BY m.created_at DESC,m.id DESC LIMIT 60`, [threadId]);
+  return messages.reverse().map((message) => ({
     id: message.id,
     role: message.role,
     content: message.content,
@@ -88,12 +96,16 @@ async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessag
 }
 
 async function chatState(db: D1Database, access: Access, threadId: string): Promise<ChatState> {
+  const memory = await integrationFor(db, access.recipientId);
   return {
+    memory: { configured: Boolean((await effectiveIntegrations(db, env)).MEM0_API_KEY), enabled: memory?.enabled === 'true', canManage: isOwner(access.accessRole), cleanupPending: memory?.enabled === 'false' && memory?.remote_dirty === 'true' },
     recipientId: access.recipientId,
     recipientName: access.recipientName,
     messages: await messagesFor(db, threadId),
     quickPrompts,
-    capabilities: { voiceInput: true, spokenReplies: true, externalDelivery: false },
+    tools: [sendNotificationTool],
+    notificationChannels: configuredChannels(await effectiveIntegrations(db, env)),
+    capabilities: { voiceInput: true, spokenReplies: true, externalDelivery: configuredChannels(await effectiveIntegrations(db, env)).length > 1 },
   };
 }
 
@@ -104,7 +116,7 @@ async function snapshotFor(db: D1Database, recipientId: string): Promise<Snapsho
     rows<Risk>(db, scoped('risks', 'risk', "CASE x.severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,x.updated_at DESC"), [recipientId]),
     rows<CareTask>(db, scoped('tasks', 'task', 'x.due_at', "AND x.status!='archived'"), [recipientId]),
     rows<CareEvent>(db, scoped('events', 'event', 'x.occurred_at DESC'), [recipientId]),
-    rows<MemoryRecord>(db, scoped('memories', 'memory', 'x.updated_at DESC', "AND x.status!='archived'"), [recipientId]),
+    currentMemories(db, recipientId),
     rows<SupportContact>(db, "SELECT * FROM support_contacts WHERE recipient_id=? AND status='active' ORDER BY CASE priority WHEN 'primary' THEN 1 WHEN 'important' THEN 2 ELSE 3 END,name", [recipientId]),
     rows<Trace>(db, scoped('traces', 'trace', 'x.created_at DESC'), [recipientId]),
   ]);
@@ -119,8 +131,9 @@ function requestedDate(message: string, now: Date) {
   const iso = message.match(/\b(20\d{2}-\d{2}-\d{2})(?:[ t](\d{1,2})(?::(\d{2}))?)?\b/i);
   const clock = message.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
   if (iso) {
-    const parsed = new Date(`${iso[1]}T${String(iso[2] || clock?.[1] || '09').padStart(2, '0')}:${String(iso[3] || clock?.[2] || '00').padStart(2, '0')}:00-04:00`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    let hour = Number(iso[2] || clock?.[1] || '09');
+    if (clock) hour = Number(clock[1]) % 12 + (clock[3].toLowerCase() === 'pm' ? 12 : 0);
+    try { return localToInstant(`${iso[1]}T${String(hour).padStart(2, '0')}:${String(iso[3] || clock?.[2] || '00').padStart(2, '0')}`, 'America/Toronto'); } catch { return null; }
   }
   if (!clock) return null;
   const period = clock[3].toLowerCase();
@@ -152,10 +165,6 @@ function propose(message: string, snapshot: Snapshot, now: Date): ProposedAction
   if (lower.includes('notify') || lower.includes('send a notification') || lower.includes('send notification')) {
     return { type: 'send_notification', summary: `Post an in-app caregiver update for ${snapshot.profile.preferred_name || 'this recipient'}.`, payload: { title: 'Caregiver update', detail: compact(message.replace(/^(please\s+)?(send\s+)?(a\s+)?notification\s*(to\s+[^:,.]+)?[:,.]?\s*/i, '') || message, 500) } };
   }
-  if (lower.includes('assign') && lower.includes('ride')) {
-    const task = snapshot.tasks.find((item) => item.category === 'transport' && item.status !== 'complete');
-    if (task) return { type: 'assign_task', summary: `Assign “${task.title}” to Maya.`, payload: { taskId: task.id, owner: 'Maya' } };
-  }
   if (lower.includes('add responsibility') || lower.includes('create responsibility')) {
     const title = compact(message.replace(/^.*?(?:add|create) responsibility(?: to)?/i, '').replace(/\b(?:due\s+)?tomorrow.*$/i, ''), 160) || 'Follow up with care team';
     const dueAt = requestedDate(message, now) ?? new Date(now.getTime() + 86400000).toISOString();
@@ -169,6 +178,7 @@ function propose(message: string, snapshot: Snapshot, now: Date): ProposedAction
 
 function answer(message: string, snapshot: Snapshot): { content: string; evidence: ChatEvidence[] } {
   const lower = message.toLowerCase();
+  if (/\bassign\b/.test(lower)) return { content: 'Open Care planning → Task planning to choose a caregiver by identity. They can accept once their availability matches. Use “I need a break” to request replacement coverage.', evidence: [] };
   const openRisks = snapshot.risks.filter((risk) => risk.status !== 'resolved');
   const openTasks = snapshot.tasks.filter((task) => task.status !== 'complete');
   if (/summary|handover|review today|attention|what.*today/.test(lower)) {
@@ -232,6 +242,16 @@ async function proposeAction(db: D1Database, threadId: string, recipientId: stri
 }
 
 async function executeAction(db: D1Database, member: CareMembership, access: Access, action: ActionRow, now: string) {
+  if (action.action_type !== 'send_notification') return executeActionImpl(db, member, access, action, now);
+  // Share the consent/deletion lease through provider dispatch and audit persistence.
+  const release = await memoryLease(db, access.recipientId);
+  try {
+    if ((await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(access.recipientId).first<{ status: string }>())?.status !== 'active') throw new AppError('consent_inactive', 409, 'Consent is withdrawn.');
+    return await executeActionImpl(db, member, access, action, now);
+  } finally { await release(); }
+}
+
+async function executeActionImpl(db: D1Database, member: CareMembership, access: Access, action: ActionRow, now: string) {
   const payload = parseJson<Record<string, string>>(action.payload_json, {});
   const plan = await db.prepare("SELECT id FROM care_plans WHERE recipient_id=? AND status='active' ORDER BY activated_at DESC LIMIT 1").bind(access.recipientId).first<{ id: string }>();
   if (!plan) throw new AppError('plan_not_found', 404, 'Active care plan not found');
@@ -240,28 +260,48 @@ async function executeAction(db: D1Database, member: CareMembership, access: Acc
   const eventId = crypto.randomUUID();
   const traceId = crypto.randomUUID();
   let outcome = '';
-  if (action.action_type === 'reschedule_task') {
+  if (action.action_type === 'save_memory') {
+    if (!payload.value || payload.value.length > 1200 || !payload.memoryId || !payload.sourceMessageId) throw new AppError('invalid_memory', 400, 'This suggested fact is incomplete.');
+    const source = await db.prepare("SELECT content FROM chat_messages WHERE id=? AND thread_id=? AND role='user'").bind(payload.sourceMessageId, action.thread_id).first<{ content: string }>();
+    if (!source || memoryCandidate(source.content) !== payload.value) throw new AppError('memory_source_expired', 409, 'The original message is unavailable or changed. Please suggest the fact again.');
+    const release = await memoryLease(db, access.recipientId);
+    try {
+      if ((await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(access.recipientId).first<{ status: string }>())?.status !== 'active') throw new AppError('consent_inactive', 409, 'Consent is withdrawn.');
+      if (!(await db.prepare("SELECT 1 FROM chat_action_requests WHERE id=? AND status='pending'").bind(action.id).first())) throw new AppError('action_already_decided', 409, 'This action was already decided');
+      await db.batch([
+        db.prepare("INSERT OR IGNORE INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)").bind(payload.memoryId, 'preference', payload.value, `Chat message ${payload.sourceMessageId}; confirmed by ${member.displayName}`.slice(0, 200), 'high', 'verified', now),
+        db.prepare("INSERT OR IGNORE INTO record_scopes VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), 'memory', payload.memoryId, access.recipientId, plan.id, now),
+        db.prepare('UPDATE chat_action_requests SET status=?,decided_at=?,executed_at=? WHERE id=?').bind('executed', now, now, action.id),
+        db.prepare('INSERT INTO traces VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(traceId, 'Caregiver-approved chat fact', action.summary, action.action_type, 'approved by human', 'Carestead memory', 'Verified fact saved', now),
+        scope('trace', traceId),
+      ]);
+      await audit(db, member, 'execute', 'chat_action', action.id, 'Saved a caregiver-confirmed fact from chat');
+      return 'The verified fact was saved for this care circle and is available in future conversations.';
+    } finally { await release(); }
+  } else if (action.action_type === 'reschedule_task') {
+    if (await db.prepare("SELECT 1 FROM calendar_appointments WHERE task_id=? AND recipient_id=? AND status='confirmed'").bind(payload.taskId || '', access.recipientId).first()) throw new AppError('linked_calendar_task', 409, 'Use Calendar to review the new time and notify this appointment’s guests.');
     if (!payload.taskId || !payload.dueAt || !await scoped('task', payload.taskId)) throw new AppError('task_not_found', 404, 'Appointment not found');
     const task = await db.prepare('SELECT title FROM tasks WHERE id=?').bind(payload.taskId).first<{ title: string }>();
     await db.batch([db.prepare('UPDATE tasks SET due_at=? WHERE id=?').bind(payload.dueAt, payload.taskId), db.prepare('INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)').bind(eventId, 'appointment', 'Appointment rescheduled', `${task?.title || 'Appointment'} moved to ${formatWhen(payload.dueAt)}.`, member.displayName, now), scope('event', eventId)]);
     outcome = `${task?.title || 'Appointment'} was rescheduled to ${formatWhen(payload.dueAt)}.`;
   } else if (action.action_type === 'send_notification') {
-    const notificationId = crypto.randomUUID();
-    await db.prepare('INSERT INTO notifications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(notificationId, access.recipientId, 'reminder', compact(payload.title || 'Caregiver update', 180), compact(payload.detail || action.summary, 900), null, 'delivered', null, now).run();
-    outcome = 'The update was posted to Carestead notifications. No external message was sent.';
+    // Older proposals without a target retain their original in-app behavior.
+    if (!payload.channel) {
+      await db.prepare('INSERT OR IGNORE INTO notifications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(action.id, access.recipientId, 'reminder', compact(payload.title || 'Caregiver update', 180), compact(payload.detail || action.summary, 900), null, 'delivered', null, now).run();
+      outcome = 'The update was posted to Carestead notifications. No external message was sent.';
+    } else outcome = await executeNotification(db, await effectiveIntegrations(db, env), access.recipientId, member.memberId, action.id, payload);
   } else if (action.action_type === 'assign_task') {
     if (!payload.taskId || !await scoped('task', payload.taskId)) throw new AppError('task_not_found', 404, 'Responsibility not found');
     const task = await db.prepare('SELECT title FROM tasks WHERE id=?').bind(payload.taskId).first<{ title: string }>();
-    await db.prepare("UPDATE tasks SET owner=?,status=CASE WHEN status='complete' THEN status ELSE 'assigned' END WHERE id=?").bind(payload.owner || 'Maya', payload.taskId).run();
-    outcome = `${task?.title || 'Responsibility'} was assigned to ${payload.owner || 'Maya'}.`;
+    throw new AppError('choose_caregiver', 409, `Use Care planning to assign ${task?.title || 'this responsibility'} and request acceptance.`);
   } else if (action.action_type === 'create_task') {
     const taskId = crypto.randomUUID();
     await db.batch([db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(taskId, compact(payload.title || 'Care follow-up', 180), compact(payload.owner || 'Unassigned', 100), payload.dueAt || new Date(Date.now() + 86400000).toISOString(), 'open', compact(payload.category || 'general', 80), null), scope('task', taskId)]);
     outcome = `“${payload.title || 'Care follow-up'}” was added to responsibilities.`;
   } else if (action.action_type === 'run_care_check') {
     const snapshot = await snapshotFor(db, access.recipientId);
-    const topRisk = snapshot.risks.find((risk) => risk.status !== 'resolved');
-    outcome = topRisk ? `Care check completed. Highest priority: ${topRisk.title}.` : 'Care check completed with no unresolved risks.';
+    const decision = evaluateCareState(snapshot.tasks, snapshot.events, snapshot.memories);
+    outcome = `Care check completed. ${decision.title}. ${decision.recommendation}`;
   } else throw new AppError('unsupported_chat_action', 400, 'This action is not supported');
   await db.batch([
     db.prepare('UPDATE chat_action_requests SET status=?,decided_at=?,executed_at=? WHERE id=?').bind('executed', now, now, action.id),
@@ -279,8 +319,16 @@ async function resolveContext(request: Request, recipientId: string) {
   if ('error' in auth) return { error: auth.error } as const;
   const access = await accessFor(db, auth.member, recipientId);
   if (!access) return { error: Response.json({ error: 'You do not have access to this care recipient' }, { status: 403 }) } as const;
-  const consent = await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(recipientId).first<{ status: string }>();
+  const consent = await db.prepare('SELECT status,retention_days FROM consent_records WHERE recipient_id=?').bind(recipientId).first<{ status: string; retention_days: string }>();
   if (consent?.status !== 'active') return { error: Response.json({ error: 'Consent is withdrawn. Chat and voice are paused for this profile.' }, { status: 409 }) } as const;
+  const days = Number(consent.retention_days);
+  if (days > 0) {
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+    await db.batch([
+      db.prepare('DELETE FROM chat_messages WHERE thread_id IN (SELECT id FROM chat_threads WHERE recipient_id=?) AND created_at<?').bind(recipientId, cutoff),
+      db.prepare('DELETE FROM chat_action_requests WHERE recipient_id=? AND created_at<?').bind(recipientId, cutoff),
+    ]);
+  }
   const threadId = await threadFor(db, recipientId, auth.member.memberId, new Date().toISOString());
   return { db, member: auth.member, access, threadId } as const;
 }
@@ -305,28 +353,68 @@ export async function POST(request: Request) {
   let preview: Body = {};
   try {
     preview = await request.json() as Body;
-    if (!preview.recipientId || !preview.action) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
+    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'enable_memory', 'disable_memory', 'propose_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
     const context = await resolveContext(request, preview.recipientId);
     if ('error' in context) return context.error;
     const { db, member, access, threadId } = context;
     const now = new Date().toISOString();
-    if (preview.action === 'message') {
+    if (preview.action === 'enable_memory' || preview.action === 'disable_memory') {
+      if (!isOwner(access.accessRole)) throw new AppError('memory_forbidden', 403, 'Only the recipient owner can manage external memory.');
+      await enforceRateLimit(db, member.id, 'chat_action');
+      const release = await memoryLease(db, access.recipientId);
+      try {
+        await setMemoryEnabled(db, preview.action === 'enable_memory' ? await effectiveIntegrations(db, env) : env, access.recipientId, preview.action === 'enable_memory');
+        await audit(db, member, preview.action, 'memory_integration', access.recipientId, 'External memory preference updated');
+      } finally { await release(); }
+    } else if (preview.action === 'propose_notification') {
+      await enforceRateLimit(db, member.id, 'chat_action');
+      if (!canWrite(access.accessRole)) throw new AppError('forbidden', 403, 'Your role cannot prepare notifications.');
+      const proposal = await prepareNotification(db, await effectiveIntegrations(db, env), access.recipientId, preview.notification);
+      const actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
+      await saveMessage(db, threadId, 'assistant', 'Review the caregiver, channel, and exact message before approving delivery.', [], actionId, now);
+      await audit(db, member, 'propose', 'chat_action', actionId, proposal.summary);
+    } else if (preview.action === 'message') {
       await enforceRateLimit(db, member.id, 'chat_message');
-      const message = compact(preview.message || '', 1200);
+      if (typeof preview.message !== 'string' || preview.message.length > 1200) throw new AppError('invalid_message', 400, 'Enter a message of up to 1200 characters.');
+      const message = compact(preview.message, 1200);
       if (!message) throw new AppError('message_required', 400, 'Enter a message');
-      await saveMessage(db, threadId, 'user', message, [], null, now);
+      const sourceMessageId = await saveMessage(db, threadId, 'user', message, [], null, now);
       const snapshot = await snapshotFor(db, access.recipientId);
-      const proposal = propose(message, snapshot, new Date());
+      const candidate = memoryCandidate(message);
+      let proposal: ProposedAction | null = candidate ? {
+        type: 'save_memory', summary: `Save as a verified fact for ${access.recipientName}’s care circle: “${candidate}”`,
+        payload: { value: candidate, sourceMessageId, memoryId: crypto.randomUUID() },
+      } : propose(message, snapshot, new Date());
+      const notificationRequest = parseNotificationRequest(message);
+      if (notificationRequest) {
+        const members = await rows<{ id: string; display_name: string }>(db, "SELECT c.id,c.display_name FROM care_circle_members c JOIN recipient_members rm ON rm.member_id=c.id WHERE rm.recipient_id=? AND c.status='active'", [access.recipientId]);
+        const matches = members.filter((item) => notificationRequest.target.toLowerCase() === 'me' ? item.id === member.memberId : item.display_name.toLowerCase() === notificationRequest.target.toLowerCase() || item.id === notificationRequest.target);
+        if (matches.length !== 1) throw new AppError('notification_target_ambiguous', 400, 'Use one exact caregiver name from the care circle, or “me”.');
+        proposal = await prepareNotification(db, await effectiveIntegrations(db, env), access.recipientId, { ...notificationRequest, memberId: matches[0].id });
+      } else if (/^(?:please\s+)?(?:send\s+)?(?:email|sms|text|push|in-app)\b/i.test(message)) {
+        throw new AppError('notification_details_required', 400, 'Use “Email Maya: your message”, “SMS Maya: your message”, or “Push me: your message”. Enable the channel in Notifications first.');
+      }
       let actionId: string | null = null;
       let response: { content: string; evidence: ChatEvidence[] };
       if (proposal && canWrite(access.accessRole)) {
         actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
-        response = { content: 'I prepared this action but have not changed anything yet. Review the details and approve it if they are correct.', evidence: [evidence('Proposed tool', proposal.type.replaceAll('_', ' ')), evidence('Safety policy', 'Explicit caregiver approval is required before any chat-initiated write.')] };
+        response = { content: proposal.type === 'save_memory' ? 'Review this suggested fact. Saving confirms it is accurate and shares it with this recipient’s care circle. You can correct or archive it in Trusted facts.' : 'I prepared this action but have not changed anything yet. Review the details and approve it if they are correct.', evidence: [evidence('Proposed tool', proposal.type.replaceAll('_', ' ')), evidence('Safety policy', 'Explicit caregiver approval is required before any chat-initiated write.')] };
       } else if (proposal) {
         response = { content: 'I can explain this change, but your viewer role cannot create or approve care-plan actions. Nothing has been changed.', evidence: [evidence('Requested tool', proposal.type.replaceAll('_', ' ')), evidence('Permission policy', 'Only recipient owners and caregivers may change care-plan records.')] };
       } else if ((message.toLowerCase().includes('reschedule') || /\bmove\b/i.test(message)) && !requestedDate(message, new Date())) {
         response = { content: 'I found the rescheduling request, but I need a date and time—for example, “tomorrow at 3:30 PM.” Nothing has been changed.', evidence: [] };
-      } else response = answer(message, snapshot);
+      } else {
+        const recalled = await recallMemory(db, await effectiveIntegrations(db, env), access.recipientId, message);
+        response = answer(message, snapshot);
+        if (recalled.memories.length) {
+          const operational = /summary|handover|review today|conflict|calendar|schedule|upcoming|contact|support|phone|call|medication|medicine|pharmacy|refill|decision|trace/.test(message.toLowerCase());
+          response = {
+            content: `Relevant verified facts: ${recalled.memories.map((memory) => memory.value).join(' ')}${operational ? ` ${response.content}` : ''}`,
+            evidence: [...recalled.memories.map((memory) => evidence('Verified fact', `${memory.value} · ${memory.source}`)), ...(operational ? response.evidence : [])],
+          };
+        }
+        if (recalled.mode === 'fallback') response.content += ' External recall is temporarily unavailable; this answer uses local records.';
+      }
       await saveMessage(db, threadId, 'assistant', response.content, response.evidence, actionId, new Date(Date.now() + 1).toISOString());
       await audit(db, member, proposal ? 'propose' : 'answer', 'chat', threadId, proposal?.summary || `Answered using ${response.evidence.length} scoped records`);
     } else {
@@ -337,7 +425,8 @@ export async function POST(request: Request) {
       if (!action) throw new AppError('action_not_found', 404, 'Action request not found');
       if (action.status !== 'pending') throw new AppError('action_already_decided', 409, 'This action was already decided');
       if (preview.action === 'reject_action') {
-        await db.prepare('UPDATE chat_action_requests SET status=?,decided_at=? WHERE id=?').bind('rejected', now, action.id).run();
+        const rejected = await db.prepare("UPDATE chat_action_requests SET status='rejected',decided_at=? WHERE id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM notification_deliveries WHERE action_id=?)").bind(now, action.id, action.id).run();
+        if (!rejected.meta.changes) throw new AppError('action_already_decided', 409, 'This action was already decided or delivery started.');
         await saveMessage(db, threadId, 'assistant', 'Action cancelled. No care-plan data was changed.', [], null, now);
         await audit(db, member, 'reject', 'chat_action', action.id, action.summary);
       } else {

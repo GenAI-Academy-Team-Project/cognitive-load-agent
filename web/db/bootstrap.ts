@@ -1,4 +1,17 @@
+import { memorySchema } from './memory-schema';
+import { notificationSchema } from './notification-schema';
+import { calendarSchema } from './calendar-schema';
+import { planningSchema } from './planning-schema';
+
 const schemaStatements = [
+  ...notificationSchema,
+  ...calendarSchema,
+  ...memorySchema,
+  ...planningSchema,
+  `CREATE TABLE IF NOT EXISTS auth_accounts (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, password_hash TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS auth_invitations (member_id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS risks (id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL, severity TEXT NOT NULL, status TEXT NOT NULL, confidence TEXT NOT NULL, rationale TEXT NOT NULL, proposed_action TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, owner TEXT NOT NULL, due_at TEXT NOT NULL, status TEXT NOT NULL, category TEXT NOT NULL, source_risk_id TEXT)`,
   `CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, type TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL, source TEXT NOT NULL, occurred_at TEXT NOT NULL)`,

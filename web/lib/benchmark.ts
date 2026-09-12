@@ -46,7 +46,7 @@ export function runBenchmark(): BenchmarkSummary {
   let passed = 0;
 
   for (const scenario of scenarios) {
-    const result = evaluateCareState(scenario.tasks, scenario.events, scenario.memories);
+    const result = evaluateCareState(scenario.tasks, scenario.events, scenario.memories, new Date('2026-09-11T16:00:00Z'));
     const evidenceText = result.evidence.join(' ').toLowerCase();
     const retrievalMatches = scenario.expected.evidence.filter((item) =>
       evidenceText.includes(item.toLowerCase()),

@@ -70,6 +70,7 @@ export type CareCircleMember = {
 };
 
 export type CurrentUser = {
+  isGuest?: boolean;
   id: string;
   email: string;
   displayName: string;
@@ -169,7 +170,7 @@ export type ChatEvidence = { label: string; detail: string };
 
 export type ChatActionRequest = {
   id: string;
-  action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check';
+  action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check' | 'save_memory';
   summary: string;
   status: 'pending' | 'executed' | 'rejected';
   requires_approval: 'true';
@@ -190,6 +191,9 @@ export type ChatState = {
   recipientName: string;
   messages: ChatMessage[];
   quickPrompts: string[];
+  tools?: unknown[];
+  notificationChannels?: string[];
+  memory: { configured: boolean; enabled: boolean; canManage: boolean; cleanupPending: boolean };
   capabilities: { voiceInput: boolean; spokenReplies: boolean; externalDelivery: boolean };
 };
 
@@ -206,6 +210,7 @@ export type BenchmarkSummary = {
 };
 
 export type DashboardState = {
+  confirmedCoverage: number;
   risks: Risk[];
   tasks: CareTask[];
   events: CareEvent[];
