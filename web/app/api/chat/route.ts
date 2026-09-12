@@ -3,7 +3,8 @@ import { executeNotification, parseNotificationRequest, prepareNotification } fr
 import { configuredChannels, sendNotificationTool } from '@/lib/notification-types';
 import { currentMemories } from '@/lib/current-memories';
 import { evaluateCareState } from '@/lib/risk-engine';
-import { integrationFor, memoryCandidate, memoryLease, recallMemory, setMemoryEnabled } from '@/lib/care-memory';
+import { memoryCandidate, recallMemory } from '@/lib/care-memory';
+import { recipientLease } from '@/lib/recipient-lease';
 import { localToInstant } from '@/lib/calendar-time';
 import { env } from 'cloudflare:workers';
 
@@ -39,7 +40,7 @@ type ProposedAction = {
   summary: string;
   payload: Record<string, string>;
 };
-type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'enable_memory' | 'disable_memory' | 'propose_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
+type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'propose_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
 
 const quickPrompts = [
   'What should I review today?',
@@ -96,9 +97,7 @@ async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessag
 }
 
 async function chatState(db: D1Database, access: Access, threadId: string): Promise<ChatState> {
-  const memory = await integrationFor(db, access.recipientId);
   return {
-    memory: { configured: Boolean((await effectiveIntegrations(db, env)).MEM0_API_KEY), enabled: memory?.enabled === 'true', canManage: isOwner(access.accessRole), cleanupPending: memory?.enabled === 'false' && memory?.remote_dirty === 'true' },
     recipientId: access.recipientId,
     recipientName: access.recipientName,
     messages: await messagesFor(db, threadId),
@@ -244,7 +243,7 @@ async function proposeAction(db: D1Database, threadId: string, recipientId: stri
 async function executeAction(db: D1Database, member: CareMembership, access: Access, action: ActionRow, now: string) {
   if (action.action_type !== 'send_notification') return executeActionImpl(db, member, access, action, now);
   // Share the consent/deletion lease through provider dispatch and audit persistence.
-  const release = await memoryLease(db, access.recipientId);
+  const release = await recipientLease(db, access.recipientId);
   try {
     if ((await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(access.recipientId).first<{ status: string }>())?.status !== 'active') throw new AppError('consent_inactive', 409, 'Consent is withdrawn.');
     return await executeActionImpl(db, member, access, action, now);
@@ -264,7 +263,7 @@ async function executeActionImpl(db: D1Database, member: CareMembership, access:
     if (!payload.value || payload.value.length > 1200 || !payload.memoryId || !payload.sourceMessageId) throw new AppError('invalid_memory', 400, 'This suggested fact is incomplete.');
     const source = await db.prepare("SELECT content FROM chat_messages WHERE id=? AND thread_id=? AND role='user'").bind(payload.sourceMessageId, action.thread_id).first<{ content: string }>();
     if (!source || memoryCandidate(source.content) !== payload.value) throw new AppError('memory_source_expired', 409, 'The original message is unavailable or changed. Please suggest the fact again.');
-    const release = await memoryLease(db, access.recipientId);
+    const release = await recipientLease(db, access.recipientId);
     try {
       if ((await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(access.recipientId).first<{ status: string }>())?.status !== 'active') throw new AppError('consent_inactive', 409, 'Consent is withdrawn.');
       if (!(await db.prepare("SELECT 1 FROM chat_action_requests WHERE id=? AND status='pending'").bind(action.id).first())) throw new AppError('action_already_decided', 409, 'This action was already decided');
@@ -353,20 +352,12 @@ export async function POST(request: Request) {
   let preview: Body = {};
   try {
     preview = await request.json() as Body;
-    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'enable_memory', 'disable_memory', 'propose_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
+    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'propose_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
     const context = await resolveContext(request, preview.recipientId);
     if ('error' in context) return context.error;
     const { db, member, access, threadId } = context;
     const now = new Date().toISOString();
-    if (preview.action === 'enable_memory' || preview.action === 'disable_memory') {
-      if (!isOwner(access.accessRole)) throw new AppError('memory_forbidden', 403, 'Only the recipient owner can manage external memory.');
-      await enforceRateLimit(db, member.id, 'chat_action');
-      const release = await memoryLease(db, access.recipientId);
-      try {
-        await setMemoryEnabled(db, preview.action === 'enable_memory' ? await effectiveIntegrations(db, env) : env, access.recipientId, preview.action === 'enable_memory');
-        await audit(db, member, preview.action, 'memory_integration', access.recipientId, 'External memory preference updated');
-      } finally { await release(); }
-    } else if (preview.action === 'propose_notification') {
+    if (preview.action === 'propose_notification') {
       await enforceRateLimit(db, member.id, 'chat_action');
       if (!canWrite(access.accessRole)) throw new AppError('forbidden', 403, 'Your role cannot prepare notifications.');
       const proposal = await prepareNotification(db, await effectiveIntegrations(db, env), access.recipientId, preview.notification);
@@ -404,7 +395,7 @@ export async function POST(request: Request) {
       } else if ((message.toLowerCase().includes('reschedule') || /\bmove\b/i.test(message)) && !requestedDate(message, new Date())) {
         response = { content: 'I found the rescheduling request, but I need a date and time—for example, “tomorrow at 3:30 PM.” Nothing has been changed.', evidence: [] };
       } else {
-        const recalled = await recallMemory(db, await effectiveIntegrations(db, env), access.recipientId, message);
+        const recalled = await recallMemory(db, access.recipientId, message);
         response = answer(message, snapshot);
         if (recalled.memories.length) {
           const operational = /summary|handover|review today|conflict|calendar|schedule|upcoming|contact|support|phone|call|medication|medicine|pharmacy|refill|decision|trace/.test(message.toLowerCase());
@@ -413,7 +404,6 @@ export async function POST(request: Request) {
             evidence: [...recalled.memories.map((memory) => evidence('Verified fact', `${memory.value} · ${memory.source}`)), ...(operational ? response.evidence : [])],
           };
         }
-        if (recalled.mode === 'fallback') response.content += ' External recall is temporarily unavailable; this answer uses local records.';
       }
       await saveMessage(db, threadId, 'assistant', response.content, response.evidence, actionId, new Date(Date.now() + 1).toISOString());
       await audit(db, member, proposal ? 'propose' : 'answer', 'chat', threadId, proposal?.summary || `Answered using ${response.evidence.length} scoped records`);

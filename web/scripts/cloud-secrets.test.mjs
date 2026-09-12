@@ -8,12 +8,10 @@ import { cloudSecrets, loadCloudSecrets, uploadCloudSecrets, runtimeSecretNames 
 
 const email = { RESEND_API_KEY: 'synthetic-provider-secret', NOTIFICATION_EMAIL_FROM: 'Carestead <care@example.com>' };
 test('selects complete groups, omits blank groups and rejects incomplete or malformed values', () => {
-  assert.deepEqual(cloudSecrets({ ...email, GOOGLE_CLIENT_ID: '', CLOUDFLARE_API_TOKEN: 'never-upload', MEM0_API_KEY: 'memory-key' }), { ...email, MEM0_API_KEY: 'memory-key' });
-  assert.deepEqual(cloudSecrets({ PUSHOVER_API_TOKEN: 'a'.repeat(30) }), { PUSHOVER_API_TOKEN: 'a'.repeat(30) });
-  assert.throws(() => cloudSecrets({ PUSHOVER_API_TOKEN: 'bad' }), /30-character/);
+  assert.deepEqual(cloudSecrets({ ...email, GOOGLE_CLIENT_ID: '', CLOUDFLARE_API_TOKEN: 'never-upload' }), { ...email });
   assert.throws(() => cloudSecrets({}), /No cloud runtime/);
   assert.throws(() => cloudSecrets({ RESEND_API_KEY: email.RESEND_API_KEY }), /NOTIFICATION_EMAIL_FROM/);
-  assert.throws(() => cloudSecrets({ ...email, MEM0_API_KEY: ' secret ' }), /whitespace/);
+  assert.throws(() => cloudSecrets({ ...email, RESEND_API_KEY: ' secret ' }), /whitespace/);
   assert.throws(() => cloudSecrets({ GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/calendar/callback' }), /GOOGLE_CLIENT_ID/);
   assert.throws(() => cloudSecrets({ TWILIO_ACCOUNT_SID: 'invalid', TWILIO_AUTH_TOKEN: 'secret', TWILIO_FROM_NUMBER: '+14165550123' }), /TWILIO_ACCOUNT_SID/);
   assert.throws(() => cloudSecrets({ VAPID_PUBLIC_KEY: 'bad', VAPID_PRIVATE_KEY: 'bad', VAPID_SUBJECT: 'mailto:care@example.com' }), /VAPID_PUBLIC_KEY/);
@@ -23,11 +21,11 @@ test('reads only the chosen cloud file, honors environment overrides, rejects un
   const dir = mkdtempSync(join(tmpdir(), 'carestead-secrets-'));
   try {
     const file = join(dir, '.secrets.cloudflare');
-    writeFileSync(join(dir, '.dev.vars'), 'MEM0_API_KEY=local-only');
+    writeFileSync(join(dir, '.dev.vars'), 'NTFY_SERVER_URL=https://local.example.test');
     assert.throws(() => loadCloudSecrets(file, {}), /No cloud runtime/);
-    writeFileSync(file, 'MEM0_API_KEY=cloud-only');
-    assert.deepEqual(loadCloudSecrets(file, {}), { MEM0_API_KEY: 'cloud-only' });
-    assert.deepEqual(loadCloudSecrets(file, { MEM0_API_KEY: 'ci-only', CLOUDFLARE_API_TOKEN: 'never-upload' }), { MEM0_API_KEY: 'ci-only' });
+    writeFileSync(file, 'NTFY_SERVER_URL=https://cloud.example.test');
+    assert.deepEqual(loadCloudSecrets(file, {}), { NTFY_SERVER_URL: 'https://cloud.example.test' });
+    assert.deepEqual(loadCloudSecrets(file, { NTFY_SERVER_URL: 'https://ci.example.test', CLOUDFLARE_API_TOKEN: 'never-upload' }), { NTFY_SERVER_URL: 'https://ci.example.test' });
     writeFileSync(file, 'CLOUDFLARE_API_TOKEN=never-upload');
     assert.throws(() => loadCloudSecrets(file, {}), /unknown setting/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -55,4 +53,11 @@ test('uploads allowlisted values through stdin only and blocks placeholder targe
     assert.equal(calls, 1);
     assert.throws(() => uploadCloudSecrets(email, config, () => ({ status: 1, stderr: email.RESEND_API_KEY })), (error) => error.message.includes('upload failed') && !error.message.includes(email.RESEND_API_KEY));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+ test('ntfy supports an optional token and rejects malformed server configuration', () => {
+  assert.deepEqual(cloudSecrets({ NTFY_SERVER_URL: 'https://ntfy.sh' }), { NTFY_SERVER_URL: 'https://ntfy.sh' });
+  assert.deepEqual(cloudSecrets({ NTFY_SERVER_URL: 'https://ntfy.sh', NTFY_ACCESS_TOKEN: 'synthetic' }), { NTFY_SERVER_URL: 'https://ntfy.sh', NTFY_ACCESS_TOKEN: 'synthetic' });
+  for (const value of ['http://ntfy.sh', 'https://ntfy.sh/topic', 'https://user:pass@ntfy.sh', 'https://ntfy.sh?topic=x']) assert.throws(() => cloudSecrets({ NTFY_SERVER_URL: value }), /HTTPS server origin/);
+  assert.throws(() => cloudSecrets({ NTFY_ACCESS_TOKEN: 'synthetic' }), /NTFY_SERVER_URL/);
 });

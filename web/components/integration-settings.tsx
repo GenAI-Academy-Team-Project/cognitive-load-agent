@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react';
 import type { IntegrationId, IntegrationStatus } from '@/lib/integration-settings';
 
 const descriptions: Record<IntegrationId, { title: string; detail: string; next: string }> = {
-  pushover: { title: 'Pushover mobile notifications', detail: 'Send approved updates to the Pushover app on your phone. No browser push setup is needed.', next: 'Save your own Pushover user key in Notifications. Each message requires approval.' },
+  ntfy: { title: 'ntfy mobile notifications', detail: 'Send approved updates to the ntfy app on your phone.', next: 'Subscribe to your topic in ntfy, then save it in Notifications. Each message requires approval.' },
   calendar: { title: 'Google Calendar', detail: 'Create appointments in a connected Google calendar. Your local tasks and timeline always remain available.', next: 'Connect your Google account in Calendar, then approve each appointment.' },
-  memory: { title: 'Mem0 external recall', detail: 'Find reviewed facts with semantic search. Trusted facts and local recall always remain available.', next: 'Enable external recall for each recipient in Ask Carestead → Memory. Switching this off pauses recall; use the Memory controls to delete stored external facts.' },
   sms: { title: 'Twilio SMS', detail: 'Send approved messages to opted-in caregivers. In-app notifications always remain available.', next: 'Save your phone number and SMS preference in Notifications. Each message requires approval.' },
   email: { title: 'Email delivery', detail: 'Send approved care updates through Resend.', next: 'Enable your email preference in Notifications. Each message requires approval.' },
   push: { title: 'Browser push', detail: 'Send approved updates to subscribed browsers.', next: 'Allow browser notifications in Notifications. Each message requires approval.' },
@@ -52,10 +51,10 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
           </div>
           <p id={`${item.id}-detail`} className="mt-3 text-sm leading-6 text-muted-foreground">{copy.detail}</p>
           {!item.configured && <p className="mt-2 text-sm">An administrator needs to add this service’s credentials before it can be enabled. You can keep using Carestead without it.</p>}
-          {(item.enabled || item.id === 'memory') && <p className="mt-2 text-sm leading-6">{copy.next}</p>}
+          {item.enabled && <p className="mt-2 text-sm leading-6">{copy.next}</p>}
         </div>;
       })}</div>
-      <p className="mt-4 text-xs leading-5 text-muted-foreground">Credentials configured does not confirm provider access. Switching off pauses delivery and recall; it does not cancel requests already sent or delete provider data. Privacy cleanup remains available.</p>
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">Credentials configured does not confirm provider access. Switching off pauses the service; it does not cancel requests already sent or delete provider data.</p>
     </>}
   </section>;
 }

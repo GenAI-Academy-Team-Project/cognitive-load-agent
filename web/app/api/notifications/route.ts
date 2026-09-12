@@ -1,10 +1,10 @@
 import { effectiveIntegrations } from '@/lib/integration-settings';
-import { memoryLease } from '@/lib/care-memory';
+import { recipientLease } from '@/lib/recipient-lease';
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
 import { AppError, enforceRateLimit, errorResponse } from '@/lib/guardrails';
-import { configuredChannels, type NotificationPreferences } from '@/lib/notification-types';
+import { configuredChannels, ntfyServerUrl, validNtfyTopic, type NotificationPreferences } from '@/lib/notification-types';
 import { validateSubscription } from '@/lib/notification-service';
 
 export const runtime = 'edge';
@@ -28,19 +28,20 @@ async function handle(request: Request) {
     if (!access) throw new AppError('forbidden', 403, 'You do not have access to this care recipient.');
     if (request.method === 'POST') {
       await enforceRateLimit(env.DB, auth.member.id, 'notification_settings');
-      if (!['save_preferences', 'subscribe_push', 'disable_push', 'enable_pushover', 'disable_pushover'].includes(String(body.action))) throw new AppError('invalid_action', 400, 'Choose a notification setting.');
-      const release = await memoryLease(env.DB, recipientId);
+      if (!['save_preferences', 'subscribe_push', 'disable_push', 'enable_ntfy', 'disable_ntfy'].includes(String(body.action))) throw new AppError('invalid_action', 400, 'Choose a notification setting.');
+      const release = await recipientLease(env.DB, recipientId);
       try {
       const currentConsent = await env.DB.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(recipientId).first<{ status: string }>();
       access.consent = currentConsent?.status || 'withdrawn';
       const now = new Date().toISOString();
-      if (access.consent !== 'active' && !(body.action === 'disable_push' || body.action === 'disable_pushover' || (body.action === 'save_preferences' && body.emailEnabled === false && body.smsEnabled === false))) throw new AppError('consent_inactive', 409, 'Restore consent before enabling notifications.');
-      if (body.action === 'enable_pushover') {
-        if (!configuredChannels(await effectiveIntegrations(env.DB, env)).includes('pushover')) throw new AppError('channel_unconfigured', 409, 'Enable Pushover in Integrations first.');
-        if (typeof body.userKey !== 'string' || !/^[A-Za-z0-9]{30}$/.test(body.userKey)) throw new AppError('invalid_pushover_key', 400, 'Enter your 30-character Pushover user key.');
-        await env.DB.prepare('INSERT INTO pushover_preferences VALUES (?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET user_key=excluded.user_key,updated_at=excluded.updated_at').bind(recipientId, memberId, body.userKey, now).run();
-      } else if (body.action === 'disable_pushover') {
-        await env.DB.prepare('DELETE FROM pushover_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).run();
+      if (access.consent !== 'active' && !(body.action === 'disable_ntfy' || body.action === 'disable_push' || (body.action === 'save_preferences' && body.emailEnabled === false && body.smsEnabled === false))) throw new AppError('consent_inactive', 409, 'Restore consent before enabling notifications.');
+      if (body.action === 'enable_ntfy') {
+        const server = ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL);
+        if (!server) throw new AppError('channel_unconfigured', 409, 'Enable ntfy in Integrations first.');
+        if (!validNtfyTopic(body.topic)) throw new AppError('invalid_ntfy_topic', 400, 'Enter a topic of 1–64 letters, digits, underscores or hyphens, excluding reserved names.');
+        await env.DB.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET server_url=excluded.server_url,topic=excluded.topic,updated_at=excluded.updated_at').bind(recipientId, memberId, server, body.topic, now).run();
+      } else if (body.action === 'disable_ntfy') {
+        await env.DB.prepare('DELETE FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).run();
       } else if (body.action === 'save_preferences') {
         if (typeof body.emailEnabled !== 'boolean' || typeof body.smsEnabled !== 'boolean' || typeof body.phone !== 'string' || body.phone.length > 16 || (body.phone !== '' && !/^\+[1-9]\d{7,14}$/.test(body.phone)) || (body.smsEnabled && !body.phone)) throw new AppError('invalid_settings', 400, 'Use a phone number with country code, such as +14165550123.');
         await env.DB.prepare(`INSERT INTO notification_preferences (recipient_id,member_id,email_enabled,sms_enabled,phone,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET email_enabled=excluded.email_enabled,sms_enabled=excluded.sms_enabled,phone=excluded.phone,updated_at=excluded.updated_at`).bind(recipientId, memberId, Number(body.emailEnabled), Number(body.smsEnabled), body.phone, now).run();
@@ -58,8 +59,8 @@ async function handle(request: Request) {
     }
     const prefs = await env.DB.prepare('SELECT * FROM notification_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<NotificationPreferences>();
     const deliveries = (await env.DB.prepare(`SELECT d.action_id,d.channel,d.status,d.error_code,d.created_at,c.display_name target_name,n.title FROM notification_deliveries d JOIN care_circle_members c ON c.id=d.member_id LEFT JOIN notifications n ON n.id=d.notification_id LEFT JOIN chat_action_requests a ON a.id=d.action_id WHERE d.recipient_id=? AND (d.member_id=? OR a.actor_member_id=?) ORDER BY d.created_at DESC LIMIT 30`).bind(recipientId, memberId, memberId).all()).results;
-    const pushoverEnabled = Boolean(await env.DB.prepare('SELECT 1 FROM pushover_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first());
-    return Response.json({ pushoverEnabled, email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
+    const ntfyEnabled = Boolean(await env.DB.prepare('SELECT 1 FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first());
+    return Response.json({ ntfyEnabled, ntfyServerUrl: ntfyServerUrl(env.NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return errorResponse(error, crypto.randomUUID()); }
 }
 

@@ -409,16 +409,10 @@ export const calendarActions = sqliteTable('calendar_actions', {
   updatedAt: text('updated_at').notNull(),
 }, (table) => [index('idx_calendar_actions_recipient').on(table.recipientId, table.memberId, table.createdAt)]);
 
-export const memoryIntegrations = sqliteTable('memory_integrations', {
+export const recipientLocks = sqliteTable('recipient_locks', {
   recipientId: text('recipient_id').primaryKey(),
-  scopeId: text('scope_id').notNull().unique(),
-  enabled: text('enabled').notNull().default('false'),
-  fingerprint: text('fingerprint').notNull().default(''),
-  remoteDirty: text('remote_dirty').notNull().default('false'),
-  deletionEvent: text('deletion_event'),
   lockToken: text('lock_token'),
   lockUntil: text('lock_until'),
-  updatedAt: text('updated_at').notNull(),
 });
 
 export const taskPlanning = sqliteTable('task_planning', {
@@ -491,9 +485,10 @@ export const notificationReads = sqliteTable('notification_reads', {
   readAt: text('read_at').notNull(),
 }, (table) => [primaryKey({ columns: [table.notificationId, table.memberId] })]);
 
-export const pushoverPreferences = sqliteTable('pushover_preferences', {
+export const ntfyPreferences = sqliteTable('ntfy_preferences', {
   recipient_id: text('recipient_id').notNull(),
   member_id: text('member_id').notNull(),
-  user_key: text('user_key').notNull(),
+  server_url: text('server_url').notNull(),
+  topic: text('topic').notNull(),
   updated_at: text('updated_at').notNull(),
 }, (table) => [primaryKey({ columns: [table.recipient_id, table.member_id] })]);

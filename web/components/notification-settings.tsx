@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { validNtfyTopic } from '@/lib/notification-types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
 type Settings = {
-  pushoverEnabled: boolean;
+  ntfyEnabled: boolean; ntfyServerUrl: string | null;
   email: string; emailEnabled: boolean; smsEnabled: boolean; phone: string; pushEnabled: boolean;
   vapidPublicKey: string | null; channels: string[];
   deliveries: { action_id: string; channel: string; status: string; error_code: string | null; created_at: string; target_name: string; title: string | null }[];
@@ -13,7 +14,7 @@ type Settings = {
 
 export function NotificationSettings({ recipientId }: { recipientId: string }) {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [pushoverKey, setPushoverKey] = useState('');
+  const [ntfyTopic, setNtfyTopic] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,15 +66,20 @@ export function NotificationSettings({ recipientId }: { recipientId: string }) {
         <Button variant="outline" disabled={busy} type="submit">Save delivery preferences</Button>
       </form>
       <div className="mt-5 border-t pt-4">
-        <h3 className="font-medium">Pushover mobile notifications</h3>
-        <p className="mt-1 text-sm">{settings.pushoverEnabled ? 'Enabled for your Pushover account.' : 'Install Pushover on your phone and enter your personal user key from its dashboard.'}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Use your own user key, not a group key: group keys send to everyone in that group. Approved messages go to all active devices on the saved account. Saving a key enables this channel for this care recipient.</p>
-        <label htmlFor="pushover-user-key" className="mt-3 grid max-w-sm gap-2 text-sm">Your Pushover user key<Input id="pushover-user-key" type="password" autoComplete="off" value={pushoverKey} maxLength={30} onChange={(event) => setPushoverKey(event.target.value)} disabled={busy || !settings.channels.includes('pushover')} placeholder={settings.pushoverEnabled ? 'Enter a new key to replace it' : '30-character user key'} /></label>
-        <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !settings.channels.includes('pushover') || !/^[A-Za-z0-9]{30}$/.test(pushoverKey)} onClick={() => act(async () => { await save({ action: 'enable_pushover', userKey: pushoverKey }); setPushoverKey(''); })}>{settings.pushoverEnabled ? 'Replace Pushover key' : 'Enable Pushover for me'}</Button>{settings.pushoverEnabled && <Button variant="outline" disabled={busy} onClick={() => act(() => save({ action: 'disable_pushover' }))}>Disable and remove Pushover key</Button>}</div>
-        {!settings.channels.includes('pushover') && <p className="mt-2 text-xs text-muted-foreground">Pushover is off or needs its application token. An owner can enable it in Integrations.</p>}
+        <h3 className="font-medium">ntfy mobile push</h3>
+        <p className="mt-1 text-sm">{settings.ntfyEnabled ? 'A topic is saved for your mobile notifications.' : 'Install the ntfy app on your phone and subscribe to your own topic.'}</p>
+        {settings.ntfyServerUrl && <p className="mt-1 text-sm">Use this server in ntfy: {settings.ntfyServerUrl}</p>}
+        <p className="mt-1 text-xs text-muted-foreground">Use a private, access-controlled topic for care details. Anyone with access to the topic receives its messages; public topics can be read by anyone who knows their name. Notifications may appear on your lock screen.</p>
+        <label htmlFor="ntfy-topic" className="mt-3 grid max-w-sm gap-2 text-sm">Your ntfy topic<Input id="ntfy-topic" type="password" autoComplete="off" value={ntfyTopic} maxLength={64} onChange={(event) => setNtfyTopic(event.target.value)} disabled={busy || !settings.channels.includes('ntfy')} placeholder={settings.ntfyEnabled ? 'Enter a topic to replace it' : 'Topic subscribed to on your phone'} /></label>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="outline" disabled={busy || !settings.channels.includes('ntfy') || !validNtfyTopic(ntfyTopic)} onClick={() => act(async () => { await save({ action: 'enable_ntfy', topic: ntfyTopic }); setNtfyTopic(''); })}>{settings.ntfyEnabled ? 'Replace ntfy topic' : 'Enable ntfy mobile push'}</Button>
+          {settings.ntfyEnabled && <Button variant="outline" disabled={busy} onClick={() => act(() => save({ action: 'disable_ntfy' }))}>Disable ntfy mobile push</Button>}
+        </div>
+        {!settings.channels.includes('ntfy') && <p className="mt-2 text-xs text-muted-foreground">An owner must configure the ntfy server and enable it in Integrations first.</p>}
+        <p className="mt-2 text-sm">After subscribing on your phone, ask “ntfy me: There is a care update to review.” and approve the message.</p>
       </div>
       <div className="mt-5 border-t pt-4"><p className="text-sm">Browser push: {settings.pushEnabled ? 'enabled for this profile' : 'disabled'}</p><p className="mt-1 text-xs text-muted-foreground">Messages may appear on your lock screen. On iPhone or iPad, open Carestead from your Home Screen. Enabling another browser replaces the previous registration for this profile.</p><div className="mt-3 flex gap-2"><Button variant="outline" disabled={busy || !settings.channels.includes('push')} onClick={() => act(enablePush)}>Enable on this browser</Button>{settings.pushEnabled && <Button variant="outline" disabled={busy} onClick={() => act(() => save({ action: 'disable_push' }))}>Disable push</Button>}</div>{!settings.channels.includes('push') && <p className="mt-2 text-xs text-muted-foreground">Push keys are not configured.</p>}</div>
-      <p className="mt-5 text-sm">In Ask Carestead, try <strong>“Email me: Please review the care plan.”</strong> You can also use Pushover, SMS, Push, or In-app followed by an exact caregiver name and a colon.</p>
+      <p className="mt-5 text-sm">In Ask Carestead, try <strong>“Email me: Please review the care plan.”</strong> You can also use ntfy, SMS, Push, or In-app followed by an exact caregiver name and a colon.</p>
       <h3 className="mt-5 font-medium">Recent delivery attempts</h3>
       <p className="mt-1 text-xs text-muted-foreground">Accepted means the provider accepted the request, not that someone received or read it. If an attempt stays “sending” or says “unknown”, check the provider before sending again.</p>
       <ul className="mt-3 space-y-3">{settings.deliveries.map((item) => <li className="rounded-xl border p-3 text-sm" key={item.action_id}><p>{item.title || 'Caregiver update'} → {item.target_name}</p><p className="mt-1 text-xs text-muted-foreground">{item.channel} · {item.status} · {new Date(item.created_at).toLocaleString()}{item.error_code && ` · ${item.error_code}`}</p></li>)}</ul>

@@ -142,12 +142,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
           </ScrollArea>
 
           <div className="border-t bg-white p-4">
-            {chat?.memory && <details className="mb-3 rounded-xl border p-3 text-xs">
-              <summary className="cursor-pointer font-medium">Memory · {chat.memory.enabled && chat.memory.configured ? 'semantic recall enabled' : 'local recall'}</summary>
-              <p className="mt-2 leading-5">Suggest a fact with “Remember that…”. Saving confirms and shares it with this care circle. External recall sends verified facts and your search questions to Mem0 to find related information. Private chat history is not uploaded.</p>
-              {chat.memory.canManage && <Button variant="outline" size="sm" className="mt-2" disabled={busy || (!chat.memory.configured && !chat.memory.enabled && !chat.memory.cleanupPending)} onClick={() => request({ action: chat.memory.enabled || chat.memory.cleanupPending ? 'disable_memory' : 'enable_memory' })}>{chat.memory.cleanupPending ? 'Retry external cleanup' : chat.memory.enabled ? 'Disable and delete external memory' : 'Enable external recall'}</Button>}
-              {!chat.memory.configured && <p className="mt-2 text-muted-foreground">External recall is off or needs credentials. An owner can review it in Integrations. Verified facts remain available locally.</p>}
-            </details>}
+
             {chat?.messages.length === 0 && <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{chat.quickPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)} disabled={busy} className="shrink-0 rounded-full border bg-[#f8fbf9] px-3 py-1.5 text-left text-xs text-[#315944] hover:bg-secondary disabled:opacity-50">{prompt}</button>)}</div>}
             <div className="rounded-2xl border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
               <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 resize-none border-0 p-2 shadow-none focus-visible:ring-0" disabled={busy} />

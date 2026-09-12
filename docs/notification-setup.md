@@ -7,8 +7,7 @@ are saved in D1 and apply to the whole care circle. Existing deployments also
 start off until an owner enables them; saved connections and preferences remain.
 Missing credentials keep a switch unavailable. Local tasks, trusted facts, chat,
 and in-app notifications remain usable. These switches do not replace recipient
-consent, Google account connection, delivery opt-in, or action approval. Pausing
-Mem0 does not delete remote facts; its existing privacy cleanup remains available.
+consent, Google account connection, delivery opt-in, or action approval.
 
 
 Carestead exposes `send_notification` as a typed, approval-gated function tool. The deterministic chat planner and structured API use the same validation and execution path. It supports targeted in-app notices, Resend email, Twilio SMS, and standard Web Push with VAPID. No LLM service or messaging credentials are needed for in-app delivery.
@@ -102,33 +101,35 @@ The service suite uses synthetic destinations and mocked providers; no real mess
 
 Provider references: [Resend send API](https://resend.com/docs/api-reference/emails/send-email), [Twilio Messages API](https://www.twilio.com/docs/messaging/api/message-resource), [Web Push library](https://github.com/web-push-libs/web-push), [Apple Web Push support](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers?language=objc).
 
-## Pushover mobile app
+## ntfy mobile push
 
-1. Install Pushover on your phone and sign into your Pushover account.
-2. Register an application at https://pushover.net/apps/build and copy its API token.
-3. Add `PUSHOVER_API_TOKEN=your_application_token` to `web/.dev.vars` for local
-   testing, or `web/.secrets.cloudflare` for cloud deployment. Run `make up`
-   locally; for cloud use `make cloud-release` (includes the new database migration),
-   then `make cloud-secrets-apply`.
-4. As a care-circle owner, enable **Integrations → Pushover mobile notifications**.
-5. Each caregiver opens **Notifications → Pushover mobile notifications**, enters
-   their own 30-character User Key from the Pushover dashboard, and chooses
-   **Enable Pushover for me**. Use a personal user key: Pushover group keys have the
-   same format and send to every group member. The app does not validate ownership
-   with Pushover when saving; only enter an account you control.
-6. Ask `Pushover me: This is a mobile test.` Review and approve the notification.
-   Verify receipt in the Pushover mobile app. `accepted` only confirms API acceptance.
+1. Install the ntfy app on your phone.
+2. Set `NTFY_SERVER_URL=https://ntfy.sh` in `web/.dev.vars`, or use your own
+   HTTPS ntfy server origin (no topic path). Optionally set `NTFY_ACCESS_TOKEN`
+   to a publisher access token. For cloud, use `web/.secrets.cloudflare` and the
+   existing secrets check/apply commands.
+3. Rebuild local Docker with `make up`. For cloud, run `make cloud-release` to
+   apply the ntfy preferences migration and deploy, then apply your secrets.
+4. An owner enables **Integrations → ntfy mobile notifications**.
+5. In the phone app, subscribe to a topic on the same server. In Carestead,
+   open **Notifications → ntfy mobile push**, enter that topic, and enable it.
+6. Ask `ntfy me: There is a care update to review.` Review and approve the
+   message, then verify receipt on the phone.
 
-No VAPID settings or public Carestead URL are required: the server sends an outbound
-HTTPS request and Pushover delivers to the phone. Normal priority is used, with no
-automatic retries. The same function tool accepts `channel: "pushover"` and an
-existing caregiver ID; it never accepts arbitrary user keys from chat.
+Use an access-controlled topic for care details. Public topics are readable by
+anyone who knows their name; a publisher token alone does not make a topic private.
+Every subscriber with access receives the message. Topic ownership is not verified
+when saving. Configure subscription credentials in the phone app when needed.
+For self-hosted iPhone delivery, follow ntfy's upstream server setup instructions.
 
-The application token stays in server configuration. User keys are stored in D1
-for each caregiver/recipient and are not returned by the settings API, exposed in
-chat, or included in delivery history or exports. Replacing a key invalidates old
-pending approvals. Disabling Pushover for yourself deletes your saved key; recipient
-deletion also removes these records. The global switch pauses new sends while
-preserving preferences. Disabling or deleting cannot recall messages already sent.
+This channel uses ntfy for mobile push. It requires no browser subscription or
+VAPID keys. It is on-demand, with approval for each message and no automatic
+retries. `accepted` means the server accepted the message, not confirmed phone
+receipt. Topic names and access tokens are excluded from previews, delivery
+history and exports. Disabling removes the saved topic; changing the topic blocks
+old approvals. Changing the server requires saving a topic again. Recipient
+deletion removes ntfy preferences. Already sent messages cannot be recalled.
 
-Provider reference: [Pushover Message API](https://pushover.net/api).
+References: [ntfy publishing API](https://docs.ntfy.sh/publish/),
+[phone subscriptions](https://docs.ntfy.sh/subscribe/phone/),
+[self-hosted iOS push](https://docs.ntfy.sh/config/#ios-instant-notifications).

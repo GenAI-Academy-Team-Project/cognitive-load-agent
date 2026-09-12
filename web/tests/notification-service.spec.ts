@@ -150,47 +150,56 @@ test('push validates destinations and generates an encrypted request', async () 
   expect(Buffer.from(sends[0].init!.body as Uint8Array).toString()).not.toContain(input.detail);
 });
 
-test('Pushover approval sends once with private keys excluded from previews and history', async () => {
-  const userKey = 'u'.repeat(30), token = 'a'.repeat(30);
-  const cfg = { PUSHOVER_API_TOKEN: token };
-  sqlite.prepare('INSERT INTO pushover_preferences VALUES (?,?,?,?)').run('recipient-alex', 'target', userKey, '2030');
-  const proposed = await prepareNotification(db, cfg, 'recipient-alex', { ...input, channel: 'pushover' });
-  expect(JSON.stringify(proposed)).not.toContain(userKey);
+test('ntfy mobile push sends approved Unicode text once and conceals the topic', async () => {
+  const cfg = { NTFY_SERVER_URL: 'https://ntfy.sh', NTFY_ACCESS_TOKEN: 'synthetic-token' };
+  const topic = 'private-synthetic-topic';
+  sqlite.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?)').run('recipient-alex', 'target', cfg.NTFY_SERVER_URL, topic, '2030');
+  const request = { ...input, channel: 'ntfy' as const, title: 'Care update 💚' };
+  const p = await prepareNotification(db, cfg, 'recipient-alex', request);
+  expect(JSON.stringify(p)).not.toContain(topic);
   expect(sends).toHaveLength(0);
   const id = crypto.randomUUID();
-  sqlite.prepare('INSERT INTO chat_action_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, 'thread', 'recipient-alex', 'actor', 'send_notification', proposed.summary, JSON.stringify(proposed.payload), 'pending', 'true', '2030', null, null);
-  globalThis.fetch = async (url, init) => { sends.push({ url: url instanceof Request ? url.url : url.toString(), init }); return Response.json({ status: 1, request: 'receipt' }); };
-  expect(await executeNotification(db, cfg, 'recipient-alex', 'actor', id, proposed.payload)).toContain('accepted');
-  expect(sends).toHaveLength(1);
-  expect(sends[0].url).toBe('https://api.pushover.net/1/messages.json');
-  expect(Object.fromEntries(new URLSearchParams(sends[0].init!.body as string))).toEqual({ token, user: userKey, title: input.title, message: input.detail, priority: '0' });
-  expect(sqlite.prepare('SELECT destination FROM notification_deliveries WHERE action_id=?').get(id)?.destination).toBe('Registered Pushover account');
-  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', id, proposed.payload)).rejects.toThrow('already attempted');
+  sqlite.prepare('INSERT INTO chat_action_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, 'thread', 'recipient-alex', 'actor', 'send_notification', p.summary, JSON.stringify(p.payload), 'pending', 'true', '2030', null, null);
+  globalThis.fetch = async (url, init) => { sends.push({ url: String(url), init }); return Response.json({ id: 'receipt', event: 'message', topic }); };
+  expect(await executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).toContain('accepted');
+  expect(sends[0].url).toBe('https://ntfy.sh/');
+  expect(JSON.parse(sends[0].init!.body as string)).toEqual({ topic, title: request.title, message: request.detail, priority: 3 });
+  expect(sends[0].init!.headers).toMatchObject({ Authorization: 'Bearer synthetic-token' });
+  expect(sends[0].init!.redirect).toBe('error');
+  expect(sqlite.prepare('SELECT destination FROM notification_deliveries').get()?.destination).toBe('Registered ntfy topic');
+  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).rejects.toThrow('already attempted');
   expect(sends).toHaveLength(1);
 });
 
-test('Pushover opt-out, changed keys, and disabled integration block pending sends', async () => {
-  const cfg = { PUSHOVER_API_TOKEN: 'a'.repeat(30) }, request = { ...input, channel: 'pushover' };
-  await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('enable Pushover');
-  sqlite.prepare('INSERT INTO pushover_preferences VALUES (?,?,?,?)').run('recipient-alex', 'target', 'u'.repeat(30), '2030');
+test('ntfy requires opt-in and blocks changed topics, servers, disabled channels and withdrawn consent', async () => {
+  const cfg = { NTFY_SERVER_URL: 'https://ntfy.sh' }, request = { ...input, channel: 'ntfy' as const };
+  await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('enable ntfy');
+  sqlite.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?)').run('recipient-alex', 'target', cfg.NTFY_SERVER_URL, 'first-topic', '2030');
   const p = await prepareNotification(db, cfg, 'recipient-alex', request);
-  sqlite.prepare('UPDATE pushover_preferences SET user_key=?').run('v'.repeat(30));
+  sqlite.prepare('UPDATE ntfy_preferences SET topic=?').run('new-topic');
   await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('destination changed');
+  await expect(executeNotification(db, { NTFY_SERVER_URL: 'https://other.example' }, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable ntfy');
   await expect(executeNotification(db, {}, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('not configured');
-  sqlite.exec('DELETE FROM pushover_preferences');
-  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable Pushover');
+  sqlite.exec("UPDATE consent_records SET status='withdrawn'");
+  await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('Consent');
+  sqlite.exec("UPDATE consent_records SET status='active'; DELETE FROM ntfy_preferences");
+  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable ntfy');
   expect(sends).toHaveLength(0);
-  expect(parseNotificationRequest('Pushover me: Mobile test.')).toMatchObject({ channel: 'pushover', target: 'me', detail: 'Mobile test.' });
+  expect(parseNotificationRequest('ntfy me: Mobile test.')).toMatchObject({ channel: 'ntfy', target: 'me', detail: 'Mobile test.' });
 });
 
-test('Pushover rejection and ambiguous results never claim delivery', async () => {
-  const cfg = { PUSHOVER_API_TOKEN: 'a'.repeat(30) }, request = { ...input, channel: 'pushover' as const };
-  for (const [body, expected] of [[{ status: 0, errors: ['private-provider-detail'] }, 'failed'], [{ status: 1 }, 'unknown']] as const) {
-    globalThis.fetch = async () => Response.json(body);
-    const result = await sendViaProvider(cfg, request, 'u'.repeat(30), 'action', 'recipient-alex');
-    expect(result.status).toBe(expected);
-    expect(JSON.stringify(result)).not.toContain('private-provider-detail');
+test('ntfy rejects unsafe destinations and distinguishes rejection from uncertain delivery', async () => {
+  const cfg = { NTFY_SERVER_URL: 'https://ntfy.sh' }, request = { ...input, channel: 'ntfy' as const };
+  const destination = JSON.stringify({ server: cfg.NTFY_SERVER_URL, topic: 'test-topic' });
+  await expect(sendViaProvider(cfg, request, JSON.stringify({ server: 'https://evil.example', topic: 'test' }), 'action', 'recipient-alex')).rejects.toThrow('Invalid ntfy');
+  await expect(sendViaProvider(cfg, request, JSON.stringify({ server: cfg.NTFY_SERVER_URL, topic: '../v1' }), 'action', 'recipient-alex')).rejects.toThrow('Invalid ntfy');
+  expect(sends).toHaveLength(0);
+  for (const [status, expected] of [[403, 'failed'], [429, 'failed'], [500, 'unknown']] as const) {
+    globalThis.fetch = async () => new Response('private detail', { status });
+    expect((await sendViaProvider(cfg, request, destination, 'action', 'recipient-alex')).status).toBe(expected);
   }
+  globalThis.fetch = async () => Response.json({ id: 'receipt' });
+  expect((await sendViaProvider(cfg, request, destination, 'action', 'recipient-alex')).status).toBe('unknown');
   globalThis.fetch = async () => { throw new Error('timeout'); };
-  expect((await sendViaProvider(cfg, request, 'u'.repeat(30), 'action', 'recipient-alex')).status).toBe('unknown');
+  expect((await sendViaProvider(cfg, request, destination, 'action', 'recipient-alex')).status).toBe('unknown');
 });

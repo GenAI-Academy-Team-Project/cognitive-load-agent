@@ -1,7 +1,8 @@
-export const notificationChannels = ['in_app', 'email', 'sms', 'push', 'pushover'] as const;
+export const notificationChannels = ['in_app', 'email', 'sms', 'push', 'ntfy'] as const;
 export type NotificationChannel = typeof notificationChannels[number];
 export type NotificationConfig = {
-  PUSHOVER_API_TOKEN?: string;
+  NTFY_SERVER_URL?: string;
+  NTFY_ACCESS_TOKEN?: string;
   RESEND_API_KEY?: string;
   NOTIFICATION_EMAIL_FROM?: string;
   TWILIO_ACCOUNT_SID?: string;
@@ -34,9 +35,21 @@ export const sendNotificationTool = {
 
 export function configuredChannels(config: NotificationConfig): NotificationChannel[] {
   return ['in_app',
-    ...(config.PUSHOVER_API_TOKEN ? ['pushover' as const] : []),
+    ...(ntfyServerUrl(config.NTFY_SERVER_URL) ? ['ntfy' as const] : []),
     ...(config.RESEND_API_KEY && config.NOTIFICATION_EMAIL_FROM ? ['email' as const] : []),
     ...(config.TWILIO_ACCOUNT_SID && config.TWILIO_AUTH_TOKEN && config.TWILIO_FROM_NUMBER ? ['sms' as const] : []),
     ...(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY && config.VAPID_SUBJECT ? ['push' as const] : []),
   ];
+}
+
+// Server selection belongs to the operator, never to chat or caregiver input.
+export function ntfyServerUrl(value?: string): string | null {
+  try {
+    const url = new URL(value || '');
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') return null;
+    return url.origin;
+  } catch { return null; }
+}
+export function validNtfyTopic(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) && !['app', 'docs', 'static', 'file', 'v1', 'health', 'metrics'].includes(value);
 }

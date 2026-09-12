@@ -1,4 +1,4 @@
-import { clearRemoteMemory, memoryLease } from '@/lib/care-memory';
+import { recipientLease } from '@/lib/recipient-lease';
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
@@ -69,10 +69,8 @@ async function handle(request: Request) {
           'A caregiver role is required for planning changes.',
         );
       await enforceRateLimit(env.DB, auth.member.id, `planning_${action}`);
-      const release = await memoryLease(env.DB, recipientId);
+      const release = await recipientLease(env.DB, recipientId);
       try {
-        if (['resolve_conflict', 'describe_fact'].includes(action))
-          await clearRemoteMemory(env.DB, env, recipientId);
         result = await planningAction(env.DB, auth.member, recipientId, body);
       } finally {
         await release();

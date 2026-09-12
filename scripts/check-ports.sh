@@ -3,8 +3,8 @@
 
 set -e
 
-HTTP_PORT="${HTTP_PORT:-8080}"
-HTTPS_PORT="${HTTPS_PORT:-8083}"
+HTTP_PORT=8080
+HTTPS_PORT=8083
 
 echo "Checking port availability..."
 echo "  HTTP port:  $HTTP_PORT"

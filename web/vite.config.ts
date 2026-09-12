@@ -70,8 +70,10 @@ export default defineConfig(async ({ command }) => {
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
     server: {
+      host: 'carestead.com',
+      port: localHttps ? 8083 : 8080,
+      strictPort: true,
       ...(localHttps ? {
-        host: 'carestead.com',
         https: { cert: readFileSync(certPath), key: readFileSync(keyPath) },
       } : {}),
       allowedHosts: ['carestead.com'],
@@ -85,7 +87,7 @@ export default defineConfig(async ({ command }) => {
         ...(cloudDeployment
           ? { configPath: './wrangler.deploy.json' }
           : { config: localBindingConfig }),
-        persistState: process.env.CARESTEAD_TEST === '1' ? false : undefined,
+        persistState: process.env.CARESTEAD_TEST === '1' && process.env.CARESTEAD_PERSISTENCE_TEST !== '1' ? false : undefined,
         inspectorPort: isCodexSeatbeltSandbox || process.env.CARESTEAD_TEST === '1' ? false : undefined,
       }),
       ...(cloudDeployment ? [excludeLocalSecrets] : []),

@@ -1,7 +1,8 @@
 declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
-    PUSHOVER_API_TOKEN?: string;
+    NTFY_SERVER_URL?: string;
+    NTFY_ACCESS_TOKEN?: string;
     RESEND_API_KEY?: string;
     NOTIFICATION_EMAIL_FROM?: string;
     TWILIO_ACCOUNT_SID?: string;

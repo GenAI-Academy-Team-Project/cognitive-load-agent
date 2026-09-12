@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { calendarSecrets, calendarSecretNames } from './calendar-config.mjs';
 
-const groups = [calendarSecretNames, ['RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM'], ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'], ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'], ['MEM0_API_KEY'], ['PUSHOVER_API_TOKEN']];
+const groups = [calendarSecretNames, ['RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM'], ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'], ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'], ['NTFY_SERVER_URL'], ['NTFY_ACCESS_TOKEN']];
 export const runtimeSecretNames = groups.flat();
 
 export function cloudSecrets(source) {
@@ -19,7 +19,12 @@ export function cloudSecrets(source) {
       values[name] = value;
     }
   }
-  if (values.PUSHOVER_API_TOKEN && !/^[A-Za-z0-9]{30}$/.test(values.PUSHOVER_API_TOKEN)) throw new Error('PUSHOVER_API_TOKEN must be a 30-character application token.');
+  if (values.NTFY_SERVER_URL) {
+    let url;
+    try { url = new URL(values.NTFY_SERVER_URL); } catch { throw new Error('NTFY_SERVER_URL must be an HTTPS server origin.'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('NTFY_SERVER_URL must be an HTTPS server origin.');
+  }
+  if (values.NTFY_ACCESS_TOKEN && !values.NTFY_SERVER_URL) throw new Error('Set NTFY_SERVER_URL with NTFY_ACCESS_TOKEN.');
   if (values.GOOGLE_CLIENT_ID) calendarSecrets(values);
   if (values.TWILIO_ACCOUNT_SID && !/^AC[0-9a-f]{32}$/i.test(values.TWILIO_ACCOUNT_SID)) throw new Error('TWILIO_ACCOUNT_SID must be an AC-prefixed account SID.');
   if (values.TWILIO_FROM_NUMBER && !/^\+[1-9]\d{7,14}$/.test(values.TWILIO_FROM_NUMBER)) throw new Error('TWILIO_FROM_NUMBER must use E.164 format.');

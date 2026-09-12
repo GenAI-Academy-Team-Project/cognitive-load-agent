@@ -7,8 +7,7 @@ are saved in D1 and apply to the whole care circle. Existing deployments also
 start off until an owner enables them; saved connections and preferences remain.
 Missing credentials keep a switch unavailable. Local tasks, trusted facts, chat,
 and in-app notifications remain usable. These switches do not replace recipient
-consent, Google account connection, delivery opt-in, or action approval. Pausing
-Mem0 does not delete remote facts; its existing privacy cleanup remains available.
+consent, Google account connection, delivery opt-in, or action approval.
 
 
 Carestead supports connecting each caregiver's Google account, selecting an owned calendar for each care recipient, and preparing create/reschedule/cancel actions. A caregiver must review and approve each action before Carestead calls Google. Google sends guest notifications through Calendar (`sendUpdates=all`); Gmail inbox access is not requested.

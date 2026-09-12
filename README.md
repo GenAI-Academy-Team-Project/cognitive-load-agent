@@ -8,7 +8,7 @@ Carestead is a caregiver cognitive-load agent that monitors a changing care plan
 - Explainable risk detection across tasks, timeline events, and trusted facts
 - Human approval before consequential actions
 - Structured, source-linked memory stored in the application database
-- Reviewed chat-to-fact suggestions and optional recipient-scoped Mem0 semantic recall
+- Reviewed chat-to-fact suggestions
 - Evaluation traces for evidence, decisions, policy checks, tool use, and outcome
 - Synthetic longitudinal demo data for safe testing
 - Runnable synthetic benchmark with calculated quality metrics
@@ -44,7 +44,7 @@ See [the care-planning guide](docs/care-planning.md) for setup, examples, suppor
 
 The **Care planning** view also includes a seven-day workload forecast, verified preference-aware visit suggestions, reviewed recurring tasks, appointment preparation briefs, and a personal in-app attention digest. See [Care ahead](docs/care-ahead.md) for behavior, data boundaries, and verification.
 
-The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent layer is deliberately deterministic for the initial release: it evaluates structured records with testable rules and keeps each result auditable. No Mem0 service is required for local recall. Owners can optionally enable Mem0 semantic recall of verified facts for each recipient. An LLM reasoning adapter can be introduced later behind explicit consent, redaction, and the same approval policy.
+The MVP is a Sites/Vinext React application backed by Cloudflare D1. The agent layer is deliberately deterministic for the initial release: it evaluates structured records with testable rules and keeps each result auditable. An LLM reasoning adapter can be introduced later behind explicit consent, redaction, and the same approval policy.
 
 ![Carestead technical architecture](docs/images/carestead-technical-architecture.png)
 
@@ -133,7 +133,7 @@ The notification inbox is recipient-scoped. Notifications linked to a consequent
 
 ### Recipient chat, tools, and voice
 
-The floating **Ask Carestead** window is bound to the currently selected recipient. It answers from that person’s profile, responsibilities, timeline, risks, trusted facts, support contacts, and agent traces, and presents the exact records used under an expandable evidence section. Conversation history is stored in D1 per recipient and signed-in care-circle member rather than in Mem0.
+The floating **Ask Carestead** window is bound to the currently selected recipient. It answers from that person’s profile, responsibilities, timeline, risks, trusted facts, support contacts, and agent traces, and presents the exact records used under an expandable evidence section. Conversation history is stored in D1 per recipient and signed-in care-circle member.
 
 Chat requests to reschedule an appointment, assign transportation, add a responsibility, run a care check, or post a notification create a pending action card. No write occurs until an authorized owner or caregiver selects **Approve**. Execution rechecks recipient access, updates the relevant records, and saves an evaluation trace and audit entry. Chat notification tools can use the configured channels after the addressed caregiver opts in. Google-linked appointments must be changed through the Calendar view so the caregiver reviews the external guest notifications. Email, SMS and Web Push require the runtime configuration described in [notification setup](notification-setup.md).
 
@@ -184,7 +184,7 @@ The agent retrieves relevant records, checks whether the evidence is sufficient,
 
 Caregivers can create, inspect, edit, and archive responsibilities. Responsibilities may also be reassigned, scheduled, marked due soon, completed, or reopened through editing.
 
-Long-term memory uses explicit source-linked records. Chat can suggest a fact from a “Remember that…” request or a simple preference statement; caregiver approval confirms the exact wording and shares it with the selected recipient’s care circle. Approved chat facts are verified immediately. See [the memory pilot guide](docs/memory-pilot.md) for optional Mem0 setup, data handling, and tests. Facts entered through the manual form begin in `review_due`, can be verified by a caregiver, corrected when inaccurate, and archived when obsolete. Archiving keeps the audit history while preventing the record from being used as active context.
+Long-term memory uses explicit source-linked records. Chat can suggest a fact from a “Remember that…” request or a simple preference statement; caregiver approval confirms the exact wording and shares it with the selected recipient’s care circle. Approved chat facts are verified immediately. Facts entered through the manual form begin in `review_due`, can be verified by a caregiver, corrected when inaccurate, and archived when obsolete. Archiving keeps the audit history while preventing the record from being used as active context.
 
 ## Authentication and authorization
 
@@ -292,11 +292,29 @@ npm run dev
 
 Open the URL printed by the development server, then choose **Create an account**. Returning users use `/sign-in`; subsequent new accounts use a link shared from **Care circle → Invite member**. There is no automatic demo login. The application creates and seeds its D1 tables on first use. To create a checked-in SQL migration after schema changes, run `npm run db:generate`.
 
+Both `npm run dev` and `npm run start` keep local accounts and care data in `web/.wrangler/state`, outside the generated build directory, so rebuilding and restarting preserve them. Keep this directory when cleaning build output. Docker uses its own persistent `carestead-data` volume; cloud deployments use remote D1.
+
 ## Containers and cloud deployment
 
 Run `make up` at the repository root to build and start the Docker preview at
-http://localhost:3000 with persistent local D1 storage. `make down` stops it while
+https://carestead.com:8083 with persistent local D1 storage. `make down` stops it while
 keeping data. `make help` lists development, build, test, and deployment commands.
+
+`npm run dev`, `npm run start` (after building), `make dev`, and Docker all use
+HTTPS port 8083, with HTTP port 8080 redirecting to HTTPS. Only one preview can
+run at a time; occupied ports cause an error instead of switching ports. When
+either `web/.certs/carestead.pem` or `web/.certs/carestead-key.pem` is missing,
+the preview falls back to HTTP on port 8080 only. Docker mounts the certificate
+directory read-only. Restart `npm run dev` or `make dev` to pick up startup
+changes. For `npm run start`, run `npm run build` first; for Docker, run `make up`
+to rebuild and recreate the container while preserving its data volume.
+
+Use `carestead.com` as the browser hostname in every local mode. It must map to
+`127.0.0.1` in your computer's `/etc/hosts` (`127.0.0.1 carestead.com`);
+`make host-config` from the repository root sets this up if needed. npm preview
+and Docker listen on local IP addresses behind this alias; no public DNS change
+is needed. Use `https://carestead.com:8083`, or `http://carestead.com:8080` when
+certificates are absent.
 
 Production targets Cloudflare Workers + D1. See [deployment instructions](docs/deployment.md)
 for database provisioning, secrets, migration commands, and the manual GitHub deployment workflow.
@@ -311,8 +329,3 @@ shared local credentials file automatically.
 ## Safety scope
 
 This is a care-coordination prototype, not a clinical decision system. It does not diagnose, prescribe, or independently contact people or providers. High-impact actions require caregiver approval and remain visible in the event and evaluation history.
-
-Pushover mobile notifications are available through the same approval-based tool.
-Set `PUSHOVER_API_TOKEN`, enable Pushover in **Integrations**, and save your personal
-user key in **Notifications**. Try `Pushover me: Please review the care plan.`
-See [Pushover setup](docs/notification-setup.md#pushover-mobile-app).

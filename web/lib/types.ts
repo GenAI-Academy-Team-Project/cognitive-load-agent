@@ -200,7 +200,6 @@ export type ChatState = {
   quickPrompts: string[];
   tools?: unknown[];
   notificationChannels?: string[];
-  memory: { configured: boolean; enabled: boolean; canManage: boolean; cleanupPending: boolean };
   capabilities: { voiceInput: boolean; spokenReplies: boolean; externalDelivery: boolean };
 };
 

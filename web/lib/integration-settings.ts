@@ -1,9 +1,9 @@
+import { ntfyServerUrl } from './notification-types';
 import { AppError } from './guardrails';
 
 export const integrationKeys = {
-  pushover: ['PUSHOVER_API_TOKEN'],
+  ntfy: ['NTFY_SERVER_URL'],
   calendar: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'GOOGLE_TOKEN_KEY'],
-  memory: ['MEM0_API_KEY'],
   sms: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'],
   email: ['RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM'],
   push: ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'],
@@ -15,7 +15,7 @@ type Bindings = Partial<Record<typeof integrationKeys[IntegrationId][number], st
 export async function integrationSettings(db: D1Database, config: Bindings): Promise<IntegrationStatus[]> {
   const rows = (await db.prepare("SELECT key,value FROM settings WHERE key LIKE 'integration:%'").all<{ key: string; value: string }>()).results;
   return (Object.keys(integrationKeys) as IntegrationId[]).map((id) => {
-    const configured = integrationKeys[id].every((key) => Boolean(config[key]?.trim())) && (id !== 'calendar' || /^[a-f0-9]{64}$/i.test(config.GOOGLE_TOKEN_KEY || ''));
+    const configured = integrationKeys[id].every((key) => Boolean(config[key]?.trim())) && (id !== 'ntfy' || Boolean(ntfyServerUrl(config.NTFY_SERVER_URL))) && (id !== 'calendar' || /^[a-f0-9]{64}$/i.test(config.GOOGLE_TOKEN_KEY || ''));
     return { id, configured, enabled: configured && rows.some((row) => row.key === `integration:${id}` && row.value === 'true') };
   });
 }

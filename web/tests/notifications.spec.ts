@@ -92,24 +92,3 @@ test('read receipts and targeted inbox messages stay separate for each caregiver
     expect(exported.notification_reads.length).toBeGreaterThan(0);
   } finally { await context.close(); }
 });
-
-test('Pushover settings save a private key and support opt-out without browser push', async ({ page }) => {
-  let enabled = false;
-  const key = 'u'.repeat(30);
-  await page.route('**/api/notifications?*', async (route) => route.fulfill({ json: { email: 'owner@example.test', emailEnabled: false, smsEnabled: false, phone: '', pushEnabled: false, pushoverEnabled: enabled, vapidPublicKey: null, channels: ['in_app', 'pushover'], deliveries: [] } }));
-  await page.route('**/api/notifications', async (route) => {
-    const body = route.request().postDataJSON();
-    if (body.action === 'enable_pushover') { expect(body.userKey).toBe(key); enabled = true; }
-    else { expect(body.action).toBe('disable_pushover'); enabled = false; }
-    await route.fulfill({ json: { email: 'owner@example.test', emailEnabled: false, smsEnabled: false, phone: '', pushEnabled: false, pushoverEnabled: enabled, vapidPublicKey: null, channels: ['in_app', 'pushover'], deliveries: [] } });
-  });
-  await page.goto('/?view=Notifications');
-  const input = page.getByLabel('Your Pushover user key');
-  await expect(input).toHaveAttribute('type', 'password');
-  await input.fill(key);
-  await page.getByRole('button', { name: 'Enable Pushover for me' }).click();
-  await expect(page.getByText('Enabled for your Pushover account.')).toBeVisible();
-  await expect(input).toHaveValue('');
-  await page.getByRole('button', { name: 'Disable and remove Pushover key' }).click();
-  await expect(page.getByRole('button', { name: 'Enable Pushover for me' })).toBeVisible();
-});

@@ -7,7 +7,7 @@ help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 install: ## Install locked dependencies
 	cd web && npm ci
-dev: ## Start the local development server on https://carestead.com:5173
+dev: ## Start development on HTTPS :8083, or HTTP :8080 without certificates
 	cd web && npm run dev
 build: ## Build the local Workers bundle
 	cd web && npm run build
@@ -18,11 +18,11 @@ test: ## Run Playwright tests (install Chromium first)
 test-notifications: ## Test notification tool adapters without sending real messages
 	cd web && npx playwright test --config playwright.notifications.config.ts
 check: lint build ## Lint and build
-up: local-init host-config check-ports ## Build and start Docker preview (HTTP :8080, HTTPS :8083)
+up: local-init host-config ## Build and start Docker preview (HTTP :8080, HTTPS :8083)
 	docker compose -f compose.local.yaml up --build --force-recreate -d --wait
 	@echo "✓ Docker container started successfully"
-	@echo "  HTTP:  http://carestead.com:${HTTP_PORT:-8080}"
-	@echo "  HTTPS: https://carestead.com:${HTTPS_PORT:-8083}"
+	@echo "  HTTP:  http://carestead.com:8080"
+	@echo "  HTTPS: https://carestead.com:8083 (when certificates are present)"
 host-config: ## Ensure /etc/hosts has carestead.com entry
 	@grep -q "127.0.0.1 carestead.com" /etc/hosts || (echo "Adding carestead.com to /etc/hosts (may prompt for password)"; echo "127.0.0.1 carestead.com" | sudo tee -a /etc/hosts > /dev/null && echo "✓ Added carestead.com to /etc/hosts")
 	@echo "✓ /etc/hosts configured"

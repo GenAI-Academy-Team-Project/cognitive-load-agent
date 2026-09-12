@@ -25,7 +25,7 @@ test('integrations default off, require credentials and ownership, and persist w
   try {
     const db = database(sqlite); await ensureDatabase(db);
     const owner = { id: 'owner', email: 'owner@example.test', role: 'owner' };
-    const config = { PUSHOVER_API_TOKEN: 'a'.repeat(30), MEM0_API_KEY: 'synthetic-memory', TWILIO_ACCOUNT_SID: 'synthetic-sid', TWILIO_AUTH_TOKEN: 'synthetic-token', TWILIO_FROM_NUMBER: '+14165550123' };
+    const config = { NTFY_SERVER_URL: 'https://ntfy.sh', TWILIO_ACCOUNT_SID: 'synthetic-sid', TWILIO_AUTH_TOKEN: 'synthetic-token', TWILIO_FROM_NUMBER: '+14165550123' };
     const initial = await integrationSettings(db, config);
     expect(initial.every((item) => !item.enabled)).toBe(true);
     expect(initial.find((item) => item.id === 'sms')?.configured).toBe(true);
@@ -35,17 +35,12 @@ test('integrations default off, require credentials and ownership, and persist w
     await expect(setIntegration(db, {}, 'sms', true, owner)).rejects.toThrow('credentials');
     await expect(setIntegration(db, config, '__proto__', true, owner)).rejects.toThrow('supported integration');
     await expect(setIntegration(db, config, 'sms', 'true', owner)).rejects.toThrow('on/off');
+    await setIntegration(db, config, 'ntfy', true, owner);
+    expect(configuredChannels(await effectiveIntegrations(db, config))).toContain('ntfy');
+    await setIntegration(db, config, 'ntfy', false, owner);
+    expect(configuredChannels(await effectiveIntegrations(db, config))).not.toContain('ntfy');
     await setIntegration(db, config, 'sms', true, owner);
     expect(configuredChannels(await effectiveIntegrations(db, config))).toEqual(['in_app', 'sms']);
-    await setIntegration(db, config, 'memory', true, owner);
-    expect((await effectiveIntegrations(db, config)).MEM0_API_KEY).toBe('synthetic-memory');
-    await setIntegration(db, config, 'memory', false, owner);
-    expect((await effectiveIntegrations(db, config)).MEM0_API_KEY).toBeUndefined();
-    await setIntegration(db, config, 'pushover', true, owner);
-    expect((await effectiveIntegrations(db, config)).PUSHOVER_API_TOKEN).toBe('a'.repeat(30));
-    await setIntegration(db, config, 'pushover', false, owner);
-    expect((await effectiveIntegrations(db, config)).PUSHOVER_API_TOKEN).toBeUndefined();
-    expect(config.MEM0_API_KEY).toBe('synthetic-memory'); // Still available for explicit privacy cleanup.
     await setIntegration(db, config, 'sms', false, owner);
     expect(configuredChannels(await effectiveIntegrations(db, config))).toEqual(['in_app']);
     await setIntegration(db, config, 'sms', true, owner);

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0a37a55e-7819-473d-b0ca-86eebf4385c3",
-  "prevId": "ac3e7e61-d057-4f42-bbfa-4f9067714f9d",
+  "id": "b74d5a18-9835-40fe-b66f-ac164085e02b",
+  "prevId": "0a37a55e-7819-473d-b0ca-86eebf4385c3",
   "tables": {
     "appointment_notes": {
       "name": "appointment_notes",
@@ -2004,90 +2004,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "memory_integrations": {
-      "name": "memory_integrations",
-      "columns": {
-        "recipient_id": {
-          "name": "recipient_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scope_id": {
-          "name": "scope_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'false'"
-        },
-        "fingerprint": {
-          "name": "fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "remote_dirty": {
-          "name": "remote_dirty",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'false'"
-        },
-        "deletion_event": {
-          "name": "deletion_event",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "lock_token": {
-          "name": "lock_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "lock_until": {
-          "name": "lock_until",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "memory_integrations_scope_id_unique": {
-          "name": "memory_integrations_scope_id_unique",
-          "columns": [
-            "scope_id"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "notification_deliveries": {
       "name": "notification_deliveries",
       "columns": {
@@ -2718,6 +2634,37 @@
           "isUnique": false
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "recipient_locks": {
+      "name": "recipient_locks",
+      "columns": {
+        "recipient_id": {
+          "name": "recipient_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lock_token": {
+          "name": "lock_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lock_until": {
+          "name": "lock_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

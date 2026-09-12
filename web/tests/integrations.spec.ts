@@ -6,9 +6,7 @@ test('optional integrations are visible, accessible, and can be toggled when con
   await page.route('**/api/integrations', async (route) => {
     if (route.request().method() === 'POST') enabled = route.request().postDataJSON().enabled;
     await route.fulfill({ json: { canManage: true, integrations: [
-      { id: 'pushover', configured: false, enabled: false },
       { id: 'calendar', configured: false, enabled: false },
-      { id: 'memory', configured: false, enabled: false },
       { id: 'sms', configured: true, enabled },
       { id: 'email', configured: false, enabled: false },
       { id: 'push', configured: false, enabled: false },
