@@ -181,13 +181,13 @@ test('provider redirects fail without forwarding the notification or retrying', 
   expect(sends[0].url).toBe('https://api.resend.com/emails');
 });
 
-test('SMS uses the saved opted-in number and exact approved text', async () => {
+test('SMS uses the saved opted-in number and Twilio trial appointment template', async () => {
   const action = await proposal({ channel: 'sms' });
   await execute(action);
   expect(sends[0].url).toContain('api.twilio.com/2010-04-01/Accounts/');
   const body = new URLSearchParams(sends[0].init!.body as string);
   expect(body.get('To')).toBe('+14165550123');
-  expect(body.get('Body')).toBe(input.title + '\n' + input.detail);
+  expect(body.get('Body')).toBe('sms_appointment_reminders');
 });
 
 test('SMS retains the specific provider rejection without storing private details', async () => {

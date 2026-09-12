@@ -36,6 +36,8 @@ make up
 
 For email, configure a verified sender/domain in Resend and set `RESEND_API_KEY` and `NOTIFICATION_EMAIL_FROM`. For SMS, configure a Twilio sender and set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` (E.164). Complete the provider's sender setup for your destination countries. Twilio trial accounts may restrict destinations. Provider opt-outs can reject further messages even while the local SMS preference remains enabled.
 
+Temporary SMS trial test: outgoing SMS currently hardcodes `Body=sms_appointment_reminders`, as supported by [Twilio's trial API](https://www.twilio.com/docs/usage/trials/try-out-sms). The delivered SMS uses Twilio's template instead of the composed title/detail; the in-app copy retains the composed content. Restore the dynamic body in `web/lib/notification-service.ts` after trial testing.
+
 Generate VAPID keys once, from `web`:
 
 ```sh

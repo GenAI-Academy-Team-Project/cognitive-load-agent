@@ -186,16 +186,19 @@ export function NotificationComposer({
       <h2 className="font-heading text-xl font-semibold">
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+          className="flex w-full items-center gap-3 rounded-xl border border-primary bg-primary px-4 py-4 text-left text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring sm:px-5"
           aria-expanded={composing}
           aria-controls="notification-compose-form"
           onClick={() => setComposing((open) => !open)}
         >
-          <Bell className="size-5" />
+          <Bell className="size-5 shrink-0" />
           Send a notification
-          <ChevronDown
-            className={`ml-auto size-5 transition-transform ${composing ? 'rotate-180' : ''}`}
-          />
+          <span aria-hidden="true" className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="hidden text-sm font-medium sm:inline">{composing ? 'Collapse' : 'Expand'}</span>
+            <span className="grid size-8 place-items-center rounded-full bg-primary-foreground/15">
+              <ChevronDown className={`size-5 transition-transform ${composing ? 'rotate-180' : ''}`} />
+            </span>
+          </span>
         </button>
       </h2>
       {composing && (

@@ -82,7 +82,11 @@ try {
   assert.equal(await page.locator('#count').textContent(), '1 / 12');
   await page.keyboard.press('End');
   assert.equal(await page.locator('#count').textContent(), '12 / 12');
+  await page.emulateMedia({media:'print'});
+  const printResults=await page.locator('.slide').evaluateAll(slides=>slides.map(el=>({slide:el.getAttribute('aria-label'),direction:getComputedStyle(el).flexDirection,overflow:el.scrollHeight>el.clientHeight || el.scrollWidth>el.clientWidth})));
+  assert.ok(printResults.every(x=>x.direction==='column' && !x.overflow),JSON.stringify(printResults));
   await page.pdf({ path: `${root}/carestead-pitch-v1.pdf`, printBackground: true, preferCSSPageSize: true });
+  await page.emulateMedia({media:'screen'});
   for (const viewport of [{width:1280,height:720},{width:390,height:844}]) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -97,7 +101,7 @@ try {
   await page.screenshot({ path: `${root}/assets/v1/mobile-preview.png` });
   assert.ok(await page.locator('#next').isVisible());
   assert.deepEqual(errors, []);
-  fs.writeFileSync(`${root}/verification-v1.json`, JSON.stringify({ slides: results, vectors: vectorResults, navigation: true, notes: true, pageErrors: errors }, null, 2));
+  fs.writeFileSync(`${root}/verification-v1.json`, JSON.stringify({ slides: results, vectors: vectorResults, print: printResults, navigation: true, notes: true, pageErrors: errors }, null, 2));
   console.log(JSON.stringify(results, null, 2));
 } finally {
   await browser.close();

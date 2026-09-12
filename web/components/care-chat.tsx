@@ -120,8 +120,8 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
 
   return (
     <>
-      <Button onClick={() => { setChat(null); setError(null); setOpen(true); }} className="fixed right-5 bottom-5 z-40 h-13 rounded-2xl px-5 shadow-[0_14px_40px_rgb(35_68_52/0.24)]" aria-label={`Ask Carestead about ${recipientName}`}>
-        <Sparkles className="size-5" /> Ask Carestead
+      <Button onClick={() => { setChat(null); setError(null); setOpen(true); }} className="fixed right-5 bottom-5 z-40 h-13 w-13 rounded-2xl px-0 sm:w-auto sm:px-5 shadow-[0_14px_40px_rgb(35_68_52/0.24)]" aria-label={`Ask Carestead about ${recipientName}`}>
+        <Sparkles className="size-5" /><span className="hidden sm:inline">Ask Carestead</span>
       </Button>
       <Sheet open={open} onOpenChange={(next) => { if (next) { setChat(null); setError(null); } setOpen(next); }}>
         <SheetContent className="w-[min(100vw,460px)] gap-0 border-l-0 bg-[#f7f9f7] p-0 sm:max-w-[460px]" aria-label={`Carestead assistant for ${recipientName}`}>

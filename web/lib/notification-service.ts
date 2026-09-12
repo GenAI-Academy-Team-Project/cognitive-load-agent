@@ -115,7 +115,9 @@ export async function sendViaProvider(config: NotificationConfig, input: Notific
     init = { method: 'POST', headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': actionId }, body: JSON.stringify({ from: config.NOTIFICATION_EMAIL_FROM, to: [destination], subject: input.title, text: input.detail }) };
   } else if (input.channel === 'sms') {
     url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(config.TWILIO_ACCOUNT_SID!)}/Messages.json`;
-    init = { method: 'POST', headers: { Authorization: `Basic ${btoa(`${config.TWILIO_ACCOUNT_SID}:${config.TWILIO_AUTH_TOKEN}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ From: config.TWILIO_FROM_NUMBER!, To: destination, Body: `${input.title}\n${input.detail}` }).toString() };
+    // Temporary Twilio trial test: Body must be a supported template code.
+    // Restore `${input.title}\n${input.detail}` when testing custom SMS content.
+    init = { method: 'POST', headers: { Authorization: `Basic ${btoa(`${config.TWILIO_ACCOUNT_SID}:${config.TWILIO_AUTH_TOKEN}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ From: config.TWILIO_FROM_NUMBER!, To: destination, Body: 'sms_appointment_reminders' }).toString() };
   } else if (input.channel === 'ntfy') {
     const saved = JSON.parse(destination) as { server: string; topic: string };
     const server = ntfyServerUrl(config.NTFY_SERVER_URL);
