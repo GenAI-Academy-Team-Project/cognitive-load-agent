@@ -4,6 +4,9 @@ const port = Number(process.env.CARESTEAD_TEST_PORT || 43179);
 
 export default defineConfig({
   testDir: './tests',
+  // Node's persistence tests start separate servers and share node_modules.
+  // Only collect Playwright specs and its authentication setup here.
+  testMatch: ['**/*.spec.ts', '**/auth.setup.ts'],
   outputDir: `.playwright-runs/${port}/results`,
   timeout: 60_000,
   workers: 1,

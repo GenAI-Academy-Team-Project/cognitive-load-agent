@@ -1343,16 +1343,17 @@ function ProposalCard({
 }
 
 export function SinceAway(props: Props) {
+  const [handoverFiltered, setHandoverFiltered] = useState(false);
   const { state, act, busy, error, message } = usePlanning(props);
   if (!state) return null;
   return (
-    <section data-care-tone="sky" className={`${panel} mb-6 border-primary/30`}>
+    <section data-care-tone="sky" className="min-w-0 rounded-2xl border border-primary/30 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-primary">
             Your personal handover
           </p>
-          <h2 className="mt-1 font-heading text-2xl font-semibold">
+          <h2 className="mt-1 font-heading text-xl font-semibold">
             {state.handover.acknowledgedAt
               ? `${state.handover.changes.length} ${state.handover.changes.length === 1 ? 'change' : 'changes'} since you were away`
               : 'Start with the current picture'}
@@ -1365,7 +1366,7 @@ export function SinceAway(props: Props) {
         </div>
         <Button
           className="h-auto min-h-11 max-w-full whitespace-normal text-left"
-          disabled={busy || props.dashboard.consent.status !== 'active'}
+          disabled={busy || handoverFiltered || props.dashboard.consent.status !== 'active'}
           onClick={() =>
             act('acknowledge', {
               snapshot: JSON.stringify(state.handover.snapshot),
@@ -1376,9 +1377,10 @@ export function SinceAway(props: Props) {
           reviewed this handover
         </Button>
       </div>
+      {handoverFiltered && <output className="mt-3 block text-sm text-muted-foreground">Clear handover filters and review all changes before acknowledging the full handover.</output>}
       <Notice error={error} message={message} />
       <div className="mt-4 space-y-3">
-        <PaginatedList label="Handover changes" records={state.handover.changes}>{state.handover.changes.map((change) => (
+        <PaginatedList label="Handover changes" filterFields={[["kind", "Information type"], ["change_type", "Change type"]]} hideSingleValueFilters onFilterActiveChange={setHandoverFiltered} resetKey={props.dashboard.selectedRecipient.id} pageSize={3} collapsibleFilters records={state.handover.changes.map(change => ({ ...change, change_type: change.before === null ? "added" : change.after === null ? "removed" : "changed" }))}>{state.handover.changes.map((change) => (
           <article key={change.id} className="rounded-xl bg-muted/60 p-4">
             <p className="text-xs font-medium text-primary">
               {change.kind} ·{' '}
@@ -1389,6 +1391,7 @@ export function SinceAway(props: Props) {
                   : 'Changed'}
             </p>
             <h3 className="mt-1 text-sm font-semibold">{change.label}</h3>
+            <details className="mt-2"><summary className="cursor-pointer text-sm text-primary">View change details</summary>
             {change.before && (
               <p className="mt-2 text-sm text-muted-foreground">
                 <strong>Before:</strong> {change.before}
@@ -1399,6 +1402,7 @@ export function SinceAway(props: Props) {
                 <strong>Now:</strong> {change.after}
               </p>
             )}
+            </details>
           </article>
         ))}</PaginatedList>
       </div>

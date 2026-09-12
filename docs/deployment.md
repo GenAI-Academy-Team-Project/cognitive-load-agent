@@ -119,7 +119,7 @@ The `make up` command will:
   - 8083 → HTTPS when certificates are present
 - **Binding**: 127.0.0.1 (localhost)
 - **Database**: Persistent SQLite volume (`carestead-data`)
-- **Config**: Reads `web/.dev.vars` from host
+- **Config**: Compose reads the owner-only (`0600`) `web/.dev.vars` on the host and passes settings through the container environment. Wrangler loads them with `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`; no credentials file is mounted or baked into the image. Single-quote values containing literal `$` characters to prevent Compose interpolation. Run `make up` after changing settings to recreate the container.
 - **Lifecycle**: Restarts automatically unless stopped
 
 ### Operations
@@ -379,3 +379,20 @@ Owners can save values under **Integrations → Environment configuration**. The
 Set a stable `INTEGRATION_CONFIG_KEY` containing 32 random bytes encoded as 64 hexadecimal characters. `make local-init` generates it in the ignored `web/.dev.vars` without printing or replacing an existing key. Restart a running server to load changed environment bindings. Back up the key securely: losing or replacing it prevents decryption of saved overrides. For cloud deployment, add it to `web/.secrets.cloudflare` or the GitHub **production** environment secrets and use the existing secret upload flow. The key is not editable through the application.
 
 Every integration displays additional setup instructions and a repository guide even while off. For ntfy, install the app and subscribe to an access-controlled topic, then save preferences for each recipient; its publisher token is optional and belongs to the configured server. Changing the ntfy server requires saving preferences again. Google Calendar needs provider OAuth setup and individual account connection; changing its token encryption key requires reconnecting accounts. Email and SMS need provider sender setup and caregiver opt-in. Browser push needs HTTPS, VAPID keys, permission and browser registration; rotating keys requires re-registration. See [notification setup](notification-setup.md) and [Google Calendar setup](google-calendar-setup.md).
+
+### Integration configuration troubleshooting
+
+| Symptom | Check and recovery |
+| --- | --- |
+| `integration_key_missing` when saving | Set `INTEGRATION_CONFIG_KEY` on the running server as 64 hexadecimal characters. `make local-init` creates it for local use; restart the local server or recreate Docker with `make up`. Upload it separately for the deployed Worker. |
+| `integration_config_unavailable` / saved settings cannot be decrypted | Restore the original `INTEGRATION_CONFIG_KEY` for this database and restart/reload the runtime. One undecryptable override can prevent all integration settings from loading. A new random key cannot decrypt old overrides; if the key is lost, an operator must plan recovery of the affected encrypted settings and re-enter credentials. |
+| Editing `.dev.vars` or cloud secrets changes nothing | In each field, check **Saved override** versus **Environment**. Select **Use environment value**, then **Save configuration** to remove that field's override. Leaving an input blank keeps its current value. |
+| Cannot reset a required field while enabled | Supply a valid environment fallback before saving the reset, or switch the integration off first. An enabled integration cannot be saved with incomplete required credentials. |
+| Credentials configured, but service is off | **Save configuration** preserves the on/off state. Enable the owner's switch separately; then connect accounts or save caregiver preferences for each recipient. |
+| Local works, cloud does not | Local `.dev.vars` does not populate cloud bindings. Check the Worker target, run `make cloud-secrets-check` and `make cloud-secrets-apply` with that target, and inspect the UI's field sources. Blank secret groups preserve remote values rather than deleting them. |
+| Upload fails without provider details | The upload script suppresses potentially sensitive provider output. Check Cloudflare authentication, Worker permissions and target settings before retrying; do not print secret files to diagnose. |
+
+`INTEGRATION_CONFIG_KEY` encrypts saved configuration overrides;
+`GOOGLE_TOKEN_KEY` encrypts connected Google refresh tokens. Keep both stable and
+back them up securely. Resetting an override does not erase its environment fallback,
+and pausing an integration does not remove credentials or provider data.

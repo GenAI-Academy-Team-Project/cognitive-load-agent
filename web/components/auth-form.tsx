@@ -225,7 +225,7 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                    className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={
                       showPassword ? 'Hide password' : 'Show password'
@@ -267,7 +267,7 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                      className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
                       onClick={() => setShowConfirmation(!showConfirmation)}
                       aria-label={
                         showConfirmation

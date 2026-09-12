@@ -26,8 +26,8 @@ jobs:
       - run: make up
       - name: Smoke test
         run: |
-          curl --fail --retry 5 --retry-delay 2 http://localhost:3000/api/health
-          curl --fail http://localhost:3000/sign-in > /dev/null
+          curl --fail --retry 5 --retry-delay 2 http://localhost:8080/api/health
+          curl --fail http://localhost:8080/sign-in > /dev/null
       - name: Container logs
         if: always()
         run: docker compose -f compose.local.yaml logs

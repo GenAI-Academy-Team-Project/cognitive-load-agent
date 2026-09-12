@@ -1,6 +1,7 @@
 import { chromium } from '../../web/node_modules/playwright/index.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 const baseURL = 'http://127.0.0.1:43621';
 const out = 'docs/pitch-deck/assets/current';
 fs.mkdirSync(out, { recursive: true });
@@ -8,6 +9,9 @@ const browser = await chromium.launch({ channel: 'chrome' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2, reducedMotion: 'reduce' });
 page.setDefaultTimeout(45000);
 const report = { capturedAt: new Date().toISOString(), source: 'Current working-tree app, isolated ephemeral database', data: 'Synthetic seeded records', screenshots: [] };
+const sourceFiles = ['web/app/page.tsx', 'web/app/care-theme.css', 'web/components/care-chat.tsx', 'web/components/care-planning.tsx', 'web/components/paginated-list.tsx'];
+report.sourceHashes = Object.fromEntries(sourceFiles.map(file => [file, createHash('sha256').update(fs.readFileSync(file)).digest('hex')]));
+const oldHashes = Object.fromEntries(['handover', 'voice-chat', 'chat-approval'].map(name => { const file = `${out}/${name}.png`; return [name, fs.existsSync(file) ? createHash('sha256').update(fs.readFileSync(file)).digest('hex') : null]; }));
 async function ready() { await page.evaluate(() => document.fonts.ready); await page.waitForTimeout(500); }
 try {
   await page.goto(`${baseURL}/${process.env.CARESTEAD_CAPTURE_EXISTING ? 'sign-in' : 'sign-up'}`);
@@ -58,6 +62,7 @@ try {
   report.taskChangedAfterApproval = JSON.stringify(before.tasks) !== JSON.stringify(after.tasks);
   assert.ok(report.taskChangedAfterApproval);
   report.screenshots.push('voice-chat', 'chat-approval', 'chat-panel');
+  report.refreshedDeckScreenshots = Object.keys(oldHashes).map(name => ({ name, changed: oldHashes[name] !== createHash('sha256').update(fs.readFileSync(`${out}/${name}.png`)).digest('hex') }));
   fs.writeFileSync('docs/pitch-deck/capture-current.json', JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } catch (error) {

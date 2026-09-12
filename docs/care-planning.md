@@ -13,6 +13,28 @@ Carestead now supports caregiver relief, care-plan simulations, reviewed update 
 7. In **Memory**, describe related facts with the same subject and attribute. Differing current values appear together for verification. Confirm a value and verification source to archive alternatives and link them to the replacement. Expired, superseded, unverified, and disputed facts are excluded from grounded memory recall. Link necessary facts in Task planning to hold scheduling and acceptance until those facts are verified.
 8. In **I can help**, choose a time budget and claim a matching unassigned task. Claiming is an explicit acceptance and is checked against availability and capabilities again on the server.
 
+## Handover layout and filters
+
+The profile and personal changes sit side by side on wide screens, with risks,
+due responsibilities, and verification in a row below. Narrow screens stack these
+sections. The urgent situation plan stays visible. Contact and access directories
+expand when needed; change cards show before/after details on demand and paginate
+three at a time.
+
+**Filter and manage** appears above each list. Handover changes offer information
+and change type; Due next offers due time and assignment. A dropdown only appears
+when the list contains more than one value. Due time uses the recipient's timezone:
+Overdue is before now, Today is the rest of today, and Next 7 days covers the seven
+calendar days after today. Filters show matching counts and a Clear filters action.
+
+Clear handover-change filters and review all pages/details before acknowledging.
+The acknowledgement button is disabled while change filters or search are active;
+it still acknowledges the complete snapshot, not a filtered subset. Other lists'
+filters do not alter the personal checkpoint or the copied brief.
+
+Run the focused checks with `npx playwright test --config playwright.handover.config.ts`
+from `web`; this uses synthetic integration bindings and sends no provider messages.
+
 ## Boundaries and implementation
 
 - The current update extractor is deterministic and supports English clauses and explicit dates, weekdays, today/tomorrow, and AM/PM times. It does not use an LLM or infer an appointment’s time when it is missing. DST gaps and repeated wall times require correction.

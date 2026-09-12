@@ -72,7 +72,7 @@ test('masked inputs save and reset overrides without discarding other drafts', a
   await page.goto('/?view=Integrations');
   await page.getByRole('button', { name: 'Manage settings for Mobile push', exact: true }).click();
   await page.getByText('Setup help', { exact: true }).first().click();
-  await expect(page.getByRole('link', { name: 'Mobile push setup guide (GitHub)' })).toHaveAttribute('href', /notification-setup.md#ntfy-mobile-push$/);
+  await expect(page.getByRole('link', { name: 'Mobile push setup guide (GitHub)' })).toHaveAttribute('href', /ntfy-setup\.md$/);
   await page.getByText('Environment configuration', { exact: true }).first().click();
   const token = page.getByLabel('NTFY_ACCESS_TOKEN', { exact: true }), sms = page.getByLabel('TWILIO_AUTH_TOKEN', { exact: true });
   await expect(token).toHaveAttribute('type', 'password');

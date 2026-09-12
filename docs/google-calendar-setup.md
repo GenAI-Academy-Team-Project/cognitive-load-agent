@@ -16,7 +16,7 @@ Carestead supports connecting each caregiver's Google account, selecting an owne
 
 ### Activation commands (configuration can be added when deploying)
 
-The app builds without Google credentials. Calendar stays in **setup pending** until the four runtime secrets are configured. No rebuild is needed when supplying or updating these secrets.
+The app builds without Google credentials. Calendar stays in **setup pending** until the four runtime values are configured and an owner enables **Google Calendar** in **Account settings → Integrations**. No rebuild is needed when supplying or updating these secrets.
 
 **Cloud deployment from your machine**
 
@@ -44,7 +44,7 @@ The workflow validates the Calendar configuration before migrations or deploymen
 
 **After activation**
 
-Open the deployed HTTPS app, sign in, select a recipient, and open **Calendar → Connect Google Calendar**. Complete Google's consent screen, choose an owned calendar, and use a test guest to verify create → reschedule → cancel, approving each action. A successful configuration upload does not connect a person's account or send an invitation; each caregiver completes that step in the app.
+Open the deployed HTTPS app, sign in as an owner, and enable **Account settings → Integrations → Google Calendar**. Select a recipient and open **Calendar → Connect Google Calendar**. Complete Google's consent screen, choose an owned calendar, and use a test guest to verify create → reschedule → cancel, approving each action. A successful configuration upload does not connect a person's account or send an invitation; each caregiver completes that step in the app.
 
 ### Google Cloud and runtime values
 
@@ -53,21 +53,21 @@ Open the deployed HTTPS app, sign in, select a recipient, and open **Calendar �
 3. Register the exact callback URL: `https://YOUR-CARESTEAD-HOST/api/calendar/callback`. For local development, register the exact localhost origin and port you use, followed by `/api/calendar/callback`.
 4. Set these server-side Cloudflare Worker bindings, using your deployment's secret manager:
 
-   | Binding | Value |
-   | --- | --- |
-   | `GOOGLE_CLIENT_ID` | Google OAuth web client ID |
-   | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-   | `GOOGLE_REDIRECT_URI` | Exact registered callback URL |
-   | `GOOGLE_TOKEN_KEY` | A random 32-byte key encoded as 64 hexadecimal characters |
+   | Binding | Where to find or generate it | Value to save |
+   | --- | --- | --- |
+   | `GOOGLE_CLIENT_ID` | In Google Cloud's **Google Auth Platform → Clients**, create or open your **Web application** OAuth client (older navigation: **APIs & Services → Credentials**). | Copy its Client ID. Use the same client for the secret and registered callback below. |
+   | `GOOGLE_CLIENT_SECRET` | In that same OAuth client's details, copy the client secret when created, or create a replacement if the old value is unavailable. | Save the secret privately; it is not your Google account password or an API key. |
+   | `GOOGLE_REDIRECT_URI` | Construct it from the URL where you open this Carestead deployment, then register it in that client's **Authorized redirect URIs**. | `https://YOUR-CARESTEAD-HOST/api/calendar/callback`, including any actual local port. Save the exact same URI in Carestead. |
+   | `GOOGLE_TOKEN_KEY` | Generate locally once with `openssl rand -hex 32`; Google does not issue this key. | Save the generated 64 hexadecimal characters in your private configuration and secret manager; reuse them for this database. |
 
    Generate the encryption key with `openssl rand -hex 32`. Keep it in the secret manager. Changing this key without migrating stored ciphertext requires reconnecting accounts.
 
    For local development, use an ignored `web/.dev.vars` file containing these four bindings. Do not place credentials in client variables, source control, browser storage, or chat. The deployed Worker needs the same bindings independently of the local file.
 
-   For the Docker preview, run `make local-init`, edit `web/.dev.vars`, set a callback such as `http://localhost:3000/api/calendar/callback`, register that exact URI with Google, and run `make up`. The Compose file mounts the credentials read-only at runtime, outside the image. Production preflight intentionally requires HTTPS; it is not used for this local preview.
+   For the Docker preview, run `make local-init`, edit `web/.dev.vars`, set a callback such as `https://YOUR-LOCAL-HOST:PORT/api/calendar/callback`, register that exact URI with Google, and run `make up`. Compose reads the private host file and passes credentials through the container environment at runtime, outside the image. Run `make up` again after editing settings. Use the trusted local HTTPS setup in [deployment.md](deployment.md). Google permits HTTP callbacks for localhost, but not for a custom hostname used for development. Keep the browser origin, `AUTH_PUBLIC_URL`, and callback origin aligned; production preflight requires HTTPS.
 
-5. Apply the repository's database migration flow (new migration: `web/drizzle/0008_useful_next_avengers.sql`). Development bootstrap also creates the new tables. Use one schema initialization path for a fresh database; migrations and development bootstrap are not interchangeable migration-history systems.
-6. Start Carestead, choose a recipient, open **Calendar**, select **Connect Google Calendar**, grant permissions, then choose an owned calendar. The UI shows setup pending until all four bindings are present.
+5. Apply the repository's full database migration flow, including Calendar and subsequent integration migrations. Development bootstrap also creates the new tables. Use one schema initialization path for a fresh database; migrations and development bootstrap are not interchangeable migration-history systems.
+6. Start Carestead, sign in as an owner and enable **Account settings → Integrations → Google Calendar**, then choose a recipient, open **Calendar**, select **Connect Google Calendar**, grant permissions, then choose an owned calendar. Setup remains pending while credentials are incomplete or the integration is off. Each caregiver connects their own Google account.
 
 Requested scopes:
 
@@ -76,6 +76,42 @@ Requested scopes:
 - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`: list calendars for explicit selection.
 
 Google's permissions cover more events than the UI exposes. Carestead only manages event IDs it has linked to a recipient, through the caregiver who connected that account. Public distribution may require Google's OAuth verification for the requested scopes. See [Google's OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server) and [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth).
+
+## Troubleshooting
+
+Start with **Account settings → Integrations → Google Calendar → Manage settings**.
+Owners can supply credentials there through **Environment configuration**, once
+[encrypted overrides](deployment.md#encrypted-integration-overrides) are configured.
+A saved override takes precedence over the corresponding runtime binding.
+
+| Symptom / error | Check and recovery |
+| --- | --- |
+| Setup pending / `calendar_not_configured` | Check all four effective Google values, the 64-hex-character token key, and the owner switch. Restart local runtime after binding edits; upload cloud secrets to the actual Worker. Configuration presence does not prove Google access. |
+| Google `redirect_uri_mismatch` | Match scheme, hostname, port, and `/api/calendar/callback` exactly in the Google Web application client's authorized redirect URIs and `GOOGLE_REDIRECT_URI`. Check for a saved override. For local HTTPS, substitute your actual host and port in `https://YOUR-LOCAL-HOST:PORT/api/calendar/callback`; register production separately. |
+| Google rejects a plain HTTP custom-host callback | Use the trusted HTTPS local setup. Google's HTTP exception is for localhost, not a custom development hostname. See [Google redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation). |
+| Access blocked / test user denied | Add the connecting Google account to the OAuth app's test users; check audience and Workspace administrator restrictions. Enable Calendar API in the same project as the client. |
+| `oauth_session` / `oauth_state` / authorization expired | Sign in and start Connect again on the configured origin in the same browser. Do not reuse callback links or switch hosts mid-flow. State is single-use, bound to the session and recipient, and expires in ten minutes. |
+| `oauth_exchange_failed` | Start a fresh connection. If it repeats, check that client ID/secret belong to the same Web application client and the callback matches; check effective overrides. |
+| `oauth_missing_scope` | Reconnect and grant both requested Calendar permissions and offline access. If Google keeps omitting access, revoke the app grant in Google account settings, then connect again. |
+| Reconnect required / `invalid_grant` | Reconnect the same Google account. Access may have been revoked or expired. External OAuth apps in Testing with these Calendar scopes receive refresh tokens that expire after seven days; see [Google token expiration](https://developers.google.com/identity/protocols/oauth2#expiration). |
+| Connection fails after key changes | Restore the original `GOOGLE_TOKEN_KEY` if available; otherwise reconnect accounts to encrypt new tokens. Separately, `INTEGRATION_CONFIG_KEY` must match the saved configuration overrides; see deployment recovery. Do not generate either key on every deployment. |
+| No calendar offered / `calendar_required` | Choose a calendar owned by the connected Google account for this recipient. Shared calendars where you are only a writer are excluded. |
+| `google_account_changed` / `account_changed` | Use the account that created the appointment. Disconnect the previous account before deliberately connecting a different identity; switching identities does not transfer appointment ownership. |
+| `calendar_mismatch` | Select the original appointment calendar for this recipient before editing it. |
+| Google denied access / `calendar_forbidden` | Check calendar ownership, API enablement, and granted scopes. Also check Carestead write role and active recipient consent. Reconnect if Google access changed. |
+| `calendar_changed` / event conflict | Discard the stale proposal and prepare a fresh preview. If the event was removed or changed into an unsupported form, manage it in Google Calendar. |
+| Uncertain result / `google_unavailable` after approval | Use **Retry / check result** on the same action to reconcile. An interrupted executing claim becomes retryable after two minutes. Do not prepare a replacement invitation, which could create a duplicate. |
+| Guest did not receive or see the invitation | Check the confirmed event and guest address in Google, plus the guest's invitation settings and spam folder. Carestead requests guest notifications but does not guarantee acceptance or automatic calendar placement. |
+| Missing table after deployment | Apply the full migration flow to the D1 database bound to this Worker. Do not mix development bootstrap and migration history or reset existing care data to fix setup. |
+
+A successful setup check is: enable the integration, connect a test account,
+select an owned calendar, create → reschedule → cancel with approval each time,
+and verify the event and guest notifications in Google. Disconnect/reconnect
+and test revoked access as described under [Validation](#validation).
+
+Documentation checked against the implementation and linked provider guides on
+2026-09-12. Report only sanitized error codes and timestamps, never OAuth callback
+query strings, tokens, or client secrets.
 
 ## Product behavior
 

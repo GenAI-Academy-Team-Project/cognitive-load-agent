@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-12T21:36:41.054Z",
+  "capturedAt": "2026-09-12T23:21:52.756Z",
   "source": "Current working-tree app, isolated ephemeral database",
   "data": "Synthetic seeded records",
   "screenshots": [
@@ -10,8 +10,29 @@
     "chat-approval",
     "chat-panel"
   ],
+  "sourceHashes": {
+    "web/app/page.tsx": "877ff5a9cc5488051f869d9f939b9977b83574d33fcae15aecfebccf1ac6be60",
+    "web/app/care-theme.css": "b55797ee3f7c5282056f28ade5b925d245d19d3664efb0a511d66b7559e29d6c",
+    "web/components/care-chat.tsx": "bf8eccb74dcf25e9f891f0f57fba8249fede9e72c58689d5b4d04e0b8c9ec801",
+    "web/components/care-planning.tsx": "5f60925968b171eee3632d9b24b885dd213e1d5c5a4bedc2216b25f439ac3b09",
+    "web/components/paginated-list.tsx": "44b00ab55eec6bada0b4ab49576193e539d79cece368fa6ac7eb5bc2a0a54b8f"
+  },
   "voiceControlsVisible": true,
   "voiceInputTested": false,
   "noTaskChangeBeforeApproval": true,
-  "taskChangedAfterApproval": true
+  "taskChangedAfterApproval": true,
+  "refreshedDeckScreenshots": [
+    {
+      "name": "handover",
+      "changed": true
+    },
+    {
+      "name": "voice-chat",
+      "changed": true
+    },
+    {
+      "name": "chat-approval",
+      "changed": true
+    }
+  ]
 }

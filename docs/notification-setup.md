@@ -1,4 +1,4 @@
-# Notification tools
+# Notification setup
 
 External services are optional and start off. After adding credentials and
 restarting the local app (or uploading cloud secrets), sign in as a care-circle
@@ -12,6 +12,45 @@ consent, Google account connection, delivery opt-in, or action approval.
 
 Carestead exposes `send_notification` as a typed, approval-gated function tool. The deterministic chat planner and structured API use the same validation and execution path. It supports targeted in-app notices, Resend email, Twilio SMS, and standard Web Push with VAPID. No LLM service or messaging credentials are needed for in-app delivery.
 
+## Choose an integration
+
+Each guide includes provider setup, a receipt check, and troubleshooting:
+
+- [Mobile push (ntfy)](ntfy-setup.md)
+- [Twilio SMS](twilio-sms-setup.md)
+- [Email delivery (Resend)](resend-email-setup.md)
+- [Browser push (VAPID)](browser-push-setup.md)
+- [Google Calendar](google-calendar-setup.md)
+
+An owner first configures and enables the service under **Account settings →
+Integrations → Manage settings**. Each receiving caregiver then saves their own
+preferences for the selected care recipient. **On · credentials configured**
+checks configuration presence, not provider authentication or actual delivery.
+Owners can use **Environment configuration** for encrypted overrides; see
+[override setup and recovery](deployment.md#encrypted-integration-overrides).
+Saving configuration does not turn the service on.
+
+## Where to save configuration values
+
+All examples in these guides are placeholders or public provider URLs. Substitute
+your own values privately; never add real keys, tokens, phone numbers, or deployment
+configuration to the documentation.
+
+| Configuration path | Where to enter values | Apply the change |
+| --- | --- | --- |
+| Local development / Docker | Use the tracked `web/.dev.vars.example` as a list of names; enter values in ignored `web/.dev.vars`, preserving existing settings. | Restart `make dev`, or run `make up` again for Docker. |
+| Cloud Worker from your machine | Enter complete integration groups in ignored `web/.secrets.cloudflare`, starting from `.secrets.cloudflare.example` if needed. | Run `make cloud-secrets-check`, then `make cloud-secrets-apply` for the intended deployed Worker. Deploy/migrate first if this is a new installation. |
+| GitHub deployment | Add the same variable names as secrets in the repository's **production** environment. | Run the Cloudflare deployment workflow with its runtime secret upload option enabled. |
+| Carestead owner UI | Open **Account settings → Integrations → Manage settings → Environment configuration** and enter values in the named fields. | Select **Save configuration**, then turn on the integration. Saved overrides take precedence over runtime values. |
+
+The owner UI requires `INTEGRATION_CONFIG_KEY` on the server first. For local use,
+`make local-init` generates it without replacing an existing key. For a new cloud
+setup, generate a separate key privately with `openssl rand -hex 32`, save the
+64-character output in the cloud secret store, and keep it stable. Do not paste
+the literal command into a configuration field. This key is not issued by any
+provider and cannot be set in the integration UI. See
+[encrypted override setup and recovery](deployment.md#encrypted-integration-overrides).
+
 ## Use it
 
 1. Open **Account settings → Integrations** for the selected care recipient. Each caregiver saves their own preferences. Email uses their care-circle account address; SMS uses the number they enter and attest they own. SMS number ownership is not verified by an OTP in this release.
@@ -21,30 +60,34 @@ Carestead exposes `send_notification` as a typed, approval-gated function tool. 
    - `Email Maya: Please review the care plan.`
    - `SMS Maya: Please confirm you can help today.`
    - `Push me: There is a care update to review.`
-4. Use an exact, unique active care-circle display name, member ID, or `me`. Review the channel, destination, title, and full message, then select **Approve**. Cancel sends nothing. External message bodies are the exact approved text, so use a generic message when care details should stay inside the app. Push notifications open the selected recipient after sign-in.
+4. Use an exact, unique active care-circle display name, member ID, or `me`. Review the channel, destination, title, and full message, then select **Approve**. Cancel sends nothing. Email and push carry the approved content, so use a generic message when care details should stay inside the app. SMS currently uses a fixed trial template instead; see [Twilio SMS](twilio-sms-setup.md). Push notifications open the selected recipient after sign-in.
 5. Check **Recent delivery attempts**. `posted` means in-app; `accepted` means a provider accepted the request, not that it was delivered or read. `failed` means a definite failure. `unknown`, or a lingering `sending` record after an interrupted request, requires checking the provider before preparing another send.
 
 ## Local configuration
 
 Copy the desired settings from [web/.dev.vars.example](../web/.dev.vars.example) into ignored `web/.dev.vars`. Preserve existing calendar or memory settings. Configure only the channels you intend to use. Restart the server after changing bindings.
 
-For Docker, mount the same ignored secrets file:
+For Docker, Compose reads the same ignored secrets file into the container environment at runtime. Recreate the running service after changes:
 
 ```sh
 make up
 ```
 
-For email, configure a verified sender/domain in Resend and set `RESEND_API_KEY` and `NOTIFICATION_EMAIL_FROM`. For SMS, configure a Twilio sender and set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` (E.164). Complete the provider's sender setup for your destination countries. Twilio trial accounts may restrict destinations. Provider opt-outs can reject further messages even while the local SMS preference remains enabled.
+Follow the channel-specific setup below for required values. Direct local development
+uses `make dev`; restart it after editing bindings. Docker uses `make up` again.
+Do not put secrets into the image or commit the ignored files.
 
-Temporary SMS trial test: outgoing SMS currently hardcodes `Body=sms_appointment_reminders`, as supported by [Twilio's trial API](https://www.twilio.com/docs/usage/trials/try-out-sms). The delivered SMS uses Twilio's template instead of the composed title/detail; the in-app copy retains the composed content. Restore the dynamic body in `web/lib/notification-service.ts` after trial testing.
+## Twilio SMS
 
-Generate VAPID keys once, from `web`:
+See the dedicated [Twilio SMS setup and troubleshooting guide](twilio-sms-setup.md).
 
-```sh
-npx web-push generate-vapid-keys --json
-```
+## Email delivery (Resend)
 
-Store the resulting values as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`; set `VAPID_SUBJECT` to your operator contact, such as `mailto:care@example.com`. Keep the private key secret. Rotating keys requires browser re-registration. Allowlisted browser push services are FCM, Mozilla, and Apple; other push service hosts are rejected.
+See the dedicated [Email delivery (Resend) setup and troubleshooting guide](resend-email-setup.md).
+
+## Browser push (VAPID)
+
+See the dedicated [Browser push (VAPID) setup and troubleshooting guide](browser-push-setup.md).
 
 ## Production
 
@@ -55,7 +98,7 @@ Run `make cloud-secrets-check`, then `make cloud-secrets-apply` after deployment
 The same commands cover all integrations; no feature-specific environment file
 is needed. Blank groups preserve existing remote settings.
 
-See [deployment settings](deployment.md#where-settings-and-secrets-belong).
+See [deployment settings](deployment.md#configuration).
 The VAPID public key is intentionally sent to the browser; private credentials
 remain server-side. Serve the app over HTTPS, including `/carestead-sw.js` and
 `/manifest.webmanifest`.
@@ -105,35 +148,25 @@ Provider references: [Resend send API](https://resend.com/docs/api-reference/ema
 
 ## ntfy mobile push
 
-1. Install the ntfy app on your phone.
-2. Set `NTFY_SERVER_URL=https://ntfy.sh` in `web/.dev.vars`, or use your own
-   HTTPS ntfy server origin (no topic path). Optionally set `NTFY_ACCESS_TOKEN`
-   to a publisher access token. For cloud, use `web/.secrets.cloudflare` and the
-   existing secrets check/apply commands.
-3. Rebuild local Docker with `make up`. For cloud, run `make cloud-release` to
-   apply the ntfy preferences migration and deploy, then apply your secrets.
-4. An owner enables **Integrations → ntfy mobile notifications**.
-5. In the phone app, subscribe to a topic on the same server. In Carestead,
-   open **Account settings → Integrations → Mobile push**, enter that topic, and enable it.
-6. Ask `ntfy me: There is a care update to review.` Review and approve the
-   message, then verify receipt on the phone.
+See the dedicated [ntfy mobile push setup and troubleshooting guide](ntfy-setup.md).
 
-Use an access-controlled topic for care details. Public topics are readable by
-anyone who knows their name; a publisher token alone does not make a topic private.
-Every subscriber with access receives the message. Topic ownership is not verified
-when saving. Configure subscription credentials in the phone app when needed.
-For self-hosted iPhone delivery, follow ntfy's upstream server setup instructions.
+## Shared troubleshooting
 
-This channel uses ntfy for mobile push. It requires no browser subscription or
-VAPID keys. It is on-demand, with approval for each message and no automatic
-retries. `accepted` means the server accepted the message, not confirmed phone
-receipt. Topic names and access tokens are excluded from previews, delivery
-history and exports. Disabling removes the saved topic; changing the topic blocks
-old approvals. Changing the server requires saving a topic again. Recipient
-deletion removes ntfy preferences. Already sent messages cannot be recalled.
+| Symptom | Check and recovery |
+| --- | --- |
+| Switch unavailable / Credentials required | Sign in as an owner and supply the complete credential group. ntfy's access token is optional. Reload after restarting local runtime or uploading cloud secrets. |
+| Configuration saved but channel unavailable | Turn the integration on separately. Then have the receiving caregiver opt in for the selected recipient. Credentials configured does not test the provider. |
+| Settings fail to load / changed environment value is ignored | Check [encrypted override recovery](deployment.md#encrypted-integration-overrides), including the original encryption key and field source. |
+| `consent_inactive` / access denied | Check active recipient consent and active care-circle membership. An owner/caregiver must prepare and approve the action. |
+| `notification_target_changed` | The saved destination or target name changed after the preview. Prepare and review a fresh notification. |
+| `provider_http_401` / `provider_http_403` | Inspect provider credentials, permissions, and sender configuration; check saved overrides as well as environment values. |
+| `provider_http_429` | Check the provider's quota/rate limit and request log before preparing a new send after the restriction clears. There is no automatic retry. |
+| `unknown`, `provider_result_unknown`, HTTP 408/5xx, or a lingering `sending` | A timeout, provider failure, or interrupted request may have happened after acceptance. Check provider logs/history and the receiving device first. Do not blindly create another action. |
+| `notification_already_attempted` | The action has already claimed a delivery attempt. Re-approving it cannot resend; inspect the original result before deciding whether a new action is appropriate. |
 
-References: [ntfy publishing API](https://docs.ntfy.sh/publish/),
-[phone subscriptions](https://docs.ntfy.sh/subscribe/phone/),
-[self-hosted iOS push](https://docs.ntfy.sh/config/#ios-instant-notifications).
+To report a problem, record the channel, time, sanitized error code, action/provider
+ID when available, and runtime (local or cloud). Do not share secret values,
+OAuth callback query strings, push subscriptions, or private topic names.
 
-Delivery preferences are managed in **Account settings → Integrations**, under the corresponding email, SMS, mobile push, or browser push option. Preferences apply to the signed-in caregiver and selected care recipient. The Notifications page has a separate **Recent delivery attempts** container with a link to Integrations.
+Documentation checked against the repository implementation and linked provider
+guides on 2026-09-12. Provider dashboards and trial terms may change.

@@ -1,3 +1,4 @@
+import { notificationActor } from './helpers/notification-actor';
 import { expect, test } from '@playwright/test';
 
 for (const stopOnSecond of [false, true]) {
@@ -181,8 +182,13 @@ for (const stopOnSecond of [false, true]) {
 
 test('editing through the API requires fresh approval and preserves another draft', async ({
   page,
+  request,
+  browser,
   baseURL,
 }) => {
+  const actor = await notificationActor(request, browser, baseURL!);
+  await page.context().clearCookies();
+  await page.context().addCookies(actor.cookies);
   const state = await (await page.request.get('/api/state')).json();
   const recipientId = state.selectedRecipient.id;
   const member = state.careCircle.find(

@@ -108,6 +108,7 @@ test('notification templates and custom messages preview, approve, and remove pe
   const recipientId = state.selectedRecipient.id;
   await page.goto(`/?view=Notifications&recipientId=${recipientId}`);
   const form = page.getByRole('region', { name: 'Compose notification' });
+  await form.getByRole('button', { name: 'Send a notification', exact: true }).click();
   await form.getByLabel('Message template').selectOption('handover');
   await expect(form.getByLabel('Notification title')).toHaveValue(
     'Handover ready for review',
@@ -122,7 +123,7 @@ test('notification templates and custom messages preview, approve, and remove pe
     .selectOption(state.careCircle[0].id);
   await form.getByRole('button', { name: 'Prepare notification' }).click();
   await expect(
-    form.getByRole('button', { name: 'Approve and send' }),
+    form.getByRole('button', { name: 'Approve and send', exact: true }),
   ).toBeVisible();
   expect(
     (
@@ -134,7 +135,7 @@ test('notification templates and custom messages preview, approve, and remove pe
     ),
   ).toBe(false);
   await page.reload();
-  await form.getByRole('button', { name: 'Approve and send' }).click();
+  await form.getByRole('button', { name: 'Approve and send', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'A custom notification', exact: true }),
   ).toBeVisible();

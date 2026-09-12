@@ -63,6 +63,9 @@ export function PaginatedList({
   removal,
   controlsPosition = 'before',
   filterFields,
+  hideSingleValueFilters = false,
+  collapsibleFilters = false,
+  onFilterActiveChange,
 }: {
   children: ReactNode;
   records?: readonly unknown[];
@@ -74,6 +77,9 @@ export function PaginatedList({
   removal?: ListRemoval;
   controlsPosition?: 'before' | 'after';
   filterFields?: readonly (readonly [string, string])[];
+  hideSingleValueFilters?: boolean;
+  collapsibleFilters?: boolean;
+  onFilterActiveChange?: (active: boolean) => void;
 }) {
   const inherited = useContext(ListRemovalContext)[label];
   const actions = removal || inherited;
@@ -122,7 +128,7 @@ export function PaginatedList({
     }))
     .filter(
       (facet) =>
-        (filterFields ? facet.values.length > 0 : facet.values.length > 1) ||
+        (filterFields && !hideSingleValueFilters ? facet.values.length > 0 : facet.values.length > 1) ||
         (['source', 'contributor'].includes(facet.key) &&
           facet.values.length > 0 &&
           data?.some((item) => !asListRecord(item)[facet.key])),
@@ -139,6 +145,7 @@ export function PaginatedList({
     current.attention ||
     Object.values(current.facets).some(Boolean),
   );
+  useEffect(() => { onFilterActiveChange?.(active); }, [active, onFilterActiveChange]);
   const indices = allItems
     .map((_, index) => index)
     .filter(
@@ -430,7 +437,15 @@ export function PaginatedList({
   );
   return (
     <>
-      {controlsPosition === 'before' && controls && wrap(controls)}
+      {controlsPosition === 'before' && collapsibleFilters && (controls || removeControls) && wrap(
+        <details className="col-span-full min-w-0 rounded-xl border bg-card p-3">
+          <summary className="cursor-pointer text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+            Filter and manage {label.toLocaleLowerCase()}{active ? ` · ${items.length} matching of ${visibleCount}` : ''}
+          </summary>
+          <div className="mt-3 space-y-3">{controls}{removeControls}</div>
+        </details>
+      )}
+      {controlsPosition === 'before' && !collapsibleFilters && controls && wrap(controls)}
       {resultsHeading &&
         wrap(
           <div className="col-span-full mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -442,7 +457,7 @@ export function PaginatedList({
             </span>
           </div>,
         )}
-      {controlsPosition === 'before' && removeControls && wrap(removeControls)}
+      {controlsPosition === 'before' && !collapsibleFilters && removeControls && wrap(removeControls)}
       {items
         .slice(page * pageSize, (page + 1) * pageSize)
         .map((item, offset) => {

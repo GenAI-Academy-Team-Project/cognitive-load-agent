@@ -7,8 +7,12 @@ services:
       dockerfile: Dockerfile.local
     image: carestead:local
     init: true
+    # Compose reads the owner-only host file; the container runs as node.
+    env_file:
+      - ./web/.dev.vars
     environment:
       CARESTEAD_HTTPS: ${CARESTEAD_HTTPS:-1}
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8083:8083"
@@ -20,12 +24,6 @@ services:
         read_only: true
         bind:
           create_host_path: true
-      - type: bind
-        source: ./web/.dev.vars
-        target: /app/dist/server/.dev.vars
-        read_only: true
-        bind:
-          create_host_path: false
     restart: unless-stopped
     stop_grace_period: 30s
 

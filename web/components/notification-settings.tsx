@@ -111,7 +111,7 @@ export function NotificationPreferences({ channel }: { channel: "email" | "sms" 
 
 export function NotificationSettings({ recipientId }: { recipientId: string }) {
   const { settings, error } = useNotificationPreferences(recipientId, 0);
-  return <section className="mt-6 rounded-[22px] border bg-card p-5" aria-label="Recent delivery attempts">
+  return <section className="mt-6 min-w-0" aria-label="Recent delivery attempts">
     <h2 className="font-heading text-lg font-semibold">Recent delivery attempts</h2>
     <p className="mt-2 text-sm text-muted-foreground">Update your delivery preferences for each channel in <a href={`/?view=Integrations&recipientId=${encodeURIComponent(recipientId)}`} className="font-medium text-primary underline underline-offset-4">Account settings → Integrations</a>.</p>
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
