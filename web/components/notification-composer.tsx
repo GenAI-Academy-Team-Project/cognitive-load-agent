@@ -442,7 +442,7 @@ export function NotificationComposer({
                       .map((action) => (
                         <article
                           key={action.id}
-                          className="rounded-xl border p-4"
+                          className="bg-[var(--care-inset)] rounded-xl border p-4"
                         >
                           <h3 className="font-semibold">
                             {action.payload.title}

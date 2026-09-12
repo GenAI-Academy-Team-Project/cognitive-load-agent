@@ -2,7 +2,7 @@ export type ListRecord = Record<string, unknown>;
 export function asListRecord(value: unknown): ListRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as ListRecord : {};
 }
-const searchableFields = ['title', 'detail', 'name', 'display_name', 'email', 'owner', 'category', 'categories', 'kind', 'type', 'status', 'channel', 'target_name', 'value', 'source', 'contributor', 'trigger', 'evidence', 'decision', 'outcome', 'tool', 'action', 'subject', 'attribute', 'relationship', 'organization', 'notes', 'label', 'reason', 'error', 'error_code', 'capabilities', 'delivery_state', 'content', 'start_at', 'end_at'];
+const searchableFields = ['title', 'detail', 'name', 'display_name', 'email', 'owner', 'category', 'categories', 'kind', 'type', 'status', 'policy_status', 'channel', 'target_name', 'value', 'source', 'contributor', 'trigger', 'evidence', 'decision', 'outcome', 'tool', 'action', 'subject', 'attribute', 'relationship', 'organization', 'notes', 'label', 'reason', 'error', 'error_code', 'capabilities', 'delivery_state', 'content', 'start_at', 'end_at'];
 export function listSearchText(value: unknown): string {
   const record = asListRecord(value);
   const text = searchableFields.map((key) => {

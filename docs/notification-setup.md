@@ -14,7 +14,7 @@ Carestead exposes `send_notification` as a typed, approval-gated function tool. 
 
 ## Use it
 
-1. Open **Notifications → Your delivery preferences** for the selected care recipient. Each caregiver saves their own preferences. Email uses their care-circle account address; SMS uses the number they enter and attest they own. SMS number ownership is not verified by an OTP in this release.
+1. Open **Account settings → Integrations** for the selected care recipient. Each caregiver saves their own preferences. Email uses their care-circle account address; SMS uses the number they enter and attest they own. SMS number ownership is not verified by an OTP in this release.
 2. Enable the desired channel. Push requires permission in a supported browser, HTTPS (localhost is allowed for development), and server VAPID keys. On iPhone/iPad, add Carestead to the Home Screen and open it there. One browser registration is stored per caregiver per care recipient; registering another browser replaces it.
 3. Open **Ask Carestead** and enter one of:
    - `In-app me: Please review the care plan.`
@@ -114,7 +114,7 @@ Provider references: [Resend send API](https://resend.com/docs/api-reference/ema
    apply the ntfy preferences migration and deploy, then apply your secrets.
 4. An owner enables **Integrations → ntfy mobile notifications**.
 5. In the phone app, subscribe to a topic on the same server. In Carestead,
-   open **Notifications → ntfy mobile push**, enter that topic, and enable it.
+   open **Account settings → Integrations → Mobile push**, enter that topic, and enable it.
 6. Ask `ntfy me: There is a care update to review.` Review and approve the
    message, then verify receipt on the phone.
 
@@ -135,3 +135,5 @@ deletion removes ntfy preferences. Already sent messages cannot be recalled.
 References: [ntfy publishing API](https://docs.ntfy.sh/publish/),
 [phone subscriptions](https://docs.ntfy.sh/subscribe/phone/),
 [self-hosted iOS push](https://docs.ntfy.sh/config/#ios-instant-notifications).
+
+Delivery preferences are managed in **Account settings → Integrations**, under the corresponding email, SMS, mobile push, or browser push option. Preferences apply to the signed-in caregiver and selected care recipient. The Notifications page has a separate **Recent delivery attempts** container with a link to Integrations.

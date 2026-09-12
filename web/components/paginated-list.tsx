@@ -62,6 +62,7 @@ export function PaginatedList({
   resultsHeading,
   removal,
   controlsPosition = 'before',
+  filterFields,
 }: {
   children: ReactNode;
   records?: readonly unknown[];
@@ -72,6 +73,7 @@ export function PaginatedList({
   resultsHeading?: string;
   removal?: ListRemoval;
   controlsPosition?: 'before' | 'after';
+  filterFields?: readonly (readonly [string, string])[];
 }) {
   const inherited = useContext(ListRemovalContext)[label];
   const actions = removal || inherited;
@@ -103,7 +105,7 @@ export function PaginatedList({
     (record) => !actions?.hiddenIds?.includes(String(asListRecord(record).id)),
   );
   const visibleCount = visibleData?.length ?? allItems.length;
-  const facets = listFacetFields
+  const facets = (filterFields ?? listFacetFields)
     .map(([key, title]) => ({
       key,
       title,
@@ -120,14 +122,14 @@ export function PaginatedList({
     }))
     .filter(
       (facet) =>
-        facet.values.length > 1 ||
+        (filterFields ? facet.values.length > 0 : facet.values.length > 1) ||
         (['source', 'contributor'].includes(facet.key) &&
           facet.values.length > 0 &&
           data?.some((item) => !asListRecord(item)[facet.key])),
     )
     .filter(
       (facet, index) =>
-        index < 3 || facet.key === 'source' || facet.key === 'contributor',
+        Boolean(filterFields) || index < 3 || facet.key === 'source' || facet.key === 'contributor',
     );
   const attentionCount =
     visibleData?.filter((record) => listNeedsAttention(record, now)).length ||

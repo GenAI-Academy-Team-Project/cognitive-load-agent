@@ -549,7 +549,7 @@ export function CarePlanning(props: Props) {
                         ),
                     )
                     .map((task) => (
-                      <div className="rounded-xl border p-4" key={task.id}>
+                      <div className="bg-[var(--care-inset)] rounded-xl border p-4" key={task.id}>
                         <p className="font-medium">{task.title}</p>
                         <p className="my-2 text-xs text-muted-foreground">
                           {task.planning.duration_minutes} minutes ·{' '}
@@ -1062,7 +1062,7 @@ function BrainDump({
       {!!drafts.length && (
         <div className="mt-6 space-y-4">
           {drafts.map((draft, index) => (
-            <article key={index} className="space-y-3 rounded-xl border p-4">
+            <article key={index} className="bg-[var(--care-inset)] space-y-3 rounded-xl border p-4">
               <div className="flex items-start justify-between gap-3">
                 <blockquote className="border-l-2 border-primary/40 pl-3 text-sm text-muted-foreground">
                   {draft.source}
@@ -1364,6 +1364,7 @@ export function SinceAway(props: Props) {
           </p>
         </div>
         <Button
+          className="h-auto min-h-11 max-w-full whitespace-normal text-left"
           disabled={busy || props.dashboard.consent.status !== 'active'}
           onClick={() =>
             act('acknowledge', {

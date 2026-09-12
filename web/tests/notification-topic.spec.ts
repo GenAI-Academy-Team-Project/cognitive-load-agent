@@ -11,7 +11,8 @@ test('saved mobile push topic can be revealed, replaced, and read after reload',
     topic = payload.action === 'disable_ntfy' ? null : payload.topic;
     await route.fulfill({ json: { ...settings, ntfyEnabled: Boolean(topic), ntfyTopic: topic, channels: ['in_app', 'ntfy'] } });
   });
-  await page.goto('/?view=Notifications');
+  await page.goto('/?view=Integrations');
+  await page.getByRole('button', { name: 'Manage settings for Mobile push', exact: true }).click();
   await expect(page.getByText('saved-care-topic', { exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Show current mobile push topic', exact: true }).click();
   await expect(page.getByText('saved-care-topic', { exact: true })).toBeVisible();
@@ -20,6 +21,7 @@ test('saved mobile push topic can be revealed, replaced, and read after reload',
   await page.getByRole('button', { name: 'Show current mobile push topic', exact: true }).click();
   await expect(page.getByText('replacement-care-topic', { exact: true })).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: 'Manage settings for Mobile push', exact: true }).click();
   await page.getByRole('button', { name: 'Show current mobile push topic', exact: true }).click();
   await expect(page.getByText('replacement-care-topic', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Disable mobile push', exact: true }).click();

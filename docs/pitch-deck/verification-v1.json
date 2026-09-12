@@ -123,6 +123,68 @@
       "overflow": []
     }
   ],
+  "print": [
+    {
+      "slide": "1. Title",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "2. Meet Maya",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "3. Why this problem matters",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "4. Recipient model and handover",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "5. Practical support and actions",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "6. Voice and chat actions",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "7. Core product features",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "8. Carestead technical architecture",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "9. Carestead decision path",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "10. Tool calls and human control",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "11. Evaluations",
+      "direction": "column",
+      "overflow": false
+    },
+    {
+      "slide": "12. Positioning and future work",
+      "direction": "column",
+      "overflow": false
+    }
+  ],
   "navigation": true,
   "notes": true,
   "pageErrors": []

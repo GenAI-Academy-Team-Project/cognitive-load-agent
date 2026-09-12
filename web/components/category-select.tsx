@@ -32,7 +32,7 @@ export function CategorySelect({ id, value, onChange, categories = [], canCreate
       {options.filter((item) => item !== 'checkin' || value === 'checkin').map((item) => <option key={item} value={item}>{label(item)}</option>)}
     </select>
     {canCreate && !creating && <Button type="button" variant="ghost" size="sm" className="justify-self-start" disabled={disabled} onClick={() => setCreating(true)}>Create category</Button>}
-    {canCreate && creating && <div className="grid gap-2 rounded-lg border p-3">
+    {canCreate && creating && <div className="bg-[var(--care-inset)] grid gap-2 rounded-lg border p-3">
       <label htmlFor={`${id}-new`} className="text-sm">New category name</label>
       <Input id={`${id}-new`} value={name} onChange={(event) => setName(event.target.value)} maxLength={80} disabled={disabled} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); create(); } }} />
       <p className="text-xs text-muted-foreground">The category is saved with this responsibility.</p>

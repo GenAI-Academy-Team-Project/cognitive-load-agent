@@ -144,7 +144,7 @@ export function WeekAhead(props: Props) {
         )}
       </section>
       <section data-care-tone="peach" className={panel} aria-label="Selected day details">
-        {day.routines.length > 0 && <div className="mb-5 space-y-3"><p className="text-sm text-muted-foreground">These routines still need approval. Their time is not included in your assigned workload.</p>{day.routines.map(routine => <article key={routine.id} className="rounded-xl border p-3"><h3 className="text-sm font-semibold">{routine.title}</h3><p className="mt-1 text-xs">{when(routine.next_at, zone)}</p><Button className="mt-3" variant="outline" disabled={disabled} onClick={() => act('propose_routine', { id: routine.id })}>Review next occurrence</Button></article>)}</div>}
+        {day.routines.length > 0 && <div className="mb-5 space-y-3"><p className="text-sm text-muted-foreground">These routines still need approval. Their time is not included in your assigned workload.</p>{day.routines.map(routine => <article key={routine.id} className="bg-[var(--care-inset)] rounded-xl border p-3"><h3 className="text-sm font-semibold">{routine.title}</h3><p className="mt-1 text-xs">{when(routine.next_at, zone)}</p><Button className="mt-3" variant="outline" disabled={disabled} onClick={() => act('propose_routine', { id: routine.id })}>Review next occurrence</Button></article>)}</div>}
         <h3 className="font-heading text-xl font-semibold">
           {new Intl.DateTimeFormat('en-CA', {
             weekday: 'long',
@@ -235,7 +235,7 @@ export function WeekAhead(props: Props) {
                   </p>
                 )}
                 {preferenceConflict && (
-                  <div className="rounded-xl border p-3">
+                  <div className="bg-[var(--care-inset)] rounded-xl border p-3">
                     <p className="text-sm">
                       Outside the preferred visit hours (
                       {state.anticipation.preference!.start_hour}:00–
