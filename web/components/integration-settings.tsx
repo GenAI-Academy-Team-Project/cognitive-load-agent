@@ -10,6 +10,14 @@ const descriptions: Record<IntegrationId, { title: string; detail: string; next:
   email: { title: 'Email delivery', detail: 'Send approved care updates through Resend.', next: 'Enable your email preference in Notifications. Each message requires approval.' },
   push: { title: 'Browser push', detail: 'Send approved updates to subscribed browsers.', next: 'Allow browser notifications in Notifications. Each message requires approval.' },
 };
+const repositoryDocs = 'https://github.com/GenAI-Academy-Team-Project/cognitive-load-agent/blob/main/docs/';
+const setup: Record<IntegrationId, { detail: string; doc: string }> = {
+  ntfy: { detail: 'Install ntfy and subscribe to a topic on the configured server. Each caregiver must save that topic and opt in under Notifications. Use an access-controlled topic for care details; a publisher token alone does not make a topic private. Changing servers requires saving preferences again.', doc: 'notification-setup.md#ntfy-mobile-push' },
+  calendar: { detail: 'Enable Calendar API in Google Cloud, configure the OAuth consent screen and a Web application client, add test users when in testing, and register the exact callback URL. Each caregiver must connect their account and choose an owned calendar.', doc: 'google-calendar-setup.md#google-cloud-and-runtime-values' },
+  sms: { detail: 'Configure an SMS-capable Twilio sender and complete provider sender setup for your destination countries. Trial accounts may restrict destinations. Each receiving caregiver must save their own number and opt in for the selected recipient.', doc: 'notification-setup.md#local-configuration' },
+  email: { detail: 'Verify the sender/domain in Resend and use that sender for outgoing mail. Each receiving caregiver must enable email for the selected recipient; delivery uses their Carestead account email.', doc: 'notification-setup.md#local-configuration' },
+  push: { detail: 'Generate a VAPID key pair once and serve the app over HTTPS (localhost works for development). Each caregiver must grant notification permission and register their browser. On iPhone/iPad, add Carestead to the Home Screen and open it there. Re-register browsers after rotating VAPID keys.', doc: 'notification-setup.md#use-it' },
+};
 type Settings = { integrations: IntegrationStatus[]; canManage: boolean };
 
 export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
@@ -57,7 +65,35 @@ export function IntegrationSettings({ onChanged }: { onChanged: () => void }) {
           </div>
           <p id={`${item.id}-detail`} className="mt-3 text-sm leading-6 text-muted-foreground">{copy.detail}</p>
           {!item.configured && <p className="mt-2 text-sm">Add this service’s credentials below before enabling it. You can keep using Carestead without it.</p>}
-          {item.enabled && <p className="mt-2 text-sm leading-6">{copy.next}</p>}
+          <div className="mt-4 space-y-2 text-sm leading-6">
+            <h3 className="font-medium">Additional setup</h3>
+            <p className="text-muted-foreground">{setup[item.id].detail}</p>
+            <p>{copy.next}</p>
+            <a href={`${repositoryDocs}${setup[item.id].doc}`} target="_blank" rel="noopener noreferrer" className="inline-block font-medium text-primary underline underline-offset-4">{copy.title} setup guide (GitHub)</a>
+          </div>
+          {data.canManage && <details className="mt-4 rounded-xl border p-4">
+            <summary className="cursor-pointer text-sm font-medium">Environment configuration</summary>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved overrides take precedence over .dev.vars and deployment environment values. Leave an input blank to keep its current value. Values are encrypted on the server and fully masked here.</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">Saving overrides requires a server encryption key. <a href={`${repositoryDocs}deployment.md#encrypted-integration-overrides`} target="_blank" rel="noopener noreferrer" className="text-primary underline">Encrypted override setup (GitHub)</a></p>
+            {item.id === 'ntfy' && <p className="mt-2 text-xs text-muted-foreground">NTFY_ACCESS_TOKEN is optional. Use a token belonging to the selected server.</p>}
+            <form className="mt-4 space-y-4" autoComplete="off" onSubmit={event => {
+              event.preventDefault();
+              const config = Object.fromEntries(Object.entries(drafts[item.id] || {}).filter(([, value]) => value === null || value.trim()));
+              void save(item, item.enabled, config);
+            }}>
+              {integrationKeys[item.id].map(key => {
+                const source = item.fields?.find(field => field.key === key)?.source || 'missing';
+                const reset = drafts[item.id]?.[key] === null;
+                return <div key={key}>
+                  <label htmlFor={`${item.id}-${key}`} className="block break-all text-xs font-medium">{key}</label>
+                  <p id={`${item.id}-${key}-source`} className="mt-1 text-xs text-muted-foreground">{reset ? 'Will use environment after saving' : source === 'override' ? 'Saved override · value hidden' : source === 'environment' ? 'Environment · value hidden' : 'Not configured'}</p>
+                  <input id={`${item.id}-${key}`} type="password" autoComplete="new-password" spellCheck={false} autoCapitalize="none" aria-describedby={`${item.id}-${key}-source`} value={drafts[item.id]?.[key] ?? ''} placeholder={source === 'missing' ? 'Enter value' : '••••••••'} disabled={busy !== null || reset} maxLength={8192} onChange={event => edit(item.id, key, event.target.value)} className="mt-2 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm" />
+                  {(source === 'override' || reset) && <button type="button" disabled={busy !== null} onClick={() => edit(item.id, key, reset ? '' : null)} className="mt-2 text-xs underline">{reset ? 'Keep saved override' : 'Use environment value'}</button>}
+                </div>;
+              })}
+              <button type="submit" disabled={busy !== null || !Object.values(drafts[item.id] || {}).some(value => value === null || value.trim())} className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">{busy === item.id ? 'Saving…' : 'Save configuration'}</button>
+            </form>
+          </details>}
         </div>;
       })}</div>
       <p className="mt-4 text-xs leading-5 text-muted-foreground">Credentials configured does not confirm provider access. Switching off pauses the service; it does not cancel requests already sent or delete provider data.</p>

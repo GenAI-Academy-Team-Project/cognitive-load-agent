@@ -371,3 +371,11 @@ After local setup works:
 - web/vite.config.ts: Build & server setup
 - web/.dev.vars.example: Configuration template
 - web/.openai/hosting.json: Hosting platform config
+
+## Encrypted integration overrides
+
+Owners can save values under **Integrations → Environment configuration**. These override `.dev.vars` and deployed bindings immediately. Saving does not enable a paused service. Blank inputs keep existing values; **Use environment value** removes an override after saving. Secret values are never returned by the settings API or included in audit logs. Inputs are masked; configured values use a fixed redacted placeholder. Overrides use AES-256-GCM with fresh nonces and authenticated field names.
+
+Set a stable `INTEGRATION_CONFIG_KEY` containing 32 random bytes encoded as 64 hexadecimal characters. `make local-init` generates it in the ignored `web/.dev.vars` without printing or replacing an existing key. Restart a running server to load changed environment bindings. Back up the key securely: losing or replacing it prevents decryption of saved overrides. For cloud deployment, add it to `web/.secrets.cloudflare` or the GitHub **production** environment secrets and use the existing secret upload flow. The key is not editable through the application.
+
+Every integration displays additional setup instructions and a repository guide even while off. For ntfy, install the app and subscribe to an access-controlled topic, then save preferences for each recipient; its publisher token is optional and belongs to the configured server. Changing the ntfy server requires saving preferences again. Google Calendar needs provider OAuth setup and individual account connection; changing its token encryption key requires reconnecting accounts. Email and SMS need provider sender setup and caregiver opt-in. Browser push needs HTTPS, VAPID keys, permission and browser registration; rotating keys requires re-registration. See [notification setup](notification-setup.md) and [Google Calendar setup](google-calendar-setup.md).

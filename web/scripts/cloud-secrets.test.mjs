@@ -68,3 +68,8 @@ test('public origin is uploaded and invalid cloud origins are rejected', () => {
     assert.throws(() => cloudSecrets({ AUTH_PUBLIC_URL: value }), /AUTH_PUBLIC_URL/);
   }
 });
+
+test('integration encryption key is allowlisted and validated', () => {
+  assert.equal(cloudSecrets({ INTEGRATION_CONFIG_KEY: 'ab'.repeat(32) }).INTEGRATION_CONFIG_KEY, 'ab'.repeat(32));
+  assert.throws(() => cloudSecrets({ INTEGRATION_CONFIG_KEY: 'invalid-secret' }), /64 hexadecimal/);
+});
