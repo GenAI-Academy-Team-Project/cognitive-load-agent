@@ -42,7 +42,15 @@ test('invitation editor shows review before approval and a confirmed calendar li
     await page.getByRole('combobox', { name: 'Choose the Year' }).selectOption('2030');
     await page.getByRole('combobox', { name: 'Choose the Month' }).selectOption('0');
     await page.getByRole('button', { name: /Tuesday, January 15th, 2030/ }).click();
-    await page.getByLabel(`${label} time`, { exact: true }).fill(label === 'Starts' ? '15:30' : '16:30');
+    await page.getByRole('button', { name: `${label} time`, exact: true }).click();
+    await page.getByRole('combobox', { name: `${label} time hour`, exact: true }).click();
+    await page.getByRole('option', { name: label === 'Starts' ? '03' : '04', exact: true }).click();
+    await page.getByRole('combobox', { name: `${label} time minute`, exact: true }).click();
+    await page.getByRole('option', { name: '30', exact: true }).click();
+    await page.getByRole('combobox', { name: `${label} time am/pm`, exact: true }).click();
+    await page.getByRole('option', { name: 'PM', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(page.getByRole('button', { name: `${label} time`, exact: true })).toContainText(label === 'Starts' ? '03:30 PM' : '04:30 PM');
   }
   await page.getByLabel('Guest email addresses').fill('maya@example.test');
   await page.getByLabel('Location', { exact: true }).fill('Clinic');
@@ -56,7 +64,7 @@ test('invitation editor shows review before approval and a confirmed calendar li
   await page.getByRole('button', { name: 'Edit proposal', exact: true }).click();
   await expect(page.getByLabel('Event title')).toHaveValue('Physiotherapy visit');
   await expect(page.getByLabel('Guest email addresses')).toHaveValue('maya@example.test');
-  await expect(page.getByLabel('Starts time')).toHaveValue('15:30');
+  await expect(page.getByRole('button', { name: 'Starts time', exact: true })).toContainText('03:30 PM');
   await page.getByLabel('Event title').fill('Updated physiotherapy visit');
   await page.getByLabel('Location', { exact: true }).fill('New clinic');
   await page.getByRole('button', { name: 'Save and review' }).click();

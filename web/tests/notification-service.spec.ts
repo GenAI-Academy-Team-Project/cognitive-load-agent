@@ -32,7 +32,13 @@ const input = { channel: 'email' as const, memberId: 'target', title: 'Care upda
 test.beforeEach(async () => {
   sqlite = new DatabaseSync(':memory:'); db = database(sqlite); await ensureDatabase(db);
   sends = []; originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { sends.push({ url: url instanceof Request ? url.url : url.toString(), init }); return Response.json({ id: 'receipt', sid: 'sms-receipt' }); };
+  globalThis.fetch = async (url, init) => {
+    // Match Workers: redirect: 'error' is unsupported, and following redirects
+    // would forward the provider request to an unapproved destination.
+    if (init?.redirect !== 'manual') throw new TypeError('Unsupported or unsafe redirect mode');
+    sends.push({ url: url instanceof Request ? url.url : url.toString(), init });
+    return Response.json({ id: 'receipt', sid: 'sms-receipt' });
+  };
   for (const id of ['actor', 'target']) {
     sqlite.prepare('INSERT INTO care_circle_members VALUES (?,?,?,?,?,?,?,?,?)').run(id, 'household', id, id + '@example.com', id, 'caregiver', 'active', '2030', '2030');
     sqlite.prepare('INSERT INTO recipient_members VALUES (?,?,?,?,?)').run(id, 'recipient-alex', id, 'caregiver', '2030');
@@ -111,6 +117,20 @@ test('provider rejections and timeouts are recorded without claiming delivery or
   const uncertain = await proposal();
   expect(await execute(uncertain)).toContain('unknown');
   await expect(execute(uncertain)).rejects.toThrow('already attempted');
+});
+
+test('provider redirects fail without forwarding the notification or retrying', async () => {
+  globalThis.fetch = async (url, init) => {
+    if (init?.redirect !== 'manual') throw new TypeError('Unsupported or unsafe redirect mode');
+    sends.push({ url: String(url), init });
+    return new Response(null, { status: 307, headers: { Location: 'https://other.example/emails' } });
+  };
+  const action = await proposal();
+  expect(await execute(action)).toContain('failed');
+  expect(sqlite.prepare('SELECT status,error_code FROM notification_deliveries WHERE action_id=?').get(action.id)).toEqual({ status: 'failed', error_code: 'provider_http_307' });
+  await expect(execute(action)).rejects.toThrow('already attempted');
+  expect(sends).toHaveLength(1);
+  expect(sends[0].url).toBe('https://api.resend.com/emails');
 });
 
 test('SMS uses the saved opted-in number and exact approved text', async () => {

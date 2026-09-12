@@ -99,7 +99,9 @@ export async function sendViaProvider(config: NotificationConfig, input: Notific
     init = { method: request.method, headers: request.headers as Record<string, string>, body: request.body ? new Uint8Array(request.body) : undefined };
   } else throw new Error('In-app delivery does not use a provider');
   try {
-    const response = await fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(15000) });
+    // Workers reject redirect: 'error' before sending. Manual mode leaves 3xx
+    // responses for the failure check below and never forwards credentials.
+    const response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(15000) });
     if (!response.ok) return { status: response.status >= 500 || response.status === 408 ? 'unknown' : 'failed', errorCode: `provider_http_${response.status}`, expired: input.channel === 'push' && [404, 410].includes(response.status) };
     if (input.channel === 'push') return { status: 'accepted' };
     const body = await response.json() as { id?: string; sid?: string; event?: string; topic?: string };
