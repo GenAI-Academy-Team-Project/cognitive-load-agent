@@ -3,10 +3,19 @@
 ## Overview
 
 Carestead runs on two environments during development and testing:
-- **Local Development**: Direct Vite dev server (HTTPS via carestead.com)
-- **Docker Preview**: Wrangler Workers emulation with D1 database
+- **Local Development**: Direct Vite dev server on HTTPS (carestead.com:5173)
+- **Docker Preview**: Wrangler Workers emulation with dual ports (HTTP:8080, HTTPS:8083)
 
-Both environments use the same hostname (`carestead.com`), protocol (HTTPS), and configuration format for consistency.
+Both environments use the same hostname (`carestead.com`) and configuration format for consistency.
+
+**Quick Setup**:
+```bash
+make host-config  # One-time: configure /etc/hosts
+make install      # One-time: install dependencies
+make dev          # Local: https://carestead.com:5173
+# OR
+make up           # Docker: http://carestead.com:8080 or https://carestead.com:8083
+```
 
 ---
 
@@ -68,15 +77,21 @@ Edit `web/.dev.vars` to configure integrations (optional):
 ### Start Docker Container
 
 ```bash
+make host-config # Configure /etc/hosts with carestead.com (one-time, may prompt for password)
 make local-init  # Create .dev.vars (one-time, non-destructive)
-make up          # Build and start Docker container
+make up          # Build and start Docker container (handles host-config automatically)
 ```
 
-**Access**: https://carestead.com:8080
+**Access**:
+- HTTP: http://carestead.com:8080
+- HTTPS: https://carestead.com:8083
 
 ### Container Details
 - **Image**: carestead:local
-- **Port**: 8080 (bound to 127.0.0.1)
+- **Ports**: 
+  - 8080 → HTTP traffic
+  - 8083 → HTTPS traffic
+- **Binding**: 127.0.0.1 (localhost)
 - **Database**: Persistent SQLite volume (`carestead-data`)
 - **Config**: Reads `web/.dev.vars` from host
 - **Lifecycle**: Restarts automatically unless stopped
@@ -109,17 +124,22 @@ make up          # Fresh database
 
 ## Health Check
 
-Both environments expose a health check endpoint:
+All environments expose a health check endpoint:
 
 ```bash
-# Local development
+# Local development (HTTPS only)
 curl https://carestead.com:5173/api/health
 
-# Docker preview
-curl https://carestead.com:8080/api/health
+# Docker preview (HTTP)
+curl http://carestead.com:8080/api/health
+
+# Docker preview (HTTPS)
+curl https://carestead.com:8083/api/health
 ```
 
 Expected response: `200 OK`
+
+**Note**: The health check container probe runs on HTTP port 8080 for compatibility.
 
 ---
 
@@ -190,14 +210,29 @@ make dev
 
 ### Port Already in Use
 
-**Docker**: Port 8080 in use
+**Docker HTTP (8080)**: 
 ```bash
 # Find and stop conflicting process
 lsof -i :8080
 kill -9 <PID>
 
 # Or use different port
-PORT=9000 make up
+HTTP_PORT=9000 make up
+```
+
+**Docker HTTPS (8083)**:
+```bash
+# Find and stop conflicting process
+lsof -i :8083
+kill -9 <PID>
+
+# Or use different port
+HTTPS_PORT=9083 make up
+```
+
+**Both ports**:
+```bash
+HTTP_PORT=9000 HTTPS_PORT=9083 make up
 ```
 
 **Dev Server**: Port 5173 in use
@@ -224,19 +259,33 @@ docker compose -f compose.local.yaml logs web | tail -20
 
 ---
 
+## Port Configuration
+
+### Local Development
+- **HTTP**: Not recommended (Vite dev uses HTTPS)
+- **HTTPS**: https://carestead.com:5173
+
+### Docker Preview
+- **HTTP**: http://carestead.com:8080
+- **HTTPS**: https://carestead.com:8083
+
+### Production
+- **HTTP**: Redirects to HTTPS
+- **HTTPS**: https://carestead.com (port 443)
+
 ## Protocol & Hostname Consistency
 
-| Environment | Hostname | Port | Protocol | Access URL |
+| Environment | Hostname | HTTP Port | HTTPS Port | Access URLs |
 |---|---|---|---|---|
-| Local Dev | carestead.com | 5173 | HTTPS | https://carestead.com:5173 |
-| Docker | carestead.com | 8080 | HTTPS | https://carestead.com:8080 |
-| Production | carestead.com | 443 | HTTPS | https://carestead.com |
+| Local Dev | carestead.com | N/A | 5173 | https://carestead.com:5173 |
+| Docker | carestead.com | 8080 | 8083 | http://carestead.com:8080 or https://carestead.com:8083 |
+| Production | carestead.com | 80 → 443 | 443 | https://carestead.com |
 
 **All environments use**:
-- ✓ Same hostname: `carestead.com`
-- ✓ Same protocol: HTTPS
+- ✓ Same hostname: `carestead.com` (requires /etc/hosts: `127.0.0.1 carestead.com`)
 - ✓ Same configuration format: `web/.dev.vars`
 - ✓ Same database schema
+- ✓ Dual port support: HTTP (8080) and HTTPS (8083) in Docker
 
 ---
 

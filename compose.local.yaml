@@ -1,4 +1,5 @@
 # Local preview only. Run make local-init before using Compose directly.
+# HTTP on 8080, HTTPS on 8083
 services:
   web:
     build:
@@ -7,7 +8,11 @@ services:
     image: carestead:local
     init: true
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
+      - "127.0.0.1:${HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${HTTPS_PORT:-8083}:8083"
+    environment:
+      - PORT=8080
+      - HTTPS_PORT=8083
     volumes:
       - carestead-data:/app/.wrangler/state
       - type: bind

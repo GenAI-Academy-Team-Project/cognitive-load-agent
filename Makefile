@@ -18,8 +18,10 @@ test: ## Run Playwright tests (install Chromium first)
 test-notifications: ## Test notification tool adapters without sending real messages
 	cd web && npx playwright test --config playwright.notifications.config.ts
 check: lint build ## Lint and build
-up: local-init ## Build and start Docker preview on https://carestead.com:8080
+up: local-init host-config ## Build and start Docker preview (HTTP :8080, HTTPS :8083)
 	docker compose -f compose.local.yaml up --build --force-recreate -d --wait
+host-config: ## Ensure /etc/hosts has carestead.com entry
+	@grep -q "127.0.0.1 carestead.com" /etc/hosts || (echo "Adding carestead.com to /etc/hosts (may prompt for password)"; echo "127.0.0.1 carestead.com" | sudo tee -a /etc/hosts > /dev/null)
 local-init: ## Create local runtime settings without overwriting an existing file
 	cd web && node scripts/local-init.mjs
 down: ## Stop Docker preview, keeping the database volume
