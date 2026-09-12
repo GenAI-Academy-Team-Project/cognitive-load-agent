@@ -14,6 +14,5 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET?: string;
     GOOGLE_REDIRECT_URI?: string;
     GOOGLE_TOKEN_KEY?: string;
-    // For untested integrations, see feature/untested-integrations
   }
 }
