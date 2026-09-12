@@ -12,7 +12,7 @@ export const runtime = 'edge';
 async function handle(request: Request) {
   try {
     await ensureDatabase(env.DB);
-    const auth = await requireMembership(env.DB, request);
+    const auth = await requireMembership(env.DB, request, env.AUTH_PUBLIC_URL);
     if ('error' in auth) return auth.error;
     let body: Record<string, unknown> = {};
     if (request.method === 'POST') {
@@ -60,7 +60,7 @@ async function handle(request: Request) {
     const prefs = await env.DB.prepare('SELECT * FROM notification_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<NotificationPreferences>();
     const deliveries = (await env.DB.prepare(`SELECT d.action_id,d.channel,d.status,d.error_code,d.created_at,c.display_name target_name,n.title FROM notification_deliveries d JOIN care_circle_members c ON c.id=d.member_id LEFT JOIN notifications n ON n.id=d.notification_id LEFT JOIN chat_action_requests a ON a.id=d.action_id WHERE d.recipient_id=? AND (d.member_id=? OR a.actor_member_id=?) ORDER BY d.created_at DESC LIMIT 30`).bind(recipientId, memberId, memberId).all()).results;
     const ntfyEnabled = Boolean(await env.DB.prepare('SELECT 1 FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first());
-    return Response.json({ ntfyEnabled, ntfyServerUrl: ntfyServerUrl(env.NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({ ntfyEnabled, ntfyServerUrl: ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return errorResponse(error, crypto.randomUUID()); }
 }
 

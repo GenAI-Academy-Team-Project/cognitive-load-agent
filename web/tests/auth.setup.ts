@@ -6,10 +6,10 @@ setup('create the first care-circle owner', async ({ page }) => {
   await page.getByLabel('Email address').fill('owner@example.test');
   await page
     .getByLabel('Password', { exact: true })
-    .fill('Carestead test password 2026');
+    .fill('Carestead test password 2026!');
   await page
     .getByLabel('Confirm password', { exact: true })
-    .fill('Carestead test password 2026');
+    .fill('Carestead test password 2026!');
   await page
     .getByRole('button', { name: 'Create account', exact: true })
     .click();

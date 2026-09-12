@@ -7,8 +7,20 @@ test('settings navigation works on desktop and mobile without sidebar duplicates
     await page.getByRole('button', { name: 'Account settings', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Privacy & data', exact: true }).click();
     await expect(page.getByRole('heading', { name: /consent, retention & data/i })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /Notifications|Privacy & data|Integrations|Memory/ })).toHaveCount(0);
-    await page.getByRole('button', { name: /^Notifications, / }).click();
+    await expect(page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /Calendar|Notifications|Privacy & data|Integrations|Memory/ })).toHaveCount(0);
+    for (const [label, heading] of [['Integrations', 'Integrations'], ['Memory', 'Trusted care facts']] as const) {
+      await page.getByRole('button', { name: 'Account settings', exact: true }).click();
+      await page.getByRole('menuitem', { name: label, exact: true }).click();
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    }
+    const calendar = page.locator('header').getByRole('button', { name: 'Calendar', exact: true });
+    await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toHaveCount(1);
+    await calendar.click();
+    await expect(calendar).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
+    await page.locator('header').getByRole('button', { name: /^Notifications, / }).click();
+    await expect(page.getByRole('button', { name: /^Notifications, / })).toHaveAttribute('aria-pressed', 'true');
+    await expect(calendar).toHaveAttribute('aria-pressed', 'false');
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /Profile settings for/ }).click();
     await page.getByRole('menuitem', { name: 'Role details' }).click();
@@ -60,4 +72,11 @@ test('password changes verify credentials and revoke other sessions', async ({ p
     await memberPage.getByRole('menuitem', { name: 'Log out' }).click();
     await expect(memberPage).toHaveURL(/sign-in/);
   } finally { await member.close(); await other.close(); }
+});
+
+test('moved destinations still open from direct links', async ({ page }) => {
+  for (const [view, heading] of [['Calendar', 'Calendar'], ['Notifications', 'Notifications'], ['Integrations', 'Integrations'], ['Memory', 'Trusted care facts'], ['Privacy & data', 'Consent, retention & data']] as const) {
+    await page.goto(`/?view=${encodeURIComponent(view)}`);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+  }
 });

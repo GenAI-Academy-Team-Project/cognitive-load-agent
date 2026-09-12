@@ -6,6 +6,7 @@ import {
   simulateMove,
   taskEnd,
   taskSignature,
+  taskFactIssues,
 } from './planning-engine';
 import type { PlanningState, PlannedTask, DraftItem } from './planning-types';
 import type { CarePreference, CareRoutine } from './anticipation-types';
@@ -81,6 +82,7 @@ export function weekForecast(
       (task) => !matchesPreference(task, state.anticipation.preference, zone),
     );
     return {
+      routines: state.anticipation.routines.filter(routine => Date.parse(routine.next_at) >= from && Date.parse(routine.next_at) < until),
       date: dayStart,
       tasks,
       minutes,
@@ -101,11 +103,11 @@ export function preferredMove(
   if (task.calendarLinked || !state.anticipation.preference) return null;
   const preference = state.anticipation.preference;
   const date = localInput(task.due_at, zone).slice(0, 10);
-  for (let hour = preference.start_hour; hour < preference.end_hour; hour++) {
+  for (let minute = preference.start_hour * 60; minute < preference.end_hour * 60; minute += 15) {
     let dueAt: string;
     try {
       dueAt = localToInstant(
-        `${date}T${String(hour).padStart(2, '0')}:00`,
+        `${date}T${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`,
         zone,
       );
     } catch {
@@ -117,22 +119,22 @@ export function preferredMove(
       !matchesPreference(moved, preference, zone)
     )
       continue;
-    if (
-      !simulateMove(
+    const simulation = simulateMove(
         state.tasks,
         state.availability,
         task.id,
         dueAt,
         zone,
         false,
-      ).conflicts.length
-    )
+      );
+    if (!simulation.conflicts.length && !simulation.changes.some(change => taskFactIssues(state.tasks.find(item => item.id === change.taskId)!, state.memories).length))
       return dueAt;
   }
   return null;
 }
 
 export function coverageSuggestion(state: PlanningState, task: PlannedTask) {
+  if (taskFactIssues(task, state.memories).length) return undefined;
   return state.members
     .filter(
       (member) =>

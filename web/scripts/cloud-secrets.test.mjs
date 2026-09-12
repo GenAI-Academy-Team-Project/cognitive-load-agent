@@ -61,3 +61,15 @@ test('uploads allowlisted values through stdin only and blocks placeholder targe
   for (const value of ['http://ntfy.sh', 'https://ntfy.sh/topic', 'https://user:pass@ntfy.sh', 'https://ntfy.sh?topic=x']) assert.throws(() => cloudSecrets({ NTFY_SERVER_URL: value }), /HTTPS server origin/);
   assert.throws(() => cloudSecrets({ NTFY_ACCESS_TOKEN: 'synthetic' }), /NTFY_SERVER_URL/);
 });
+
+test('public origin is uploaded and invalid cloud origins are rejected', () => {
+  assert.deepEqual(cloudSecrets({ AUTH_PUBLIC_URL: 'https://carestead.example' }), { AUTH_PUBLIC_URL: 'https://carestead.example' });
+  for (const value of ['http://carestead.example', 'https://user:password@carestead.example', 'https://carestead.example/path', 'not-a-url']) {
+    assert.throws(() => cloudSecrets({ AUTH_PUBLIC_URL: value }), /AUTH_PUBLIC_URL/);
+  }
+});
+
+test('integration encryption key is allowlisted and validated', () => {
+  assert.equal(cloudSecrets({ INTEGRATION_CONFIG_KEY: 'ab'.repeat(32) }).INTEGRATION_CONFIG_KEY, 'ab'.repeat(32));
+  assert.throws(() => cloudSecrets({ INTEGRATION_CONFIG_KEY: 'invalid-secret' }), /64 hexadecimal/);
+});

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordRules } from '@/components/password-rules';
 
 // Invitation secrets stay in the fragment, outside request URLs and referrer headers.
 function readInvitation() {
@@ -42,6 +43,8 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     readInvitation,
     () => '',
   );
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -206,6 +209,7 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                   <Input
                     id="password"
                     name="password"
+                    onChange={(event) => setPassword(event.target.value)}
                     type={showPassword ? 'text' : 'password'}
                     className="pr-11"
                     autoComplete={
@@ -230,16 +234,11 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     aria-pressed={showPassword}
                     disabled={busy || !hydrated}
                   >
-                    {showPassword ? <EyeOff /> : <Eye />}
+                    {showPassword ? <Eye /> : <EyeOff />}
                   </Button>
                 </div>
                 {signingUp && (
-                  <p
-                    id="password-hint"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Use at least 12 characters. A memorable phrase works well.
-                  </p>
+                  <PasswordRules id="password-hint" password={password} />
                 )}
               </div>
               {signingUp && (
@@ -254,6 +253,8 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     <Input
                       id="confirmPassword"
                       name="confirmPassword"
+                      onChange={(event) => setConfirmation(event.target.value)}
+                      aria-describedby="confirmation-hint"
                       type={showConfirmation ? 'text' : 'password'}
                       className="pr-11"
                       autoComplete="new-password"
@@ -277,9 +278,10 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                       aria-pressed={showConfirmation}
                       disabled={busy || !hydrated}
                     >
-                      {showConfirmation ? <EyeOff /> : <Eye />}
+                      {showConfirmation ? <Eye /> : <EyeOff />}
                     </Button>
                   </div>
+                  <PasswordRules id="confirmation-hint" password={password} confirmation={confirmation} />
                 </div>
               )}
               {error && (
@@ -309,6 +311,7 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
                     : 'Sign in'}
               </Button>
             </form>
+            {!signingUp && <p className="mt-5 text-center text-sm"><a href="/forgot-password" className="text-primary underline">Forgot password or email?</a></p>}
             {!invitation && <div className="mt-5 space-y-2">
               <Button type="button" variant="outline" className="w-full" onClick={continueAsGuest} disabled={busy || !hydrated}>
                 {guestBusy && <LoaderCircle className="animate-spin" />}

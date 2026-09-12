@@ -1,3 +1,5 @@
+import { meetsPasswordPolicy, passwordPolicyMessage } from '@/lib/password-policy';
+import { requestPasswordReset, resetPassword, recoveryMessage } from '@/lib/password-recovery';
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from '@/db/bootstrap';
 import { authenticatedUser } from '@/lib/auth';
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    checkOrigin(request);
+    checkOrigin(request, env.AUTH_PUBLIC_URL);
     await ensureDatabase(env.DB);
     const db = env.DB;
     const action = new URL(request.url).pathname.split('/').pop();
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
       if (await authenticatedUser(db, request)) return Response.json({ ok: true }, { headers: noStore });
       return Response.json({ ok: true }, { headers: { ...noStore, 'Set-Cookie': await createSession(db, request, 'guest') } });
     }
-    if (action !== 'sign-in' && action !== 'sign-up')
+    if (!['sign-in', 'sign-up', 'update-password', 'forgot-password', 'reset-password'].includes(action || ''))
       return new Response(null, { status: 404 });
     if (!request.headers.get('content-type')?.includes('application/json'))
       throw new AppError('invalid_body', 400, 'Send the sign-in form as JSON.');
@@ -67,6 +69,35 @@ export async function POST(request: Request) {
     }
     if (!body || typeof body !== 'object' || Array.isArray(body))
       throw new AppError('invalid_body', 400, 'Check the form and try again.');
+    if (action === 'forgot-password' || action === 'reset-password') {
+      await enforceRateLimit(db, `recovery-ip:${tokenHash(request.headers.get('cf-connecting-ip') || 'local')}`, 'auth_ip');
+      if (action === 'forgot-password') {
+        await requestPasswordReset(db, body, env);
+        return Response.json({ ok: true, message: recoveryMessage }, { headers: noStore });
+      }
+      await resetPassword(db, body);
+      return Response.json({ ok: true }, { headers: { ...noStore, 'Set-Cookie': sessionCookie(request, '', true) } });
+    }
+    if (action === 'update-password') {
+      const user = await authenticatedUser(db, request);
+      if (!user) throw new AppError('authentication_required', 401, 'Sign in to update your password.');
+      if (user.isGuest) throw new AppError('guest_access', 403, 'Guest accounts cannot update credentials.');
+      await enforceRateLimit(db, `password:${user.id}`, 'auth_email');
+      const { currentPassword, newPassword, confirmPassword } = body;
+      if (typeof currentPassword !== 'string' || !currentPassword || currentPassword.length > 128)
+        throw new AppError('invalid_password', 400, 'Enter your current password.');
+      if (!meetsPasswordPolicy(newPassword)) throw new AppError('weak_password', 400, passwordPolicyMessage);
+      if (newPassword !== confirmPassword) throw new AppError('password_mismatch', 400, 'The new passwords do not match.');
+      if (newPassword === currentPassword) throw new AppError('unchanged_password', 400, 'Choose a different password.');
+      const account = await db.prepare('SELECT password_hash FROM auth_accounts WHERE id=?').bind(user.id).first<{ password_hash: string }>();
+      if (!account || !await verifyPassword(currentPassword, account.password_hash)) throw new AppError('invalid_credentials', 400, 'Your current password is incorrect.');
+      const results = await db.batch([
+        db.prepare('UPDATE auth_accounts SET password_hash=? WHERE id=? AND password_hash=?').bind(await hashPassword(newPassword), user.id, account.password_hash),
+        db.prepare('DELETE FROM auth_sessions WHERE account_id=? AND token_hash!=? AND changes()>0').bind(user.id, tokenHash(sessionToken(request))),
+      ]);
+      if (!results[0].meta.changes) throw new AppError('password_changed', 409, 'Your password changed in another session. Try again.');
+      return Response.json({ ok: true }, { headers: noStore });
+    }
     const email =
       typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
@@ -124,11 +155,11 @@ export async function POST(request: Request) {
           400,
           'Enter a name of up to 100 characters.',
         );
-      if (password.length < 12)
+      if (!meetsPasswordPolicy(password))
         throw new AppError(
           'weak_password',
           400,
-          'Use at least 12 characters for your password.',
+          passwordPolicyMessage,
         );
       if (body.confirmPassword !== password)
         throw new AppError(

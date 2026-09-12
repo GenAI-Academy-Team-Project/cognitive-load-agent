@@ -4,7 +4,7 @@ Carestead now supports caregiver relief, care-plan simulations, reviewed update 
 
 ## Try the workflows
 
-1. Open **Care planning → Task planning**. Choose actual care-circle members, review task durations, and optionally set a preferred backup, capabilities, required care facts, and a “Moves with” dependency. Invited and viewer accounts cannot receive assignments. Existing named assignments need acceptance to count as confirmed coverage.
+1. Open **Care Organizer → Task planning**. Choose actual care-circle members, review task durations, and optionally set a preferred backup, capabilities, required care facts, and a “Moves with” dependency. Invited and viewer accounts cannot receive assignments. Existing named assignments need acceptance to count as confirmed coverage.
 2. Each caregiver opens **I can help** and shares availability, task categories, and capabilities. A task must fit entirely inside a matching window and must not overlap another assignment in this recipient’s plan.
 3. In **I need a break**, choose a future time window. Review proposed replacements and uncovered responsibilities. Approving the plan creates coverage requests. The original caregiver remains assigned until the requested replacement signs in and accepts. Declines, stale requests, and changed availability remain explicit.
 4. In **What if?**, choose a responsibility and a new time. The preview moves dependent responsibilities by the same offset, reports conflicts, and searches a bounded set of nearby alternative times. Prepare and approve the proposal to apply it. Connected Google appointments must be changed through **Calendar** so guests are updated.

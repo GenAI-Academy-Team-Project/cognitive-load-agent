@@ -11,7 +11,7 @@ async function all<T>(sql: string, values: unknown[] = []) { return (await env.D
 export async function GET(request: Request) {
   const requestId = crypto.randomUUID(); let recipientId = '';
   try {
-    await ensureDatabase(env.DB); const auth = await requireMembership(env.DB, request); if ('error' in auth) return auth.error;
+    await ensureDatabase(env.DB); const auth = await requireMembership(env.DB, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error;
     recipientId = new URL(request.url).searchParams.get('recipientId') || ''; if (!recipientId) throw new AppError('recipient_required', 400, 'Choose a care recipient to export');
     await enforceRateLimit(env.DB, auth.member.id, 'export');
     const access = await env.DB.prepare("SELECT rm.access_role role FROM recipient_members rm JOIN care_recipients cr ON cr.id=rm.recipient_id WHERE rm.member_id=? AND rm.recipient_id=? AND cr.status='active'").bind(auth.member.memberId, recipientId).first<{ role: CareRole }>();

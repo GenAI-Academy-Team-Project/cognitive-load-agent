@@ -27,3 +27,10 @@ VAPID_SUBJECT=
 # ntfy mobile push: HTTPS server origin (e.g. https://ntfy.sh), optional publisher token
 NTFY_SERVER_URL=
 NTFY_ACCESS_TOKEN=
+
+# Public browser origin used for auth and password reset email links.
+AUTH_PUBLIC_URL=
+
+# Encrypts integration overrides saved through Settings. Generate with openssl rand -hex 32.
+# Keep stable and back up securely; changing it prevents decryption of existing overrides.
+INTEGRATION_CONFIG_KEY=

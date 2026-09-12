@@ -526,7 +526,7 @@ export async function planningAction(
       if (state.anticipation.generatedKeys.includes(key)) throw new AppError('already_prepared', 409, 'Preparation tasks already exist for this appointment plan.');
       const drafts = preparationDrafts(task, recipient.timezone);
       if (!drafts.length) throw new AppError('no_preparation', 400, 'This appointment has no future preparation or follow-up dates.');
-      return propose('dump', { title: `Prepare for ${task.title}`, baseline: [task], generated: { key }, drafts });
+      return propose('dump', { title: `Prepare for ${task.title}`, preparationFor: task.id, baseline: [task], generated: { key }, drafts });
     }
     case 'save_appointment_notes': {
       const task = state.tasks.find(item => item.id === body.taskId && item.category === 'appointment');
@@ -973,6 +973,11 @@ export async function planningAction(
             );
           } else {
             const id = crypto.randomUUID();
+            if (proposal.payload.preparationFor) {
+              const appointment = taskFor(proposal.payload.preparationFor);
+              changes.push(saveDetails(db, { ...appointment, id, title: item.title, owner: 'Unassigned', due_at: item.dueAt, category: item.category, status: 'open', accepted: false, calendarLinked: false,
+                planning: { task_id: id, recipient_id: recipientId, owner_member_id: '', duration_minutes: 20, depends_on: appointment.id, backup_member_id: '', requirements: [], fact_ids: [], accepted_signature: '' } }));
+            }
             changes.push(
               db
                 .prepare('INSERT INTO tasks VALUES (?,?,?,?,?,?,?)')

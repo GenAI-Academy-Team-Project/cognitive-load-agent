@@ -56,7 +56,8 @@ export default defineConfig(async ({ command }) => {
   const keyPath = new URL('./.certs/carestead-key.pem', import.meta.url);
   // Use local certificates when available; CI and local tests still use HTTP.
   const localHttps = command === 'serve' && !cloudDeployment
-    && process.env.CARESTEAD_TEST !== '1'
+    && process.env.CARESTEAD_HTTPS !== '0'
+    && (process.env.CARESTEAD_TEST !== '1' || process.env.CARESTEAD_TEST_HTTPS === '1')
     && existsSync(certPath) && existsSync(keyPath);
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.

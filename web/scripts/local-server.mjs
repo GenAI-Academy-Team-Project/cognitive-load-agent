@@ -31,7 +31,7 @@ try {
   if (!testing) {
     try {
       await Promise.all(['.certs/carestead.pem', '.certs/carestead-key.pem'].map(path => access(path)));
-      tls = true;
+      tls = process.env.CARESTEAD_HTTPS !== '0';
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
       console.log('Local certificates missing; using HTTP on port 8080.');
@@ -41,7 +41,7 @@ try {
     await new Promise(resolve => probe.close(resolve));
     if (tls) {
       redirect = createServer((request, response) => {
-        response.writeHead(308, { Location: `https://carestead.com:8083${request.url?.startsWith('/') ? request.url : '/'}` });
+        response.writeHead(307, { 'Cache-Control': 'no-store', Location: `https://carestead.com:8083${request.url?.startsWith('/') ? request.url : '/'}` });
         response.end();
       });
       await listen(redirect, 8080);

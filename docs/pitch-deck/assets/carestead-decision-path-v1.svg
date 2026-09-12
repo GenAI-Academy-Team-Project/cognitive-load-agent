@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Carestead decision path</title>
+  <desc id="desc">A bounded decision flow from request through retrieval, evidence, intent, policy, approval, tool execution, verification, and audit.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf2"/><stop offset="1" stop-color="#fffaf2"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#123f49" flood-opacity=".11"/></filter>
+    <marker id="green-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0l9 4.5L0 9z" fill="#087f8c"/></marker>
+    <marker id="red-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0l9 4.5L0 9z" fill="#b65b41"/></marker>
+    <style>
+      .sans{font-family:Avenir Next,Segoe UI,Arial,sans-serif}.serif{font-family:Georgia,serif}.ink{fill:#123f49}.muted{fill:#536870}
+      .node{fill:#ffffff;stroke:#b8d6d5;stroke-width:2}.risk{fill:#fff0e7;stroke:#d68060;stroke-width:2}.decision{fill:#fffaf2;stroke:#68a9aa;stroke-width:2}.approval{fill:#ffd1af;stroke:#b46a29;stroke-width:2}
+      .head{font:700 18px Avenir Next,Segoe UI,Arial,sans-serif;fill:#123f49}.body{font:400 14px Avenir Next,Segoe UI,Arial,sans-serif;fill:#536870}.tiny{font:700 11px Avenir Next,Segoe UI,Arial,sans-serif;letter-spacing:1.3px}.flow{fill:none;stroke:#087f8c;stroke-width:3;marker-end:url(#green-arrow)}.stop{fill:none;stroke:#b65b41;stroke-width:3;marker-end:url(#red-arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <text x="800" y="70" text-anchor="middle" class="serif ink" font-size="52" font-weight="700">Carestead decision path</text>
+  <text x="800" y="106" text-anchor="middle" class="sans muted" font-size="17" letter-spacing="4">GROUNDED ANSWERS • CONSTRAINED ACTIONS • HUMAN CONTROL</text>
+
+  <path class="flow" d="M245 230H280M500 230H535M755 230H790M1010 230H1045"/>
+  <path class="stop" d="M900 310V365"/><text x="914" y="346" class="tiny" fill="#b65b41">NO</text>
+  <path class="flow" d="M1155 310V365"/><text x="1168" y="346" class="tiny" fill="#087f8c">ACTION</text>
+  <path class="flow" d="M1265 230H1320"/><text x="1278" y="210" text-anchor="middle" class="tiny" fill="#087f8c">QUESTION</text>
+  <path class="flow" d="M1430 285V330H1570V735H250"/>
+  <path class="stop" d="M1265 435H1360"/><text x="1295" y="423" class="tiny" fill="#b65b41">BLOCK</text>
+  <path class="flow" d="M1155 505V555"/><text x="1168" y="540" class="tiny" fill="#087f8c">ALLOWED</text>
+  <path class="stop" d="M1265 625H1360"/><text x="1298" y="613" class="tiny" fill="#b65b41">NO</text>
+  <path class="flow" d="M1045 625H975"/><text x="1000" y="613" class="tiny" fill="#087f8c">YES</text>
+  <path class="flow" d="M785 625H735M545 625H495M305 625H250"/>
+  <path class="stop" d="M900 505V525H1025V735H360V695"/>
+
+  <g transform="translate(35 175)" filter="url(#shadow)"><rect width="210" height="110" rx="22" fill="#123f49"/><text x="105" y="34" text-anchor="middle" class="tiny" fill="#ffd1af">NEW REQUEST</text><text x="105" y="65" text-anchor="middle" class="sans" fill="#fff" font-size="18" font-weight="700">Question, signal,</text><text x="105" y="89" text-anchor="middle" class="sans" fill="#fff" font-size="18" font-weight="700">or action request</text></g>
+  <g transform="translate(280 175)" filter="url(#shadow)"><rect class="node" width="220" height="110" rx="22"/><text x="110" y="34" text-anchor="middle" class="tiny" fill="#087f8c">ACCESS BOUNDARY</text><text x="110" y="66" text-anchor="middle" class="head">Authenticate and scope</text><text x="110" y="91" text-anchor="middle" class="body">role • recipient • consent</text></g>
+  <g transform="translate(535 175)" filter="url(#shadow)"><rect class="node" width="220" height="110" rx="22"/><text x="110" y="34" text-anchor="middle" class="tiny" fill="#087f8c">LIGHTWEIGHT RAG</text><text x="110" y="66" text-anchor="middle" class="head">Retrieve records</text><text x="110" y="91" text-anchor="middle" class="body">profile • tasks • facts • risks</text></g>
+  <g transform="translate(790 150)" filter="url(#shadow)"><path class="decision" d="M110 0l110 80-110 80L0 80z"/><text x="110" y="73" text-anchor="middle" class="head">Enough evidence?</text><text x="110" y="99" text-anchor="middle" class="body">grounded and current</text></g>
+  <g transform="translate(1045 150)" filter="url(#shadow)"><path class="decision" d="M110 0l110 80-110 80L0 80z"/><text x="110" y="73" text-anchor="middle" class="head">Answer or action?</text><text x="110" y="99" text-anchor="middle" class="body">classify the request</text></g>
+  <g transform="translate(1320 175)" filter="url(#shadow)"><rect class="node" width="220" height="110" rx="22"/><text x="110" y="34" text-anchor="middle" class="tiny" fill="#087f8c">GROUNDED ANSWER</text><text x="110" y="66" text-anchor="middle" class="head">Answer with evidence</text><text x="110" y="91" text-anchor="middle" class="body">show sources and limits</text></g>
+
+  <g transform="translate(790 365)" filter="url(#shadow)"><rect class="risk" width="220" height="140" rx="22"/><text x="110" y="42" text-anchor="middle" class="tiny" fill="#b65b41">NOT ENOUGH</text><text x="110" y="78" text-anchor="middle" class="head">Clarify or decline</text><text x="110" y="107" text-anchor="middle" class="body">Never fill gaps with guesses.</text></g>
+  <g transform="translate(1045 365)" filter="url(#shadow)"><path class="decision" d="M110 0l110 70-110 70L0 70z"/><text x="110" y="63" text-anchor="middle" class="head">Policy allows it?</text><text x="110" y="89" text-anchor="middle" class="body">role • consent • impact</text></g>
+  <g transform="translate(1360 365)" filter="url(#shadow)"><rect class="risk" width="180" height="140" rx="22"/><text x="90" y="42" text-anchor="middle" class="tiny" fill="#b65b41">BLOCK</text><text x="90" y="78" text-anchor="middle" class="head">No write</text><text x="90" y="107" text-anchor="middle" class="body">explain the reason</text></g>
+
+  <g transform="translate(1045 555)" filter="url(#shadow)"><path class="approval" d="M110 0l110 70-110 70L0 70z"/><text x="110" y="63" text-anchor="middle" class="head">Caregiver approves?</text><text x="110" y="89" text-anchor="middle" class="body">review the exact proposal</text></g>
+  <g transform="translate(1360 555)" filter="url(#shadow)"><rect class="risk" width="180" height="140" rx="22"/><text x="90" y="42" text-anchor="middle" class="tiny" fill="#b65b41">BLOCK</text><text x="90" y="78" text-anchor="middle" class="head">No change</text><text x="90" y="107" text-anchor="middle" class="body">declined or timed out</text></g>
+  <g transform="translate(785 555)" filter="url(#shadow)"><rect class="node" width="190" height="140" rx="22"/><text x="95" y="42" text-anchor="middle" class="tiny" fill="#087f8c">EXECUTE</text><text x="95" y="78" text-anchor="middle" class="head">Scoped tool</text><text x="95" y="107" text-anchor="middle" class="body">recheck access first</text></g>
+  <g transform="translate(545 555)" filter="url(#shadow)"><rect class="node" width="190" height="140" rx="22"/><text x="95" y="42" text-anchor="middle" class="tiny" fill="#087f8c">VERIFY</text><text x="95" y="78" text-anchor="middle" class="head">Observe outcome</text><text x="95" y="107" text-anchor="middle" class="body">success • failure • change</text></g>
+  <g transform="translate(305 555)" filter="url(#shadow)"><rect class="node" width="190" height="140" rx="22"/><text x="95" y="42" text-anchor="middle" class="tiny" fill="#087f8c">LEARN SAFELY</text><text x="95" y="78" text-anchor="middle" class="head">Trace and audit</text><text x="95" y="107" text-anchor="middle" class="body">evidence through outcome</text></g>
+  <g transform="translate(35 555)" filter="url(#shadow)"><rect class="node" width="215" height="140" rx="22"/><text x="107" y="42" text-anchor="middle" class="tiny" fill="#087f8c">SCORE</text><text x="107" y="78" text-anchor="middle" class="head">Compare with truth</text><text x="107" y="107" text-anchor="middle" class="body">benchmark the full path</text></g>
+
+  <g transform="translate(250 775)"><rect width="1100" height="72" rx="21" fill="#123f49"/><text x="550" y="29" text-anchor="middle" class="tiny" fill="#ffd1af">EVERY PATH IS SCOREABLE</text><text x="550" y="54" text-anchor="middle" class="sans" fill="#fff" font-size="16">retrieval • evidence • decision • policy • tool choice • action • outcome</text></g>
+</svg>

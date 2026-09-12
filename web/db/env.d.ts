@@ -1,6 +1,9 @@
 declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
+    INTEGRATION_CONFIG_KEY?: string;
+    AUTH_PUBLIC_URL?: string;
+    AUTH_LOCAL_HTTP_ORIGIN?: string;
     NTFY_SERVER_URL?: string;
     NTFY_ACCESS_TOKEN?: string;
     RESEND_API_KEY?: string;

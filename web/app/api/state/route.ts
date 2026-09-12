@@ -11,10 +11,10 @@ import { ensureDatabase } from '@/db/bootstrap';
 import { canWrite, isOwner, requireMembership, type CareMembership, type CareRole } from '@/lib/auth';
 import { runBenchmark } from '@/lib/benchmark';
 import { AppError, enforceRateLimit, errorResponse, recordError, validatePayload } from '@/lib/guardrails';
-import type { Approval, CareCircleMember, CareEvent, CareNotification, CarePlan, CareRecipient, CareTask, ConsentRecord, DashboardState, MemoryRecord, PlanTemplate, RecipientProfile, Risk, SupportContact, Trace } from '@/lib/types';
+import type { Approval, CareCircleMember, CareEvent, CareNotification, CarePlan, CareRecipient, CareTask, ConsentRecord, DashboardState, MemoryRecord, PlanTemplate, RecipientProfile, Risk, SupportContact, Trace, TemplateResponsibility } from '@/lib/types';
 
 export const runtime = 'edge';
-type Body = { action?: string; id?: string; recipientId?: string; title?: string; owner?: string; dueAt?: string; category?: string; status?: string; kind?: string; value?: string; source?: string; confidence?: string; email?: string; displayName?: string; role?: CareRole; timezone?: string; templateKey?: string; name?: string; preferredName?: string; pronouns?: string; careContext?: string; communicationNotes?: string; mobilityNotes?: string; homeBase?: string; emergencyPlan?: string; relationship?: string; contactType?: string; phone?: string; organization?: string; notes?: string; priority?: string; purpose?: string; retentionDays?: string; consentStatus?: string; consentAccepted?: boolean | string; nonClinicalAcknowledged?: boolean | string; confirmName?: string };
+type Body = { responsibilities?: unknown; action?: string; id?: string; recipientId?: string; title?: string; owner?: string; dueAt?: string; category?: string; status?: string; kind?: string; value?: string; source?: string; confidence?: string; email?: string; displayName?: string; role?: CareRole; timezone?: string; templateKey?: string; name?: string; preferredName?: string; pronouns?: string; careContext?: string; communicationNotes?: string; mobilityNotes?: string; homeBase?: string; emergencyPlan?: string; relationship?: string; contactType?: string; phone?: string; organization?: string; notes?: string; priority?: string; purpose?: string; retentionDays?: string; consentStatus?: string; consentAccepted?: boolean | string; nonClinicalAcknowledged?: boolean | string; confirmName?: string };
 type Access = { recipientId: string; accessRole: CareRole };
 
 async function rows<T>(db: D1Database, sql: string, values: unknown[] = []) { return (await db.prepare(sql).bind(...values).all<T>()).results; }
@@ -79,6 +79,7 @@ async function state(db: D1Database, member: CareMembership, recipientId: string
     rows<CareNotification>(db, "SELECT n.*,r.read_at FROM notifications n LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.member_id=? LEFT JOIN notification_deliveries d ON d.notification_id=n.id WHERE n.recipient_id=? AND n.delivery_state!='suppressed' AND (d.member_id IS NULL OR d.member_id=?) ORDER BY n.created_at DESC LIMIT 30", [member.memberId, recipientId, member.memberId]),
     db.prepare('SELECT COUNT(*) recentErrors,MAX(created_at) lastErrorAt FROM error_events WHERE recipient_id=? AND created_at>=?').bind(recipientId, new Date(Date.now() - 86400000).toISOString()).first<{ recentErrors: number; lastErrorAt: string | null }>(),
   ]);
+  await Promise.all(templates.map(async (template) => { template.responsibilities = await rows<TemplateResponsibility>(db, 'SELECT title,category,due_offset_days FROM template_responsibilities WHERE template_id=? ORDER BY id', [template.id]); }));
   const latestVersion = String(latest?.version ?? plan.template_version);
   const profile: RecipientProfile = storedProfile ?? { recipient_id: recipientId, preferred_name: recipient.display_name, pronouns: '', care_context: '', communication_notes: '', mobility_notes: '', home_base: '', emergency_plan: '', updated_at: recipient.updated_at };
   const consent: ConsentRecord = storedConsent ?? { recipient_id: recipientId, status: 'withdrawn', purpose: 'Care coordination', retention_days: '365', granted_by: '', granted_at: null, withdrawn_at: null, updated_at: recipient.updated_at };
@@ -98,18 +99,25 @@ function portableTitle(title: string, person: string, category: string) {
   value = text.includes('pickup') || text.includes('pick up') ? 'Assign medication pickup' : text.includes('refill') ? 'Confirm refill status with pharmacy' : text.includes('supply') || text.includes('remaining') ? 'Check remaining medication supply' : text.includes('list') ? 'Review current medication list' : 'Manage medication responsibility';
   return value;
 }
-async function instantiate(db: D1Database, recipientId: string, planId: string, templateId: string, person: string, now: string) {
-  const defs = await rows<{ title: string; category: string; due_offset_days: string }>(db, 'SELECT title,category,due_offset_days FROM template_responsibilities WHERE template_id=? ORDER BY id', [templateId]);
+function parseResponsibilities(value: unknown): TemplateResponsibility[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) throw new AppError('invalid_responsibilities', 400, 'Include between 1 and 100 responsibilities');
+  return value.map((item) => {
+    if (!item || typeof item.title !== 'string' || !item.title.trim() || item.title.length > 200 || typeof item.category !== 'string' || !item.category.trim() || item.category.length > 80 || typeof item.due_offset_days !== 'string' || !/^\d{1,4}$/.test(item.due_offset_days) || Number(item.due_offset_days) > 3650) throw new AppError('invalid_responsibilities', 400, 'Each responsibility needs a title, category, and due offset from 0 to 3650 days');
+    return { title: item.title.trim(), category: item.category.trim(), due_offset_days: item.due_offset_days };
+  });
+}
+async function instantiate(db: D1Database, recipientId: string, planId: string, templateId: string, person: string, now: string, custom?: TemplateResponsibility[]) {
+  const defs = custom ?? await rows<{ title: string; category: string; due_offset_days: string }>(db, 'SELECT title,category,due_offset_days FROM template_responsibilities WHERE template_id=? ORDER BY id', [templateId]);
   const batch: D1PreparedStatement[] = [];
   for (const item of defs) { const id = crypto.randomUUID(); const due = new Date(Date.now() + Number(item.due_offset_days) * 86400000).toISOString(); batch.push(db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, item.title.replaceAll('{{recipient_name}}', person), 'Unassigned', due, 'open', item.category, null), scope(db, 'task', id, recipientId, planId, now)); }
-  if (batch.length) await db.batch(batch);
+  return batch;
 }
-async function createRecipient(db: D1Database, member: CareMembership, displayName: string, timezone: string, templateKey: string, now: string) {
+async function createRecipient(db: D1Database, member: CareMembership, displayName: string, timezone: string, templateKey: string, now: string, custom?: TemplateResponsibility[]) {
   const template = await db.prepare("SELECT * FROM plan_templates WHERE template_key=? AND status='active' ORDER BY CAST(version AS INTEGER) DESC LIMIT 1").bind(templateKey).first<PlanTemplate>();
   if (!template) throw new Error('Plan template not found');
   const recipientId = crypto.randomUUID(), planId = crypto.randomUUID(), name = clean(displayName);
-  await db.batch([db.prepare('INSERT INTO care_recipients VALUES (?, ?, ?, ?, ?, ?, ?)').bind(recipientId, 'household-demo', name, timezone || 'America/Toronto', 'active', now, now), db.prepare('INSERT INTO care_plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(planId, recipientId, template.template_key, template.version, `${name}'s ${template.name}`, 'active', now, now, now), db.prepare('INSERT INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), recipientId, member.memberId, 'owner', now), db.prepare('INSERT INTO recipient_profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(recipientId, name, '', '', '', '', '', '', now), db.prepare('INSERT INTO consent_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(recipientId, 'active', 'Care coordination, caregiver handover, risk review, and responsibility management.', '365', member.id, now, null, now)]);
-  await instantiate(db, recipientId, planId, template.id, name, now);
+  await db.batch([db.prepare('INSERT INTO care_recipients VALUES (?, ?, ?, ?, ?, ?, ?)').bind(recipientId, 'household-demo', name, timezone || 'America/Toronto', 'active', now, now), db.prepare('INSERT INTO care_plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(planId, recipientId, template.template_key, template.version, `${name}'s ${template.name}`, 'active', now, now, now), db.prepare('INSERT INTO recipient_members VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), recipientId, member.memberId, 'owner', now), db.prepare('INSERT INTO recipient_profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(recipientId, name, '', '', '', '', '', '', now), db.prepare('INSERT INTO consent_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(recipientId, 'active', 'Care coordination, caregiver handover, risk review, and responsibility management.', '365', member.id, now, null, now), ...await instantiate(db, recipientId, planId, template.id, name, now, custom)]);
   return recipientId;
 }
 
@@ -120,15 +128,15 @@ async function getImpl(request: Request) {
     if (recipientId && recipientId !== 'guest-sample') return forbidden('Guest access is limited to the sample care plan');
     return Response.json(guestDashboard(), { headers: { 'Cache-Control': 'no-store' } });
   }
-  await ensureDatabase(env.DB); const auth = await requireMembership(env.DB, request); if ('error' in auth) return auth.error;
+  await ensureDatabase(env.DB); const auth = await requireMembership(env.DB, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error;
   const access = await accessFor(env.DB, auth.member, new URL(request.url).searchParams.get('recipientId') ?? undefined); if (!access) return forbidden('You do not have access to that care recipient');
   return Response.json(await state(env.DB, auth.member, access.recipientId, access.accessRole), { headers: { 'Cache-Control': 'no-store' } });
 }
 
 async function postImpl(request: Request) {
   const body = await request.json() as Body, db = env.DB, now = new Date().toISOString(); await ensureDatabase(db);
-  const auth = await requireMembership(db, request); if ('error' in auth) return auth.error; const member = auth.member; await enforceRateLimit(db, member.id, body.action || 'unknown'); validatePayload(body as Record<string, unknown>);
-  if (body.action === 'create_recipient' && body.displayName && body.templateKey) { if (!isOwner(member.role)) return forbidden('Only an owner can create a care recipient'); if (!body.consentAccepted || !body.nonClinicalAcknowledged) throw new AppError('consent_required', 400, 'Confirm consent and the non-clinical-use notice'); const id = await createRecipient(db, member, body.displayName, body.timezone || 'America/Toronto', body.templateKey, now); await audit(db, member, 'create', 'recipient', id, `Created care plan for ${clean(body.displayName)}`); return Response.json(await state(db, member, id, 'owner')); }
+  const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error; const member = auth.member; await enforceRateLimit(db, member.id, body.action || 'unknown'); validatePayload(body as Record<string, unknown>);
+  if (body.action === 'create_recipient' && body.displayName && body.templateKey) { if (!isOwner(member.role)) return forbidden('Only an owner can create a care recipient'); if (!body.consentAccepted || !body.nonClinicalAcknowledged) throw new AppError('consent_required', 400, 'Confirm consent and the non-clinical-use notice'); const id = await createRecipient(db, member, body.displayName, body.timezone || 'America/Toronto', body.templateKey, now, parseResponsibilities(body.responsibilities)); await audit(db, member, 'create', 'recipient', id, `Created care plan for ${clean(body.displayName)}`); return Response.json(await state(db, member, id, 'owner')); }
   const access = await accessFor(db, member, body.recipientId); if (!access) return forbidden('You do not have access to that care recipient'); const recipientId = access.recipientId, role = access.accessRole;
   const plan = await getPlan(db, recipientId); if (!plan) return Response.json({ error: 'No active care plan found' }, { status: 404 });
   const consent = await db.prepare('SELECT status FROM consent_records WHERE recipient_id=?').bind(recipientId).first<{ status: string }>();

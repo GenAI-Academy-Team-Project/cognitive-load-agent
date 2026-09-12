@@ -48,3 +48,43 @@ test('integrations default off, require credentials and ownership, and persist w
     expect(sqlite.prepare("SELECT value FROM settings WHERE key='integration:sms'").get()?.value).toBe('true');
   } finally { sqlite.close(); }
 });
+
+test('encrypted ntfy overrides include the optional token, redact values, and reset to environment', async () => {
+  const sqlite = new DatabaseSync(':memory:');
+  try {
+    const db = database(sqlite); await ensureDatabase(db);
+    const owner = { id: 'owner', email: 'owner@example.test', role: 'owner' };
+    const config = { INTEGRATION_CONFIG_KEY: 'ab'.repeat(32), NTFY_SERVER_URL: 'https://ntfy.sh', NTFY_ACCESS_TOKEN: 'environment-secret' };
+    await setIntegration(db, config, 'ntfy', true, owner, { NTFY_ACCESS_TOKEN: 'override-secret' });
+    expect((await effectiveIntegrations(db, config)).NTFY_ACCESS_TOKEN).toBe('override-secret');
+    const status = (await integrationSettings(db, config)).find(item => item.id === 'ntfy');
+    expect(status?.fields).toContainEqual({ key: 'NTFY_ACCESS_TOKEN', source: 'override' });
+    expect(JSON.stringify(status)).not.toContain('secret');
+    expect(JSON.stringify(sqlite.prepare('SELECT * FROM settings').all())).not.toContain('override-secret');
+    expect(JSON.stringify(sqlite.prepare('SELECT * FROM audit_entries').all())).not.toContain('override-secret');
+    await expect(effectiveIntegrations(db, { ...config, INTEGRATION_CONFIG_KEY: 'cd'.repeat(32) })).rejects.toThrow('decrypted');
+    await setIntegration(db, config, 'ntfy', false, owner);
+    expect((await effectiveIntegrations(db, config)).NTFY_ACCESS_TOKEN).toBeUndefined();
+    await setIntegration(db, config, 'ntfy', true, owner, { NTFY_ACCESS_TOKEN: null });
+    expect((await effectiveIntegrations(db, config)).NTFY_ACCESS_TOKEN).toBe('environment-secret');
+    expect(config.NTFY_ACCESS_TOKEN).toBe('environment-secret');
+    await setIntegration(db, { NTFY_SERVER_URL: 'https://ntfy.sh' }, 'ntfy', true, owner);
+  } finally { sqlite.close(); }
+});
+
+test('configuration writes enforce ownership, key setup, field validation and atomicity', async () => {
+  const sqlite = new DatabaseSync(':memory:');
+  try {
+    const db = database(sqlite); await ensureDatabase(db);
+    const owner = { id: 'owner', email: 'owner@example.test', role: 'owner' };
+    const config = { INTEGRATION_CONFIG_KEY: 'ab'.repeat(32) };
+    await expect(setIntegration(db, config, 'email', false, { ...owner, role: 'caregiver' }, { RESEND_API_KEY: 'secret' })).rejects.toThrow('owner');
+    await expect(setIntegration(db, {}, 'email', false, owner, { RESEND_API_KEY: 'secret' })).rejects.toThrow('INTEGRATION_CONFIG_KEY');
+    for (const invalid of [{ AUTH_PUBLIC_URL: 'secret' }, { RESEND_API_KEY: '' }, { RESEND_API_KEY: 123 }, []]) {
+      await expect(setIntegration(db, config, 'email', false, owner, invalid)).rejects.toThrow('configuration');
+    }
+    await expect(setIntegration(db, config, 'calendar', true, owner, { GOOGLE_CLIENT_SECRET: 'secret' })).rejects.toThrow('credentials');
+    await expect(setIntegration(db, config, 'ntfy', false, owner, { NTFY_SERVER_URL: 'http://localhost' })).rejects.toThrow('HTTPS');
+    expect(sqlite.prepare("SELECT * FROM settings WHERE key LIKE 'integration-config:%'").all()).toEqual([]);
+  } finally { sqlite.close(); }
+});

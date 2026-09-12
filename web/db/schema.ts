@@ -492,3 +492,10 @@ export const ntfyPreferences = sqliteTable('ntfy_preferences', {
   topic: text('topic').notNull(),
   updated_at: text('updated_at').notNull(),
 }, (table) => [primaryKey({ columns: [table.recipient_id, table.member_id] })]);
+
+export const authPasswordResets = sqliteTable('auth_password_resets', {
+  accountId: text('account_id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  expiresAt: text('expires_at').notNull(),
+});

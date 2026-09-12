@@ -86,7 +86,7 @@ test('invitation sign-up, sign-in, viewer authorization, and sign-out', async ({
     page.getByRole('heading', { name: /good morning/i }),
   ).toBeVisible();
   await page
-    .getByRole('button', { name: 'Care circle', exact: true })
+    .getByRole('button', { name: 'Care Circle', exact: true })
     .first()
     .click();
   await page
@@ -106,8 +106,8 @@ test('invitation sign-up, sign-in, viewer authorization, and sign-out', async ({
   const credentials = {
     email: 'maya@example.test',
     displayName: 'Maya',
-    password: 'A long caregiver password',
-    confirmPassword: 'A long caregiver password',
+    password: 'A long caregiver password 2026!',
+    confirmPassword: 'A long caregiver password 2026!',
   };
   expect(
     (
@@ -174,9 +174,8 @@ test('invitation sign-up, sign-in, viewer authorization, and sign-out', async ({
       })
     ).status(),
   ).toBe(403);
-  await memberPage
-    .getByRole('button', { name: 'Sign out', exact: true })
-    .click();
+  await memberPage.getByRole('button', { name: /Profile settings for/ }).click();
+  await memberPage.getByRole('menuitem', { name: 'Log out', exact: true }).click();
   await expect(memberPage).toHaveURL(/\/sign-in$/);
   expect(
     (
@@ -231,7 +230,8 @@ test('guest preview is isolated, read-only, persistent, and revocable', async ({
   const session = (await context.cookies()).find((cookie) => cookie.name === 'carestead_session')!;
   expect(session.httpOnly).toBe(true);
   expect(session.sameSite).toBe('Lax');
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByRole('button', { name: /Profile settings for/ }).click();
+  await page.getByRole('menuitem', { name: 'Log out', exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   expect((await context.request.get('/api/state', { headers: { Cookie: `carestead_session=${session.value}` } })).status()).toBe(401);
   await page.goto('/sign-up');

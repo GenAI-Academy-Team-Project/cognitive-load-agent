@@ -5,11 +5,16 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { calendarSecrets, calendarSecretNames } from './calendar-config.mjs';
 
-const groups = [calendarSecretNames, ['RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM'], ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'], ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'], ['NTFY_SERVER_URL'], ['NTFY_ACCESS_TOKEN']];
+const groups = [['INTEGRATION_CONFIG_KEY'], ['AUTH_PUBLIC_URL'], calendarSecretNames, ['RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM'], ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'], ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'], ['NTFY_SERVER_URL'], ['NTFY_ACCESS_TOKEN']];
 export const runtimeSecretNames = groups.flat();
 
 export function cloudSecrets(source) {
   const values = {};
+  if (source.AUTH_PUBLIC_URL) {
+    let url;
+    try { url = new URL(source.AUTH_PUBLIC_URL); } catch { throw new Error('AUTH_PUBLIC_URL must be an HTTPS origin.'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('AUTH_PUBLIC_URL must be an HTTPS origin without credentials or a path.');
+  }
   for (const group of groups) {
     if (!group.some((name) => source[name] !== undefined && source[name] !== '')) continue;
     for (const name of group) {
@@ -19,6 +24,7 @@ export function cloudSecrets(source) {
       values[name] = value;
     }
   }
+  if (values.INTEGRATION_CONFIG_KEY && !/^[a-f0-9]{64}$/i.test(values.INTEGRATION_CONFIG_KEY)) throw new Error('INTEGRATION_CONFIG_KEY must contain 64 hexadecimal characters.');
   if (values.NTFY_SERVER_URL) {
     let url;
     try { url = new URL(values.NTFY_SERVER_URL); } catch { throw new Error('NTFY_SERVER_URL must be an HTTPS server origin.'); }

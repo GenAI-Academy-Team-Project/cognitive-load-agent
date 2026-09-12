@@ -65,9 +65,15 @@ export async function createSession(
   ]);
   return sessionCookie(request, token);
 }
-export function checkOrigin(request: Request) {
+export function checkOrigin(request: Request, publicUrl?: string) {
+  let publicOrigin: string | undefined;
+  try {
+    const url = new URL(publicUrl || '');
+    if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) publicOrigin = url.origin;
+  } catch { /* Invalid configuration must not grant access. */ }
+  const origin = request.headers.get('origin');
   if (
-    request.headers.get('origin') !== new URL(request.url).origin ||
+    (origin !== new URL(request.url).origin && origin !== publicOrigin) ||
     request.headers.get('sec-fetch-site') === 'cross-site'
   ) {
     throw new AppError(
