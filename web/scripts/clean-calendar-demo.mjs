@@ -1,6 +1,8 @@
 import { request } from 'playwright';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { demoApi } from './calendar-demo-api.mjs';
+import { assertDemoAppointmentsSafe } from './calendar-demo-guard.mjs';
 
 // Only the recipient recorded by this seeder is eligible. Never search by name
 // and delete matches: real recipients may share the same display name.
@@ -12,9 +14,7 @@ export async function cleanCalendarDemo() {
   if (!data.recipientId) { writeFileSync(file, '{}', { mode: 0o600 }); return; }
   const baseURL = 'https://carestead.com:8083';
   const api = await request.newContext({ baseURL, ignoreHTTPSErrors: true, storageState: `${dir}/owner-auth.json`, extraHTTPHeaders: { Origin: baseURL } });
-  async function json(r) { const value = await r.json(); if (!r.ok()) throw new Error(`${r.status()}: ${value.error}`); return value; }
-  const get = path => api.get(path).then(json);
-  const post = (path, body) => api.post(path, { data: body }).then(json);
+  const { get, post } = demoApi(api);
   const calendar = (action, fields = {}) => post('/api/calendar', { action, recipientId: data.recipientId, ...fields });
   try {
     const account = await get('/api/state');
@@ -28,7 +28,7 @@ export async function cleanCalendarDemo() {
     const current = await get(`/api/calendar?recipientId=${data.recipientId}`);
     if (current.actions.some(action => ['executing', 'uncertain'].includes(action.status))) throw new Error('Resolve the incomplete Google action in Calendar using Retry / check result or Review remaining changes before running clean mode.');
     const appointments = current.appointments.filter(item => item.status === 'confirmed');
-    if (appointments.some(item => item.task_id !== data.taskId || !item.canManage || JSON.parse(item.attendees_json).length)) throw new Error('This demo contains an additional, transferred, or guest-bearing appointment. Review those records manually before cleaning.');
+    assertDemoAppointmentsSafe(appointments, data);
     for (const action of current.actions.filter(item => ['pending', 'failed'].includes(item.status))) await calendar('reject', { actionId: action.id });
     for (const appointment of appointments) {
       const proposed = await calendar('propose', { kind: 'cancel', appointmentId: appointment.id });

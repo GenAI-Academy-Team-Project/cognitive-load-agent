@@ -78,8 +78,8 @@ export async function proposeCalendarAction(context: CalendarContext, config: Go
     eventId = current.id; etag = current.etag; calendarId = appointment.calendar_id; taskId = appointment.task_id;
     draft = { title: current.summary || 'Care appointment', start: current.start.dateTime, end: current.end.dateTime, timeZone: current.start.timeZone || appointment.timezone, location: current.location || '', attendees: (current.attendees || []).map((guest) => guest.email), reminderMinutes: Number(appointment.reminder_minutes) };
     if (kind === 'reschedule') {
-      const next = draftFor({ ...body, title: draft.title, location: draft.location, attendees: draft.attendees.join(','), reminderMinutes: draft.reminderMinutes });
-      draft = { ...draft, start: next.start, end: next.end, timeZone: next.timeZone };
+      const next = draftFor({ ...body, title: draft.title, location: draft.location, attendees: typeof body.attendees === 'string' ? body.attendees : draft.attendees.join(','), reminderMinutes: draft.reminderMinutes });
+      draft = { ...draft, start: next.start, end: next.end, timeZone: next.timeZone, attendees: next.attendees };
     }
   }
   const payload: CalendarAction['payload'] = { ...draft, taskId, appointmentId, eventId, etag, calendarId, calendarName: binding.calendar_name, organizer: connection.email };
@@ -105,7 +105,7 @@ export async function editCalendarAction(context: CalendarContext, config: Googl
   if (action.kind === 'reschedule') {
     const current = await getGoogleEvent(await accessToken(context.db, config, connection), payload.calendarId, payload.eventId);
     if (!current || current.status === 'cancelled' || current.etag !== payload.etag) throw new AppError('calendar_changed', 409, 'This event changed in Google Calendar. Discard this proposal and review it again.');
-    draft = { ...payload, start: draft.start, end: draft.end, timeZone: draft.timeZone };
+    draft = { ...payload, start: draft.start, end: draft.end, timeZone: draft.timeZone, attendees: typeof body.attendees === 'string' ? draft.attendees : payload.attendees };
   }
   const next = { ...payload, ...draft };
   if (action.kind === 'reschedule') next.carePlan = await calendarCarePlan(context.db, context.recipientId, context.member.memberId, payload.taskId, next.start, next.end, next.timeZone);
@@ -138,7 +138,7 @@ async function writeGoogleAction(token: string, action: ActionRow, payload: Cale
     await calendarRequest(token, `${path}?sendUpdates=all`, { method: 'DELETE', headers: { 'If-Match': payload.etag } }, [410]);
     return null;
   }
-  const response = await calendarRequest(token, `${path}?sendUpdates=all`, { method: 'PATCH', headers: { 'If-Match': payload.etag }, body: JSON.stringify({ start: { dateTime: payload.start, timeZone: payload.timeZone }, end: { dateTime: payload.end, timeZone: payload.timeZone }, extendedProperties: { private: { ...current.extendedProperties?.private, caresteadActionId: action.id } } }) });
+  const response = await calendarRequest(token, `${path}?sendUpdates=all`, { method: 'PATCH', headers: { 'If-Match': payload.etag }, body: JSON.stringify({ start: { dateTime: payload.start, timeZone: payload.timeZone }, end: { dateTime: payload.end, timeZone: payload.timeZone }, attendees: payload.attendees.map(email => current.attendees?.find(guest => guest.email.toLowerCase() === email.toLowerCase()) || { email }), extendedProperties: { private: { ...current.extendedProperties?.private, caresteadActionId: action.id } } }) });
   return await response.json() as GoogleEvent;
 }
 

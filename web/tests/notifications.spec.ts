@@ -13,13 +13,14 @@ test.beforeEach(async ({ page }) => {
   await page.context().addCookies(actor.cookies);
 });
 
-test('notification tool previews exact content, requires approval, and posts to the inbox', async ({ page, baseURL }) => {
+test('notification tool previews exact content, requires approval, and posts to the inbox', async ({ page, request, baseURL }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /good morning/i })).toBeVisible();
   const initial = await (await page.request.get('/api/state')).json();
   const recipientId = initial.selectedRecipient.id;
   const headers = { Origin: baseURL! };
   const member = initial.careCircle.find((item: { email: string }) => item.email === initial.currentUser.email);
+  const exportBefore = await (await request.get(`/api/export?recipientId=${recipientId}`)).json();
   const title = 'Notification tool test';
   const detail = 'Please review the care plan before tomorrow.';
   const response = await page.request.post('/api/chat', { headers, data: { action: 'propose_notification', recipientId, notification: { channel: 'in_app', memberId: member.id, title, detail } } });
@@ -31,10 +32,18 @@ test('notification tool previews exact content, requires approval, and posts to 
   const before = await (await page.request.get('/api/state')).json();
   expect(before.notifications.some((n: { title: string }) => n.title === title)).toBe(false);
   await page.getByRole('button', { name: /ask carestead about/i }).click();
-  await expect(page.getByText(title, { exact: true })).toBeVisible();
-  await expect(page.getByText(detail, { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(page.getByText(/posted to the caregiver’s Carestead inbox/)).toBeVisible();
+  await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+  const drafts = await (await page.request.get(`/api/chat?recipientId=${recipientId}&scope=notifications`)).json();
+  expect(drafts.messages.some((message: { action?: { id: string } }) => message.action?.id === action.id)).toBe(true);
+  const conversationBefore = await (await page.request.get(`/api/chat?recipientId=${recipientId}`)).json();
+  expect(conversationBefore.messages.some((message: { action?: { id: string } }) => message.action?.id === action.id)).toBe(false);
+  const approved = await page.request.post('/api/chat', { headers, data: { action: 'approve_action', recipientId, actionId: action.id, scope: 'notifications' } });
+  expect(approved.status()).toBe(200);
+  const conversationAfter = await (await page.request.get(`/api/chat?recipientId=${recipientId}`)).json();
+  expect(conversationAfter.messages).toEqual(conversationBefore.messages);
+  const exportResponse = await request.get(`/api/export?recipientId=${recipientId}`);
+  expect(exportResponse.ok()).toBe(true);
+  expect((await exportResponse.json()).chat_messages).toEqual(exportBefore.chat_messages);
   const repeat = await page.request.post('/api/chat', { headers, data: { action: 'approve_action', recipientId, actionId: action.id } });
   expect(repeat.status()).toBe(409);
   const after = await (await page.request.get('/api/state')).json();

@@ -75,14 +75,16 @@ The script:
 4. Adds a **10:00–11:00 AM physiotherapy appointment** and a **9:30–10:00 AM ride**, both assigned to your account for this rehearsal.
 5. Links the ride through **Moves with**, records your synthetic availability from **8:00 AM–6:00 PM**, and saves one verified communication preference.
 6. Creates one **real Google Calendar event** for the appointment, titled **Alex physiotherapy (Carestead demo)**, with **no guests**.
-7. Saves your handover checkpoint and prepares a **2:00–3:00 PM reschedule proposal**. Its linked ride moves to **1:30–2:00 PM**. The proposal remains unapproved for the recording.
-8. Saves and checks a grounded answer to **What does Alex prefer?**, including the verified memory and its source, and writes your date, account, calendar and current recipient links to **`web/.playwright-runs/live-demo/calendar-demo.local.md`**.
+7. Saves your handover checkpoint and prepares a **2:00–3:00 PM reschedule proposal**. Its linked ride moves to **1:30–2:00 PM**. The proposal lists **deventhusiast.ailearningsupport@gmail.com** under **Guests receiving updates** and remains unapproved for the recording. The organizer/calendar stays **matvxhmt@gmail.com**. Google sends the guest update only after approval.
+8. Leaves chat unanswered until you send a question and writes your date, account, calendar and current recipient links to **`web/.playwright-runs/live-demo/calendar-demo.local.md`**.
 
 Wait for **Ready: Alex (calendar demo)**. Open the run-sheet file. Use its new link after every clean run; a fresh recipient has a fresh ID.
 
 In your IDE, open **`web/.playwright-runs/live-demo/calendar-demo.local.md`**. This is the source of truth for this take's date and recipient URL; do not reuse a bookmarked URL from an earlier take.
 
-Running the seed again without `--clean` retains an unused ready proposal. After a take, use `--clean` to get an empty history and fresh proposal. Sent external emails/SMS cannot be recalled; use **Carestead inbox** for repeatable recordings.
+Running the seed again without `--clean` retains an unused ready proposal. After a take, use `--clean` to get an empty history and fresh proposal. If you approved the guest-bearing reschedule, first open **Alex (calendar demo)** in Carestead Calendar, choose **Cancel appointment**, review **Guests receiving updates**, and approve cancellation only if you intend to notify those guests. Then run `--clean`. Both clean and reset stop for confirmed appointments with guests; reset is not a bypass. Sent external emails/SMS cannot be recalled; use **Carestead inbox** for repeatable recordings.
+
+For repeated retakes that do not need an empty history, use `node scripts/seed-calendar-demo.mjs --reset`. This reuses the demo profile and returns its appointment to 10 AM before preparing the 2 PM proposal. Clean mode deletes a profile, which is limited to three attempts per hour. On HTTP 429, the scripts now print a wait time and retry automatically (up to twice); deletion may require an hour, while other actions generally require a minute. Keep the script running. If a previous clean run already cancelled the event before hitting the deletion limit, rerun `--clean` to finish that cleanup before preparing another take.
 
 Clean mode deliberately stops if Google has an uncertain action, an event has acquired guests, or the dedicated profile was renamed. Resolve the named condition rather than deleting unrelated records. A Google outage cannot be made safe by silently substituting seed results.
 
@@ -90,7 +92,7 @@ Clean mode deliberately stops if Google has an uncertain action, an event has ac
 
 1. Use a desktop browser at about **1440 × 960**, with the sidebar visible. Keep zoom at 90–100% and text readable.
 2. Open the run-sheet Calendar link. Check **Connected**, the original **10 AM** appointment, and one pending **Reschedule appointment** proposal showing the appointment and ride changes. Do **not** approve it yet.
-3. Click **Ask Carestead**. Check the saved answer to **What does Alex prefer?** and its **Evidence used → Verified fact** section. It should recall “Alex prefers one concise written update when appointment times change,” with the synthetic verification source. This demonstrates memory saved before this conversation, not a fact invented in the answer.
+3. Click **Ask Carestead**. A newly prepared demo has no prewritten chat exchange. After you ask **What does Alex prefer?**, the answer should recall “Alex prefers one concise written update when appointment times change,” with its source under **Evidence used → Verified fact**.
 4. In the same browser you will record, click the **microphone / Start voice input** button and allow microphone access. Say **What does Alex prefer?**, check the transcript, then click **Send message**. This checks real speech recognition before the take. Leave spoken replies off for the 1:45 recording so the app does not talk over your narration. If the microphone is disabled, use a supported browser; typing is a fallback and must not be described as a live voice demo. Raw audio is not stored by Carestead; the browser may use its vendor's speech service. Press Escape to close chat.
 5. Keep the run sheet and this speaker script on another display or outside the recording area.
 6. Click your **name/avatar at the top right → Log out** in the browser where you tested microphone access. If necessary, open **https://carestead.com:8083/sign-in**. Enter your existing email/password before starting; leave the password masked. Start recording immediately before clicking **Sign in**. Your email will be visible if the sign-in form is included; frame the capture according to your preference.

@@ -111,7 +111,7 @@ export function WeekAhead(props: Props) {
                 aria-hidden="true"
               >
                 <span
-                  className={`block h-full ${item.overloaded ? 'bg-amber-700' : 'bg-primary'}`}
+                  className={`block h-full ${item.overloaded ? 'bg-[var(--care-amber-ink)]' : 'bg-primary'}`}
                   style={{
                     width: `${Math.min(100, (item.minutes / state.anticipation.settings.daily_minutes) * 100)}%`,
                   }}
@@ -797,7 +797,7 @@ export function AppointmentPreparation({
             rows={20}
             value={brief}
             aria-label="Saved visit brief"
-            className="mt-5 max-h-[36rem] w-full resize-y overflow-auto rounded-lg bg-transparent font-sans text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
+            className="mt-5 max-h-[36rem] w-full resize-y overflow-auto rounded-lg border border-input bg-card p-3 font-sans text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
           />
         </section>
       </div>

@@ -108,6 +108,20 @@ test('reschedule and cancel use Google guests and notify only after approval', a
   expect(sqlite.prepare("SELECT status FROM tasks WHERE id='task-physio'").get()).toMatchObject({ status: 'open' });
 });
 
+test('reviewed reschedule guest changes are sent only after approval', async () => {
+  const create = await proposeCalendarAction(context, config, { ...draft, attendees: '' });
+  await approveCalendarAction(context, config, create);
+  const reschedule = await proposeCalendarAction(context, config, { ...draft, attendees: '', kind: 'reschedule', appointmentId: create, startLocal: '2030-01-16T10:00', endLocal: '2030-01-16T11:00' });
+  await editCalendarAction(context, config, reschedule, { ...draft, attendees: 'guest@example.test', startLocal: '2030-01-16T10:00', endLocal: '2030-01-16T11:00' });
+  expect(writes).toHaveLength(1);
+  expect(googleEvents.get(create.replaceAll('-', ''))!.attendees).toEqual([]);
+  await approveCalendarAction(context, config, reschedule);
+  expect(writes).toHaveLength(2);
+  expect(writes[1].body.attendees).toEqual([{ email: 'guest@example.test' }]);
+  expect(writes[1].url.searchParams.get('sendUpdates')).toBe('all');
+  expect(sqlite.prepare('SELECT attendees_json FROM calendar_appointments WHERE id=?').get(create)).toMatchObject({ attendees_json: '["guest@example.test"]' });
+});
+
 test('external edits invalidate approval instead of overwriting the event', async () => {
   const create = await proposeCalendarAction(context, config, draft); await approveCalendarAction(context, config, create);
   const update = await proposeCalendarAction(context, config, { ...draft, kind: 'reschedule', appointmentId: create });
@@ -218,7 +232,7 @@ test('editing a reschedule preserves event details and rechecks external changes
   const edited = { ...draft, title: 'Ignored title', attendees: 'other@example.test', startLocal: '2030-01-16T10:00', endLocal: '2030-01-16T11:00' };
   await editCalendarAction(context, config, id, edited);
   const row = sqlite.prepare('SELECT payload_json FROM calendar_actions WHERE id=?').get(id) as { payload_json: string };
-  expect(JSON.parse(row.payload_json)).toMatchObject({ title: draft.title, attendees: ['maya@example.test'], start: '2030-01-16T15:00:00.000Z' });
+  expect(JSON.parse(row.payload_json)).toMatchObject({ title: draft.title, attendees: ['other@example.test'], start: '2030-01-16T15:00:00.000Z' });
   expect(writes).toHaveLength(1);
   googleEvents.get(create.replaceAll('-', ''))!.etag = 'external-edit';
   await expect(editCalendarAction(context, config, id, edited)).rejects.toThrow(/changed in Google/);

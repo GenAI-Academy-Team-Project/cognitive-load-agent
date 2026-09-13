@@ -97,7 +97,7 @@ export function NotificationComposer({
   };
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/chat?recipientId=${encodeURIComponent(recipientId)}`, {
+    fetch(`/api/chat?recipientId=${encodeURIComponent(recipientId)}&scope=notifications`, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -119,7 +119,7 @@ export function NotificationComposer({
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipientId, ...payload }),
+      body: JSON.stringify({ recipientId, ...payload, scope: 'notifications' }),
     });
     const result = (await response.json()) as ChatState & { error?: string };
     if (!response.ok)
