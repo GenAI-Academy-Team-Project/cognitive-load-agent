@@ -6,6 +6,7 @@ import { requireMembership } from '@/lib/auth';
 import { AppError, enforceRateLimit, errorResponse } from '@/lib/guardrails';
 import { configuredChannels, ntfyServerUrl, validNtfyTopic, type NotificationPreferences } from '@/lib/notification-types';
 import { validateSubscription } from '@/lib/notification-service';
+import { calendarNotificationHistory } from '@/lib/calendar-notification-history';
 
 export const runtime = 'edge';
 
@@ -59,6 +60,8 @@ async function handle(request: Request) {
     }
     const prefs = await env.DB.prepare('SELECT * FROM notification_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<NotificationPreferences>();
     const deliveries = (await env.DB.prepare(`SELECT d.action_id,d.channel,d.status,d.error_code,d.created_at,c.display_name target_name,n.title FROM notification_deliveries d JOIN care_circle_members c ON c.id=d.member_id LEFT JOIN notifications n ON n.id=d.notification_id LEFT JOIN chat_action_requests a ON a.id=d.action_id WHERE d.recipient_id=? AND (d.member_id=? OR a.actor_member_id=?) ORDER BY d.created_at DESC`).bind(recipientId, memberId, memberId).all()).results;
+    deliveries.push(...await calendarNotificationHistory(env.DB, recipientId, memberId));
+    deliveries.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     const ntfyPreference = await env.DB.prepare('SELECT topic FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<{ topic: string }>();
     const ntfyEnabled = Boolean(ntfyPreference);
     return Response.json({ ntfyEnabled, ntfyTopic: ntfyPreference?.topic || null, ntfyServerUrl: ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });

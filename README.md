@@ -49,6 +49,12 @@ An appointment request becomes a typed proposal. Carestead shows the intended ch
 
 ![Carestead appointment rescheduling approval](docs/screenshots/appointment-approval.png)
 
+### Multi-channel notifications
+
+Caregivers can choose a message template, select a receiving care-circle member, and prepare notifications for the Carestead inbox, mobile push, email, SMS, or browser push. Each selected channel gets its own approval draft; external delivery requires the channel to be configured and the receiving caregiver’s settings to allow it.
+
+![Carestead notification composer with message templates and multiple delivery channels](docs/screenshots/multi-channel-notifications.png)
+
 ## How the agent works
 
 Carestead currently uses one deterministic care-state agent rather than a multi-agent system. This keeps the MVP predictable, testable, and auditable.
@@ -105,7 +111,7 @@ The important MVP information is already structured, attributable, and time-sens
 - Consequential actions require explicit approval; rejection or timeout produces no change.
 - Consent withdrawal pauses care-record mutations, chat, voice, checks, and notifications.
 - Owners can export recipient data or use a verified permanent-deletion workflow.
-- Care details are not sent through external email, SMS, push, or calendar providers in the current branch.
+- External notification delivery requires configured providers, the receiving caregiver’s channel settings, and approval of the notification draft.
 
 ## Evaluation strategy
 

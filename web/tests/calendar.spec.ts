@@ -129,3 +129,33 @@ test('invitation editor shows review before approval and a confirmed calendar li
   expect(calls).toEqual(['propose', 'edit', 'approve']);
 
 });
+
+
+test('cancel opens the review and repeated clicks reveal the existing proposal without sending', async ({ page }) => {
+  const data: CalendarState = {
+    configured: true, connection: { email: 'owner@example.test', status: 'connected' },
+    binding: { calendar_id: 'primary', calendar_name: 'Care calendar' }, calendars: [{ id: 'primary', summary: 'Care calendar' }],
+    appointments: [{ id: 'visit', task_id: 'task', member_id: 'owner', connection_id: 'google', calendar_id: 'primary', event_id: 'event', title: 'Demo visit', start_at: '2030-01-15T15:00:00Z', end_at: '2030-01-15T16:00:00Z', timezone: 'America/Toronto', location: 'Clinic', attendees_json: '["guest@example.test"]', reminder_minutes: '30', status: 'confirmed', html_link: '', canManage: true }], actions: [],
+  };
+  const calls: string[] = [];
+  await page.route('**/api/calendar?*', route => route.fulfill({ json: data }));
+  await page.route('**/api/calendar', async route => {
+    const body = route.request().postDataJSON(); calls.push(body.action);
+    data.actions.push({ id: 'cancel-review', kind: 'cancel', status: 'pending', error: null, htmlLink: null, payload: { title: 'Demo visit', start: '2030-01-15T15:00:00Z', end: '2030-01-15T16:00:00Z', timeZone: 'America/Toronto', location: 'Clinic', attendees: ['guest@example.test'], reminderMinutes: 30, taskId: 'task', appointmentId: 'visit', eventId: 'event', etag: 'v1', calendarId: 'primary', calendarName: 'Care calendar', organizer: 'owner@example.test' } });
+    await route.fulfill({ json: { actionId: 'cancel-review' } });
+  });
+  await page.goto('/?view=Calendar');
+  const cancel = page.getByRole('button', { name: 'Cancel appointment', exact: true });
+  await cancel.click();
+  const review = page.getByRole('article', { name: 'Review cancellation: Demo visit' });
+  await expect(review).toBeFocused();
+  await expect(review).toBeInViewport();
+  await expect(review).toContainText('guest@example.test');
+  await expect(review.getByRole('button', { name: 'Approve cancellation and notify guests' })).toBeEnabled();
+  await page.getByRole('searchbox', { name: 'Search calendar approvals' }).fill('no matching proposal');
+  await expect(review).toHaveCount(0);
+  await cancel.click();
+  await expect(review).toBeFocused();
+  await expect(review).toBeInViewport();
+  expect(calls).toEqual(['propose']);
+});
