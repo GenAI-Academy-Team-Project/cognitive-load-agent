@@ -1,10 +1,11 @@
 import { effectiveIntegrations } from '@/lib/integration-settings';
+import { recipientLease } from '@/lib/recipient-lease';
 import { env } from 'cloudflare:workers';
 import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
 import { AppError, enforceRateLimit, errorResponse, recordError } from '@/lib/guardrails';
 import { randomToken, sessionToken, tokenHash } from '@/lib/sessions';
-import { approveCalendarAction, editCalendarAction, calendarContext, connectionFor, field, proposeCalendarAction, publicAction, requireCalendarWrite, requireConnection, type ActionRow } from '@/lib/calendar-service';
+import { approveCalendarAction, editCalendarAction, reviewCalendarRecovery, calendarContext, connectionFor, field, proposeCalendarAction, publicAction, requireCalendarWrite, requireConnection, type ActionRow } from '@/lib/calendar-service';
 import { accessToken, calendarScopes, isGoogleConfigured, ownedCalendars, requireGoogleConfig, type GoogleConfig } from '@/lib/google-calendar';
 import type { CalendarAppointment, CalendarState } from '@/lib/calendar-types';
 
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     const appointments = (await db.prepare('SELECT * FROM calendar_appointments WHERE recipient_id=? ORDER BY start_at').bind(recipientId).all<CalendarAppointment>()).results;
     const actions = (await db.prepare('SELECT * FROM calendar_actions WHERE recipient_id=? AND member_id=? ORDER BY created_at DESC').bind(recipientId, auth.member.memberId).all<ActionRow>()).results;
     const result: CalendarState = { configured: isGoogleConfigured(await config()), connection: connection ? { email: connection.email, status: connection.status } : null, binding, calendars: [], appointments: appointments.map((a) => ({ ...a, canManage: a.member_id === auth.member.memberId && a.connection_id === connection?.id })), actions: actions.map(publicAction) };
+    result.capabilities = { linkedRescheduling: true };
     // Listing local results continues to work during provider outages or withdrawn consent.
     if (connection?.status === 'connected' && context.consent && result.configured) {
       try { result.calendars = await ownedCalendars(await accessToken(db, await config(), connection)); }
@@ -38,11 +40,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID(); let action = ''; let recipientId = '';
+  let release: (() => Promise<void>) | undefined;
   try {
     const db = env.DB; await ensureDatabase(db);
     const auth = await requireMembership(db, request, env.AUTH_PUBLIC_URL); if ('error' in auth) return auth.error;
     const body = await request.json() as Record<string, unknown>;
     action = field(body, 'action', 40); recipientId = field(body, 'recipientId', 100);
+    // Check access before creating a lock, then reload permissions under the lock.
+    await calendarContext(db, auth.member, recipientId);
+    release = await recipientLease(db, recipientId);
     const context = await calendarContext(db, auth.member, recipientId);
     await enforceRateLimit(db, auth.member.id, 'calendar_action');
     if (action === 'disconnect') {
@@ -84,6 +90,7 @@ export async function POST(request: Request) {
     }
     if (action === 'propose') return json({ actionId: await proposeCalendarAction(context, await config(), body) });
     if (action === 'edit') { await editCalendarAction(context, await config(), field(body, 'actionId', 100), body); return json({ ok: true }); }
+    if (action === 'review_recovery') { await reviewCalendarRecovery(context, await config(), field(body, 'actionId', 100)); return json({ ok: true }); }
     if (action === 'approve') { await approveCalendarAction(context, await config(), field(body, 'actionId', 100)); return json({ ok: true }); }
     if (action === 'reject') {
       const updated = await db.prepare("UPDATE calendar_actions SET status='rejected',updated_at=? WHERE id=? AND recipient_id=? AND member_id=? AND status IN ('pending','failed')").bind(new Date().toISOString(), field(body, 'actionId', 100), recipientId, auth.member.memberId).run();
@@ -94,5 +101,5 @@ export async function POST(request: Request) {
   } catch (error) {
     await recordError(env.DB, { requestId, route: '/api/calendar', action, recipientId, errorCode: error instanceof AppError ? error.code : 'unhandled' });
     return errorResponse(error, requestId);
-  }
+  } finally { await release?.(); }
 }

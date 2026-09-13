@@ -52,20 +52,22 @@ const selectClass =
 export function NotificationComposer({
   state,
   onChanged,
+  initialDraft,
 }: {
   state: DashboardState;
   onChanged: () => void;
+  initialDraft?: { title: string; detail: string };
 }) {
   const recipientId = state.selectedRecipient.id;
   const [template, setTemplate] = useState('custom');
-  const [composing, setComposing] = useState(false);
+  const [composing, setComposing] = useState(Boolean(initialDraft));
   const [memberId, setMemberId] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>([
     'in_app',
   ]);
   const [channels, setChannels] = useState<string[]>(['in_app']);
-  const [title, setTitle] = useState('');
-  const [detail, setDetail] = useState('');
+  const [title, setTitle] = useState(initialDraft?.title || '');
+  const [detail, setDetail] = useState(initialDraft?.detail || '');
   const [pending, setPending] = useState<ChatActionRequest[]>([]);
   const [reviewChannel, setReviewChannel] = useState('in_app');
   const [edits, setEdits] = useState<

@@ -1,6 +1,7 @@
 import { canWrite, type CareMembership, type CareRole } from './auth';
 import { AppError } from './guardrails';
 import { localToInstant } from './calendar-time';
+import { calendarCarePlan, assertCalendarCarePlan } from './calendar-care-plan';
 import type { CalendarAction, CalendarAppointment, CalendarDraft } from './calendar-types';
 import { accessToken, calendarRequest, eventPath, getGoogleEvent, type GoogleConfig, type GoogleConnection, type GoogleEvent } from './google-calendar';
 
@@ -82,6 +83,7 @@ export async function proposeCalendarAction(context: CalendarContext, config: Go
     }
   }
   const payload: CalendarAction['payload'] = { ...draft, taskId, appointmentId, eventId, etag, calendarId, calendarName: binding.calendar_name, organizer: connection.email };
+  if (kind === 'reschedule') payload.carePlan = await calendarCarePlan(db, recipientId, member.memberId, taskId, draft.start, draft.end, draft.timeZone);
   const now = new Date().toISOString();
   // One unresolved action per task prevents overlapping creation or updates in this app.
   const inserted = await db.prepare("INSERT INTO calendar_actions SELECT ?,?,?,?,?,?, 'pending',NULL,NULL,?,? WHERE NOT EXISTS (SELECT 1 FROM calendar_actions WHERE recipient_id=? AND json_extract(payload_json,'$.taskId')=? AND status IN ('pending','executing','failed','uncertain'))").bind(id, recipientId, member.memberId, connection.id, kind, JSON.stringify(payload), now, now, recipientId, taskId).run();
@@ -105,7 +107,9 @@ export async function editCalendarAction(context: CalendarContext, config: Googl
     if (!current || current.status === 'cancelled' || current.etag !== payload.etag) throw new AppError('calendar_changed', 409, 'This event changed in Google Calendar. Discard this proposal and review it again.');
     draft = { ...payload, start: draft.start, end: draft.end, timeZone: draft.timeZone };
   }
-  const updated = await context.db.prepare("UPDATE calendar_actions SET payload_json=?,status='pending',error=NULL,updated_at=? WHERE id=? AND status IN ('pending','failed') AND payload_json=?").bind(JSON.stringify({ ...payload, ...draft }), new Date().toISOString(), action.id, action.payload_json).run();
+  const next = { ...payload, ...draft };
+  if (action.kind === 'reschedule') next.carePlan = await calendarCarePlan(context.db, context.recipientId, context.member.memberId, payload.taskId, next.start, next.end, next.timeZone);
+  const updated = await context.db.prepare("UPDATE calendar_actions SET payload_json=?,status='pending',error=NULL,updated_at=? WHERE id=? AND status IN ('pending','failed') AND payload_json=?").bind(JSON.stringify(next), new Date().toISOString(), action.id, action.payload_json).run();
   if (!updated.meta.changes) throw new AppError('action_in_progress', 409, 'This proposal changed while you were editing. Refresh and review it again.');
 }
 
@@ -114,7 +118,10 @@ async function writeGoogleAction(token: string, action: ActionRow, payload: Cale
   const marker = current?.extendedProperties?.private?.caresteadActionId;
   // A retry first reconciles an earlier successful write (including an interrupted D1 commit).
   if (action.kind === 'cancel' && (!current || current.status === 'cancelled')) return current;
-  if (marker === action.id && current?.status !== 'cancelled') return current;
+  if (marker === action.id && current?.status !== 'cancelled') {
+    if (Date.parse(current?.start?.dateTime || '') !== Date.parse(payload.start) || Date.parse(current?.end?.dateTime || '') !== Date.parse(payload.end)) throw new AppError('calendar_changed', 409, 'This event changed after the approved Google update. Review it in Google Calendar before recovering the care plan.');
+    return current;
+  }
   const path = eventPath(payload.calendarId, payload.eventId);
   if (action.kind === 'create') {
     if (current) throw new AppError('calendar_changed', 409, 'An event already uses this identifier. Discard this proposal and prepare a new one.');
@@ -145,6 +152,12 @@ export async function approveCalendarAction(context: CalendarContext, config: Go
   const connection = await requireConnection(context);
   if (connection.id !== action.connection_id) throw new AppError('account_changed', 409, 'Reconnect the Google account used for this proposal.');
   const payload = JSON.parse(action.payload_json) as CalendarAction['payload'];
+  const reviewedCarePlan = payload.carePlan;
+  if (action.kind === 'reschedule') {
+    const currentPlan = await calendarCarePlan(db, recipientId, member.memberId, payload.taskId, payload.start, payload.end, payload.timeZone);
+    assertCalendarCarePlan(reviewedCarePlan, currentPlan);
+    payload.carePlan = currentPlan;
+  }
   if (action.status === 'pending' && action.kind !== 'cancel' && Date.parse(payload.start) <= Date.now()) throw new AppError('past_appointment', 409, 'This proposal’s start time has passed. Discard it and choose a future time.');
   const binding = await db.prepare('SELECT 1 FROM calendar_bindings WHERE member_id=? AND recipient_id=? AND connection_id=? AND calendar_id=?').bind(member.memberId, recipientId, connection.id, payload.calendarId).first();
   if (!binding) throw new AppError('calendar_changed', 409, 'Select the calendar used in this proposal before approving.');
@@ -161,15 +174,26 @@ export async function approveCalendarAction(context: CalendarContext, config: Go
   const now = new Date().toISOString();
   const claimed = await db.prepare("UPDATE calendar_actions SET status='executing',error=NULL,updated_at=? WHERE id=? AND payload_json=? AND (status IN ('pending','failed','uncertain') OR (status='executing' AND updated_at<?))").bind(now, action.id, action.payload_json, new Date(Date.now() - 120000).toISOString()).run();
   if (!claimed.meta.changes) throw new AppError('action_in_progress', 409, 'This action is already being processed. Refresh shortly.');
+  let googleConfirmed = Boolean(payload.googleConfirmed);
   try {
     const token = await accessToken(db, config, connection);
     const result = await writeGoogleAction(token, action, payload);
+    googleConfirmed = true;
+    payload.googleConfirmed = true;
     const link = action.kind === 'cancel' ? '' : result?.htmlLink || '';
-    const outcome = action.kind === 'cancel' ? 'Appointment cancelled in Google Calendar.' : action.kind === 'reschedule' ? 'Appointment rescheduled in Google Calendar.' : 'Appointment created in Google Calendar.';
+    // Persist external success separately so a failed local transaction is visible
+    // and recoverable. The action is not complete until the following batch commits.
+    const receipt = await db.prepare("UPDATE calendar_actions SET payload_json=?,html_link=? WHERE id=? AND status='executing' AND updated_at=?").bind(JSON.stringify(payload), link, action.id, now).run();
+    if (!receipt.meta.changes) throw new AppError('action_in_progress', 409, 'Another recovery is checking this action. Refresh to see its result.');
+    if (action.kind === 'reschedule') assertCalendarCarePlan(payload.carePlan, await calendarCarePlan(db, recipientId, member.memberId, payload.taskId, payload.start, payload.end, payload.timeZone));
+    const dependents = payload.carePlan?.changes.filter(change => change.taskId !== payload.taskId) || [];
+    const evidence = payload.carePlan?.changes.map(change => `${change.title}: ${change.before} → ${change.after} (${change.owner})`).join('; ') || `Recipient-scoped ${action.kind} proposal`;
+    const outcome = action.kind === 'cancel' ? 'Appointment cancelled in Google Calendar.' : action.kind === 'reschedule' ? `Appointment rescheduled in Google Calendar.${dependents.length ? ` ${dependents.length} linked responsibilities updated in Carestead; caregiver acceptance needs review.` : ''}` : 'Appointment created in Google Calendar.';
     const scope = (type: string, id: string) => db.prepare('INSERT OR IGNORE INTO record_scopes VALUES (?,?,?,?,?,?)').bind(`calendar-${type}-${action.id}`, type, id, recipientId, plan.id, now);
     const statements = [
+      db.prepare("INSERT INTO planning_guards SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM calendar_actions WHERE id=? AND status='executing' AND updated_at=? AND payload_json=?) AND EXISTS(SELECT 1 FROM consent_records WHERE recipient_id=? AND status='active') THEN 1 ELSE 0 END").bind(`calendar-guard-${action.id}`, action.id, now, JSON.stringify(payload), recipientId),
       db.prepare('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)').bind(`calendar-${action.id}`, 'appointment', outcome, `${payload.title} · ${payload.start} · ${payload.timeZone}`, member.displayName, now), scope('event', `calendar-${action.id}`),
-      db.prepare('INSERT OR IGNORE INTO traces VALUES (?,?,?,?,?,?,?,?)').bind(`calendar-${action.id}`, 'Caregiver-approved calendar action', `Recipient-scoped ${action.kind} proposal`, action.kind, 'approved by human', 'Google Calendar', outcome, now), scope('trace', `calendar-${action.id}`),
+      db.prepare('INSERT OR IGNORE INTO traces VALUES (?,?,?,?,?,?,?,?)').bind(`calendar-${action.id}`, 'Caregiver-approved calendar action', evidence, dependents.length ? 'Reschedule appointment and linked responsibilities' : action.kind, 'approved by human', 'Google Calendar', outcome, now), scope('trace', `calendar-${action.id}`),
       db.prepare('INSERT OR IGNORE INTO audit_entries VALUES (?,?,?,?,?,?,?,?)').bind(`calendar-${action.id}`, member.id, member.email, action.kind, 'calendar_action', action.id, outcome, now),
       db.prepare("UPDATE calendar_actions SET status='executed',error=NULL,html_link=?,updated_at=? WHERE id=?").bind(link, now, action.id),
     ];
@@ -182,10 +206,40 @@ export async function approveCalendarAction(context: CalendarContext, config: Go
       statements.push(db.prepare('UPDATE calendar_appointments SET start_at=?,end_at=?,timezone=?,title=?,location=?,attendees_json=?,status=?,html_link=?,updated_at=? WHERE id=? AND recipient_id=?').bind(payload.start, payload.end, payload.timeZone, payload.title, payload.location, JSON.stringify(payload.attendees), action.kind === 'cancel' ? 'cancelled' : 'confirmed', link, now, payload.appointmentId, recipientId));
     }
     statements.push(db.prepare('UPDATE tasks SET due_at=?,status=? WHERE id=? AND id IN (SELECT entity_id FROM record_scopes WHERE recipient_id=? AND entity_type=?)').bind(payload.start, action.kind === 'cancel' ? 'open' : 'scheduled', payload.taskId, recipientId, 'task'));
+    for (const change of dependents) statements.push(db.prepare("UPDATE tasks SET due_at=? WHERE id=? AND id IN (SELECT entity_id FROM record_scopes WHERE recipient_id=? AND entity_type='task')").bind(change.after, change.taskId, recipientId));
+    if (action.kind === 'reschedule') {
+      for (const change of payload.carePlan!.changes) {
+        statements.push(db.prepare("UPDATE task_planning SET accepted_signature='' WHERE task_id=? AND recipient_id=?").bind(change.taskId, recipientId));
+      }
+      // The root's planning duration follows the approved appointment duration.
+      statements.push(db.prepare('UPDATE task_planning SET duration_minutes=? WHERE task_id=? AND recipient_id=?').bind((Date.parse(payload.end) - Date.parse(payload.start)) / 60000, payload.taskId, recipientId));
+    }
+    if (action.kind === 'cancel') statements.push(db.prepare("UPDATE task_planning SET accepted_signature='' WHERE task_id=? AND recipient_id=?").bind(payload.taskId, recipientId));
+    statements.push(db.prepare('DELETE FROM planning_guards WHERE id=?').bind(`calendar-guard-${action.id}`));
     await db.batch(statements);
   } catch (error) {
-    const uncertain = !(error instanceof AppError) || error.code === 'google_unavailable';
-    await db.prepare('UPDATE calendar_actions SET status=?,error=?,updated_at=? WHERE id=?').bind(uncertain ? 'uncertain' : 'failed', error instanceof AppError ? error.message : 'The result needs verification. Retry to reconcile with Google Calendar.', new Date().toISOString(), action.id).run();
+    const uncertain = googleConfirmed || !(error instanceof AppError) || error.code === 'google_unavailable';
+    const message = googleConfirmed ? 'Google Calendar was updated, but the care-plan save is incomplete. Retry / check result to finish, or review remaining changes if the plan has changed.' : error instanceof AppError ? error.message : 'The result needs verification. Retry to reconcile with Google Calendar.';
+    await db.prepare("UPDATE calendar_actions SET status=?,error=?,payload_json=?,updated_at=? WHERE id=? AND status='executing' AND updated_at=?").bind(uncertain ? 'uncertain' : 'failed', message, JSON.stringify(payload), new Date().toISOString(), action.id, now).run();
+    if (googleConfirmed) throw new AppError('care_plan_incomplete', 409, message);
     throw error;
   }
+}
+
+// A changed local plan after external success needs a new explicit review. Never
+// silently overwrite it, discard the external success, or resend the Google write.
+export async function reviewCalendarRecovery(context: CalendarContext, config: GoogleConfig, actionId: string) {
+  requireCalendarWrite(context);
+  const { db, member, recipientId } = context;
+  const action = await db.prepare("SELECT * FROM calendar_actions WHERE id=? AND recipient_id=? AND member_id=? AND status='uncertain' AND kind='reschedule'").bind(actionId, recipientId, member.memberId).first<ActionRow>();
+  if (!action) throw new AppError('action_not_found', 409, 'Choose an incomplete reschedule to review.');
+  const connection = await requireConnection(context);
+  if (connection.id !== action.connection_id) throw new AppError('account_changed', 409, 'Reconnect the original Google account.');
+  const payload = JSON.parse(action.payload_json) as CalendarAction['payload'];
+  const event = await getGoogleEvent(await accessToken(db, config, connection), payload.calendarId, payload.eventId);
+  if (event?.status === 'cancelled' || event?.extendedProperties?.private?.caresteadActionId !== action.id || Date.parse(event?.start?.dateTime || '') !== Date.parse(payload.start) || Date.parse(event?.end?.dateTime || '') !== Date.parse(payload.end)) throw new AppError('calendar_changed', 409, 'The approved time could not be confirmed in Google. Review the Google event before recovering this change.');
+  payload.googleConfirmed = true;
+  payload.carePlan = await calendarCarePlan(db, recipientId, member.memberId, payload.taskId, payload.start, payload.end, payload.timeZone);
+  const updated = await db.prepare("UPDATE calendar_actions SET payload_json=?,error=?,updated_at=? WHERE id=? AND status='uncertain' AND payload_json=?").bind(JSON.stringify(payload), 'Google Calendar is updated. Review the remaining care changes below, then approve to finish.', new Date().toISOString(), action.id, action.payload_json).run();
+  if (!updated.meta.changes) throw new AppError('action_in_progress', 409, 'This recovery changed in another session. Refresh and review it again.');
 }

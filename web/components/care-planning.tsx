@@ -32,7 +32,7 @@ import {
 import type { DashboardState } from '@/lib/types';
 import { WeekAhead, CareRoutines, AppointmentPreparation, AttentionDigest } from './care-ahead';
 
-type Props = { dashboard: DashboardState; onChanged: () => void };
+type Props = { dashboard: DashboardState; onChanged: () => void; onCalendar?: (taskId: string) => void };
 type Result = {
   state: PlanningState;
   simulation?: Simulation;
@@ -400,6 +400,7 @@ export function CarePlanning(props: Props) {
                   zone={zone}
                 />
               </div>
+              {state.tasks.find(task => task.id === taskId)?.calendarLinked && props.onCalendar && <div className="mt-4 rounded-xl border bg-background p-4"><p className="text-sm">This appointment is connected to Google Calendar. Review its schedule, reschedule with linked responsibilities, or cancel it there.</p><Button className="mt-3" variant="outline" onClick={() => props.onCalendar?.(taskId)}>Manage in Calendar</Button></div>}
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   disabled={busy || !writable || !taskId || !newTime}
