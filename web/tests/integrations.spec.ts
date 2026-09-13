@@ -99,7 +99,7 @@ test('saved ntfy overrides reach notification settings without returning secrets
   const headers = { Origin: baseURL! };
   try {
     const response = await page.request.post('/api/integrations', { headers, data: { id: 'ntfy', enabled: true, config: { NTFY_SERVER_URL: 'https://ntfy.example.test', NTFY_ACCESS_TOKEN: 'synthetic-private-token' } } });
-    expect(response.ok()).toBe(true);
+    expect(response.status(), await response.text()).toBe(200);
     expect(await response.text()).not.toContain('synthetic-private-token');
     const status = await page.request.get('/api/integrations');
     expect(await status.text()).not.toContain('synthetic-private-token');

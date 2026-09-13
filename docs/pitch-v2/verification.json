@@ -1,0 +1,20 @@
+{
+  "carestead-ad-v2.mp4": {
+    "durationSeconds": 40.0,
+    "decodedSuccessfully": true,
+    "hasAudio": true,
+    "bytes": 12718706
+  },
+  "carestead-ad-v2.webm": {
+    "durationSeconds": 40.01,
+    "decodedSuccessfully": true,
+    "hasAudio": true,
+    "bytes": 3498110
+  },
+  "audio": {
+    "input_i": "-15.82",
+    "input_tp": "-1.47",
+    "input_lra": "4.60"
+  },
+  "scriptAligned": true
+}
