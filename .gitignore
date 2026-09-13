@@ -48,4 +48,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.mov
+
+# Pitch presentation versions (keep locally, don't track in git)
+docs/pitch/
 docs/pitch-v2/
+docs/pitch-v3/
+docs/pitch-v4/
+docs/pitch-v5/
