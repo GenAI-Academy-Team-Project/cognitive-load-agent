@@ -80,3 +80,39 @@ test('moved destinations still open from direct links', async ({ page }) => {
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
   }
 });
+
+
+test('profile names persist without changing login credentials or other accounts', async ({ page, browser, baseURL }) => {
+  const headers = { Origin: baseURL! };
+  const original = await (await page.request.get('/api/state')).json();
+  const anonymous = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  try {
+    const data = { displayName: 'Updated preferred name' };
+    expect((await anonymous.request.post('/api/auth/update-profile', { headers, data })).status()).toBe(401);
+    await anonymous.request.post('/api/auth/guest', { headers });
+    expect((await anonymous.request.post('/api/auth/update-profile', { headers, data })).status()).toBe(403);
+    expect((await page.request.post('/api/auth/update-profile', { headers: { Origin: 'https://untrusted.example' }, data })).status()).toBe(403);
+    for (const invalid of [{ displayName: '   ' }, { displayName: 'x'.repeat(101) }, { displayName: 123 }, { ...data, email: 'changed@example.test' }, { ...data, id: 'another-user', role: 'owner' }]) {
+      expect((await page.request.post('/api/auth/update-profile', { headers, data: invalid })).status()).toBe(400);
+    }
+    await page.goto('/');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('button', { name: /Profile settings for/ }).click();
+    await page.getByRole('menuitem', { name: 'Edit profile' }).click();
+    await expect(page.getByLabel('Email address', { exact: true })).toHaveAttribute('readonly', '');
+    await page.getByLabel('Display name', { exact: true }).fill('  Updated preferred name  ');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.getByRole('dialog').getByRole('status')).toHaveText('Profile updated.');
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Profile settings for Updated preferred name', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Profile settings for Updated preferred name', exact: true })).toBeVisible();
+    const state = await (await page.request.get('/api/state')).json();
+    expect(state.currentUser).toEqual({ ...original.currentUser, displayName: data.displayName });
+    expect(state.careCircle).toEqual(original.careCircle.map((member: { email: string }) => member.email === original.currentUser.email ? { ...member, display_name: data.displayName, updated_at: expect.any(String) } : member));
+    expect((await (await page.request.get('/api/auth/session')).json()).user.displayName).toBe(data.displayName);
+  } finally {
+    await page.request.post('/api/auth/update-profile', { headers, data: { displayName: original.currentUser.displayName } });
+    await anonymous.close();
+  }
+});

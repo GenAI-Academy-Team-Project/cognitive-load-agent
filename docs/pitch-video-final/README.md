@@ -1,11 +1,11 @@
-# Carestead commercial v6
+# Carestead v6 — updated from v3 — correct v3 reference
 
-34-second, 1920×1080 motion film with synthetic Ava narration at -3% synthesis rate, original instrumental music, and word-timed captions. No post-production speech speed changes. Ending narration is one connected phrase.
+39 seconds. Uses pitch-v3/render_ad.py directly for the original moving appointment card, unchanged ride, connecting care contexts and teal circle Carestead reveal. These sequences are retimed to the current Ava narration. No v2 person footage is used in the final film. Extracted v2 frames in assets/reference are unused material from the superseded reference direction.
 
-The opening establishes older-parent support, new mother and baby care, and post-surgery recovery. The appointment/ride/handover example demonstrates shared context and a reviewed plan update. The ride remains visibly outstanding; this film does not imply automatic booking or completion. The closing connects small contributions to meaningful support.
+The surrounding story retains broader care contexts, shared care and clear responsibilities, an explicit handover, “Less time chasing updates. More time being there,” the ten-minute support message and the pitch-deck ending. No caregiver names appear in the new product or handover scenes. Everyday tasks remain secondary examples.
 
-All interface cards are illustrative motion graphics, not a live app recording. The product supports reviewed scheduling changes; labels are simplified for the commercial. The ten-minute line is an illustrative human contribution, not a measured product time saving.
+The speech is synthetic Ava at -3% synthesis rate; there is no post-production speech speed change. Captions use the speech service’s word boundaries. Product cards are illustrative. The ride remains outstanding in the handover; no booking is implied.
 
-Deck phrases: “Everyone has part of the story,” “A shared care picture,” “The plan. The people. The follow-through,” “with you in control,” “Less to carry. More care to give,” and “You Care. We Plan.”
+Render: python3 render_ad.py. Verify: python3 verify_ad.py. Requires existing pitch-v3 source helpers and assets. The original v3 source is not modified.
 
-Reproduce: run narrate.py with the edge-tts environment, then python3 render_ad.py and python3 verify_ad.py. The renderer imports drawing helpers from pitch-v3. Sources: local pitch deck, product care planning and chat action code; original code-generated graphics and music. No stock people or reference-video footage reused.
+Updated in place at the user-requested v6 path. Previous v6 MP4 and source copy are preserved in ../pitch-v13/v6-before-update/.

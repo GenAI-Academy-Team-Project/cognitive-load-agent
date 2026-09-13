@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, type SubmitEvent } from 'react';
-import { Activity, ChevronDown, Database, LoaderCircle, LockKeyhole, LogOut, MemoryStick, Settings, ShieldCheck } from 'lucide-react';
+import { Activity, ChevronDown, Database, LoaderCircle, LockKeyhole, LogOut, MemoryStick, Pencil, Settings, ShieldCheck } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/password-input';
 import { PasswordRules } from '@/components/password-rules';
@@ -21,10 +22,10 @@ const roleDetails = {
   viewer: 'You can review the care information shared with you. Your role does not allow changes to care records.',
 };
 
-export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut, busy }: {
-  user: CurrentUser; recipientName: string; view: string; onNavigate: (view: AccountView) => void; onSignOut: () => void; busy: boolean;
+export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut, onProfileUpdated, busy }: {
+  user: CurrentUser; recipientName: string; view: string; onNavigate: (view: AccountView) => void; onSignOut: () => void; onProfileUpdated: (displayName: string) => void; busy: boolean;
 }) {
-  const [dialog, setDialog] = useState<'role' | 'password' | null>(null);
+  const [dialog, setDialog] = useState<'role' | 'password' | 'profile' | null>(null);
   return <>
     {!user.isGuest && <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />} aria-label="Account settings" className={accountItems.some((item) => item.label === view) ? 'bg-secondary text-primary' : ''}>
@@ -48,6 +49,7 @@ export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut,
           <DropdownMenuLabel>Profile settings</DropdownMenuLabel>
           <div className="px-3 py-2"><p className="truncate text-sm font-medium">{user.displayName}</p><p className="break-all text-xs text-muted-foreground">{user.email || 'Guest preview'}</p></div>
           <DropdownMenuSeparator />
+          {!user.isGuest && <DropdownMenuItem onClick={() => setDialog('profile')} className="px-3 py-2.5"><Pencil />Edit profile</DropdownMenuItem>}
           <DropdownMenuItem onClick={() => setDialog('role')} className="px-3 py-2.5"><ShieldCheck />Role details</DropdownMenuItem>
           {!user.isGuest && <DropdownMenuItem onClick={() => setDialog('password')} className="px-3 py-2.5"><LockKeyhole />Update password</DropdownMenuItem>}
           <DropdownMenuSeparator />
@@ -61,6 +63,9 @@ export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut,
         <div className="rounded-xl border bg-secondary p-4"><p className="font-medium capitalize">{user.isGuest || user.role === 'viewer' ? 'Guest' : user.role}</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{user.isGuest ? 'You can explore a read-only care plan with fictional sample data.' : roleDetails[user.role]}</p></div>
         <DialogFooter><Button variant="outline" onClick={() => setDialog(null)}>Done</Button></DialogFooter>
       </DialogContent>
+    </Dialog>
+    <Dialog open={dialog === 'profile'} onOpenChange={(open) => { if (!open) setDialog(null); }}>
+      <DialogContent><ProfileForm key={dialog ?? 'closed'} user={user} onSaved={onProfileUpdated} onClose={() => setDialog(null)} /></DialogContent>
     </Dialog>
     <Dialog open={dialog === 'password'} onOpenChange={(open) => { if (!open) setDialog(null); }}>
       <DialogContent><PasswordForm key={dialog ?? 'closed'} email={user.email} /></DialogContent>
@@ -99,5 +104,31 @@ function PasswordForm({ email }: { email: string }) {
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {saved && <output className="block text-sm text-primary">Password updated. Your other sessions have been signed out.</output>}
     <DialogFooter><Button type="submit" disabled={busy}>{busy && <LoaderCircle className="animate-spin" />}Update password</Button></DialogFooter>
+  </form>;
+}
+
+function ProfileForm({ user, onSaved, onClose }: { user: CurrentUser; onSaved: (displayName: string) => void; onClose: () => void }) {
+  const [name, setName] = useState(user.displayName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true); setError(''); setSaved(false);
+    try {
+      const response = await fetch('/api/auth/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name.trim() }) });
+      const result = await response.json() as { error?: string; user: { displayName: string } };
+      if (!response.ok) throw new Error(result.error || 'Your profile could not be updated. Try again.');
+      setName(result.user.displayName); onSaved(result.user.displayName); setSaved(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Your profile could not be updated. Try again.'); }
+    finally { setBusy(false); }
+  }
+  return <form onSubmit={submit} className="space-y-5">
+    <DialogHeader><DialogTitle>Edit profile</DialogTitle><DialogDescription>Choose how your name appears to your care circle.</DialogDescription></DialogHeader>
+    <div className="space-y-2"><label htmlFor="profile-display-name" className="text-sm font-medium">Display name</label><Input id="profile-display-name" name="displayName" autoComplete="name" value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} required maxLength={100} disabled={busy} aria-describedby="profile-name-hint" /><p id="profile-name-hint" className="text-xs text-muted-foreground">Use your name or the name you prefer to go by. Up to 100 characters.</p></div>
+    <div className="space-y-2"><label htmlFor="profile-email" className="text-sm font-medium">Email address</label><Input id="profile-email" type="email" value={user.email} readOnly aria-describedby="profile-email-hint" /><p id="profile-email-hint" className="text-xs text-muted-foreground">This is your sign-in and password recovery email. Email changes are not available yet.</p></div>
+    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {saved && <output className="block text-sm text-primary">Profile updated.</output>}
+    <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy}>{saved ? 'Done' : 'Cancel'}</Button><Button type="submit" disabled={busy || !name.trim() || name.trim() === user.displayName}>{busy && <LoaderCircle className="animate-spin" />}Save changes</Button></DialogFooter>
   </form>;
 }
