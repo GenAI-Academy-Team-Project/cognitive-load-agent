@@ -1,3 +1,4 @@
+import { calendarNotificationHistory } from '../lib/calendar-notification-history';
 import { test, expect } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureDatabase } from '../db/bootstrap';
@@ -332,4 +333,26 @@ test('recovery refuses a Google event edited after the successful write', async 
   await expect(reviewCalendarRecovery(context, config, id)).rejects.toThrow(/could not be confirmed/);
   await expect(approveCalendarAction(context, config, id)).rejects.toThrow(/changed after/);
   expect(writes).toHaveLength(2);
+});
+
+
+test('notification history includes historical Google guest updates only for their organizer and recipient', async () => {
+  const created = await proposeCalendarAction(context, config, draft);
+  expect(await calendarNotificationHistory(context.db, context.recipientId, context.member.memberId)).toEqual([]);
+  await approveCalendarAction(context, config, created);
+  const history = () => calendarNotificationHistory(context.db, context.recipientId, context.member.memberId);
+  expect(await history()).toEqual([expect.objectContaining({ action_id: `calendar-${created}`, channel: 'google_calendar', status: 'accepted', target_name: 'maya@example.test', title: 'Calendar invitation: Care appointment' })]);
+  expect(await calendarNotificationHistory(context.db, 'other', context.member.memberId)).toEqual([]);
+  expect(await calendarNotificationHistory(context.db, context.recipientId, 'other')).toEqual([]);
+  const cancelled = await proposeCalendarAction(context, config, { kind: 'cancel', appointmentId: created });
+  expect(await history()).toHaveLength(1);
+  await approveCalendarAction(context, config, cancelled);
+  expect(await history()).toContainEqual(expect.objectContaining({ title: 'Calendar cancellation: Care appointment' }));
+  await approveCalendarAction(context, config, cancelled);
+  expect(await history()).toHaveLength(2);
+  expect(writes).toHaveLength(2);
+  sqlite.prepare("UPDATE calendar_actions SET status='uncertain' WHERE id=?").run(cancelled);
+  expect(await history()).toHaveLength(2); // Google receipt survives an incomplete care save.
+  sqlite.prepare("UPDATE calendar_actions SET payload_json=json_set(payload_json,'$.attendees',json('[]')) WHERE id=?").run(created);
+  expect(await history()).toHaveLength(1);
 });
