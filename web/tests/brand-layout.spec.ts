@@ -188,5 +188,47 @@ test('theme tokens and summary content survive restoration', async ({ page }) =>
   await page.goto('/');
   await expect(page.locator('.care-brief')).toContainText('Next responsibility: First visit.');
   await expect(page.locator('.care-brief')).toContainText('Owner: Jordan');
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--care-plum').trim())).toBe('#dcd0ec');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--care-plum').trim())).toBe('#e6ebe3');
+});
+
+test('filter fields contrast with panels and dropdown options use the care palette', async ({ page }, testInfo) => {
+  await page.goto('/');
+  const filters = page.getByRole('group', { name: 'Filter Care risks', exact: true });
+  const status = filters.getByRole('combobox', { name: 'Status', exact: true });
+  await expect(status).toBeVisible();
+  const panelColor = await filters.evaluate(el => getComputedStyle(el).backgroundColor);
+  for (const field of [filters.getByRole('searchbox'), status]) {
+    expect(await field.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+    expect(await field.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(panelColor);
+  }
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const wrapper of await filters.locator('.care-filter-select, .care-search-field').all()) {
+      const field = (await wrapper.locator('select, input').boundingBox())!;
+      const icons = await wrapper.locator('svg').all();
+      const leading = (await icons[0].boundingBox())!;
+      expect(leading.x + leading.width).toBeLessThan(field.x);
+      if (icons.length > 1) {
+        const trailing = (await icons[1].boundingBox())!;
+        expect(field.x + field.width).toBeLessThan(trailing.x);
+      }
+    }
+  }
+  await status.click();
+  await page.screenshot({ path: testInfo.outputPath('themed-dropdown-open.png') });
+  await page.keyboard.press('Escape');
+  await status.focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(status).not.toHaveValue('');
+  await expect(filters.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible();
+  await filters.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(status).toHaveValue('');
+  const attention = filters.getByRole('checkbox');
+  await attention.check();
+  await expect(attention).toBeChecked();
+  expect(await attention.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(53, 100, 71)');
+  await attention.uncheck();
+  await expect(attention).not.toBeChecked();
 });

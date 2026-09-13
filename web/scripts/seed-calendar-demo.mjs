@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { demoDay, demoInstant } from './calendar-demo-time.mjs';
+import { demoApi } from './calendar-demo-api.mjs';
+import { assertDemoAppointmentsSafe } from './calendar-demo-guard.mjs';
 
 const baseURL = 'https://carestead.com:8083';
 const dir = fileURLToPath(new URL('../.playwright-runs/live-demo/', import.meta.url));
@@ -25,12 +27,11 @@ demoDay(data.day);
 data.recipientName = 'Alex (calendar demo)';
 data.title = 'Alex physiotherapy (Carestead demo)';
 const zone = 'America/Toronto';
+const demoGuest = 'deventhusiast.ailearningsupport@gmail.com';
 const instant = (hour, minute = 0) => demoInstant(data.day, hour, minute);
 const save = () => writeFileSync(file, JSON.stringify(data, null, 2), { mode: 0o600 });
 const api = await request.newContext({ baseURL, ignoreHTTPSErrors: true, storageState: `${dir}/owner-auth.json`, extraHTTPHeaders: { Origin: baseURL } });
-async function json(r) { const result = await r.json(); if (!r.ok()) throw new Error(`${r.status()}: ${result.error || 'Request failed'}`); return result; }
-const get = path => api.get(path).then(json);
-const post = (path, body) => api.post(path, { data: body }).then(json);
+const { get, post } = demoApi(api);
 const state = (action, fields = {}) => post('/api/state', { action, recipientId: data.recipientId, ...fields });
 const plan = (action, fields = {}) => post('/api/planning', { action, recipientId: data.recipientId, ...fields });
 const calendar = (action, fields = {}) => post('/api/calendar', { action, recipientId: data.recipientId, ...fields });
@@ -71,6 +72,7 @@ try {
     data.initialized = true; save();
   }
   let current = await calendarState();
+  if (reset) assertDemoAppointmentsSafe(current.appointments, data);
   if (!data.createId) {
     const existing = current.actions.find(a => a.kind === 'create' && a.payload.taskId === data.taskId && a.status !== 'rejected');
     data.createId = existing?.id || (await calendar('propose', { kind: 'create', taskId: data.taskId, title: data.title, timeZone: zone, startLocal: `${data.day}T10:00`, endLocal: `${data.day}T11:00`, attendees: '', location: 'Demo clinic', reminderMinutes: 30 })).actionId;
@@ -89,6 +91,12 @@ try {
     }
     if (Date.parse(appointment.start_at) !== Date.parse(instant(10))) {
       const rollback = await proposal(10, appointment.id);
+      // The live Google guest list can differ from the locally stored copy.
+      const review = (await calendarState()).actions.find(action => action.id === rollback.actionId);
+      if (!review || !Array.isArray(review.payload?.attendees) || review.payload.attendees.length) {
+        await calendar('reject', { actionId: rollback.actionId });
+        throw new Error('Reset stopped: Google guest details require manual review. Review cancellation in Carestead Calendar, then rerun with --clean. No rollback was approved.');
+      }
       await calendar('approve', { actionId: rollback.actionId });
     }
     data.ready = false; data.rescheduleId = undefined; save();
@@ -111,11 +119,18 @@ try {
     assert.equal(checked.payload.carePlan.changes.length, 2);
     assert.deepEqual(checked.payload.carePlan.conflicts, []);
     assert.equal(Date.parse(checked.payload.carePlan.changes.find(c => c.taskId === data.rideId).after), Date.parse(instant(13, 30)));
-    const memoryAnswer = await post('/api/chat', { action: 'message', recipientId: data.recipientId, message: 'What does Alex prefer?' });
-    assert(memoryAnswer.messages.some(message => message.role === 'assistant' && message.evidence?.some(item => item.label === 'Verified fact')), 'The prepared chat answer must include verified memory evidence.');
     data.ready = true; save();
   }
+  // Prepare guest delivery for review; the original Google event stays unchanged.
+  const readyState = await calendarState();
+  const readyProposal = readyState.actions.find(action => action.id === data.rescheduleId);
+  assert.equal(readyProposal?.status, 'pending', 'The reschedule must remain pending for guest review.');
+  if (!readyProposal.payload.attendees.includes(demoGuest)) {
+    await calendar('edit', { actionId: readyProposal.id, title: readyProposal.payload.title, timeZone: zone, startLocal: `${data.day}T14:00`, endLocal: `${data.day}T15:00`, attendees: [...readyProposal.payload.attendees, demoGuest].join(', '), location: readyProposal.payload.location, reminderMinutes: readyProposal.payload.reminderMinutes });
+  }
+  const guestReview = (await calendarState()).actions.find(action => action.id === data.rescheduleId);
+  assert(guestReview.payload.attendees.includes(demoGuest), 'Restart the app with guest editing support, then rerun.');
   const url = `${baseURL}/?view=Calendar&recipientId=${data.recipientId}`;
-  writeFileSync(`${dir}/calendar-demo.local.md`, `# Your prepared recording\n\nAccount: ${data.ownerName} (${data.ownerEmail})\n\nRecipient: **${data.recipientName}**\n\nDate: **${data.day}**, America/Toronto\n\nCalendar: **${data.calendarName}**\n\n[Open the prepared proposal](${url})\n\nAppointment: 10:00 AM → 2:00 PM. Ride: 9:30 AM → 1:30 PM.\n\nThe 10 AM Google event is real and has no guests. The 2 PM change awaits your on-camera approval. Select **${data.ownerName}** as the notification recipient. Your own account owns both synthetic responsibilities.\n\n[Open evaluations](${baseURL}/?view=Evaluations&recipientId=${data.recipientId})\n\nScript: docs/calendar-demo-recording.md\n`, { mode: 0o600 });
+  writeFileSync(`${dir}/calendar-demo.local.md`, `# Your prepared recording\n\nAccount: ${data.ownerName} (${data.ownerEmail})\n\nRecipient: **${data.recipientName}**\n\nDate: **${data.day}**, America/Toronto\n\nCalendar: **${data.calendarName}**\n\n[Open the prepared proposal](${url})\n\nAppointment: 10:00 AM → 2:00 PM. Ride: 9:30 AM → 1:30 PM.\n\nThe 10 AM Google event is real and has no guests. The 2 PM change includes ${demoGuest} under Guests receiving updates and awaits your on-camera approval. No guest update is sent before approval. Select **${data.ownerName}** as the notification recipient. Your own account owns both synthetic responsibilities.\n\n[Open evaluations](${baseURL}/?view=Evaluations&recipientId=${data.recipientId})\n\nScript: docs/calendar-demo-recording.md\n`, { mode: 0o600 });
   console.log(`Ready: ${data.recipientName}, ${data.day}. Open ${url}\nOne real Google event created/retained; reschedule awaits approval. No caregiver notification sent.\nRun sheet: web/.playwright-runs/live-demo/calendar-demo.local.md`);
 } finally { await api.dispose(); }

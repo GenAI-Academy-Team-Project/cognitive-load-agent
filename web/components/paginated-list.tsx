@@ -292,10 +292,10 @@ export function PaginatedList({
       <div className="grid min-w-0 gap-3">
         <label className="grid min-w-0 gap-1.5 text-xs">
           Search {label.toLocaleLowerCase()}
-          <span className="relative block">
+          <span className="care-search-field">
             <Search
               aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"
+              className="pointer-events-none size-4 text-muted-foreground"
             />
             <Input
               type="search"
@@ -304,7 +304,7 @@ export function PaginatedList({
                 setFilters({ ...current, query: event.target.value })
               }
               placeholder="Search this list…"
-              className="min-w-0 bg-background pl-9"
+              className="min-w-0"
             />
           </span>
         </label>
@@ -322,12 +322,12 @@ export function PaginatedList({
               <label key={facet.key} className="grid min-w-0 gap-1.5 text-xs">
                 {facet.title}
                 <span
-                  className="care-filter-select relative block"
+                  className="care-filter-select"
                   data-active={Boolean(current.facets[facet.key])}
                 >
                   <Icon
                     aria-hidden="true"
-                    className="pointer-events-none absolute left-3 top-3.5 size-4"
+                    className="pointer-events-none size-4"
                   />
                   <select
                     value={current.facets[facet.key] || ''}
@@ -340,7 +340,7 @@ export function PaginatedList({
                         },
                       })
                     }
-                    className="h-11 w-full min-w-0 appearance-none rounded-xl border border-input bg-transparent pl-9 pr-8 text-sm"
+                    className="h-11 w-full min-w-0 appearance-none text-sm"
                   >
                     <option value="">
                       Any {facet.title.toLocaleLowerCase()}
@@ -353,7 +353,7 @@ export function PaginatedList({
                   </select>
                   <ChevronDown
                     aria-hidden="true"
-                    className="pointer-events-none absolute right-2.5 top-4 size-3.5"
+                    className="pointer-events-none size-3.5"
                   />
                 </span>
               </label>

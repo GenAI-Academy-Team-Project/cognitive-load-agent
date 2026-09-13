@@ -23,8 +23,8 @@
 .care-responsibilities > .care-filters { margin-top: 0; }
 .care-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .75rem; align-items: end; }
 .care-filter-select { color: var(--muted-foreground); border-radius: .75rem; }
-.care-filter-select, .care-filters input[type="search"] { background: var(--care-sky); }
-.care-filter-select[data-active="true"] { background: var(--care-plum); color: var(--primary); }
+.care-filter-select, .care-filters input[type="search"] { background: var(--card); }
+.care-filter-select[data-active="true"] { background: var(--card); color: var(--primary); }
 .care-filter-select[data-active="true"] select { border-color: var(--primary); font-weight: 600; }
 .care-filter-select option { color: var(--foreground); background: var(--card); }
 .care-attention-filter { color: var(--care-amber-ink); background: var(--care-amber); border-color: color-mix(in srgb, var(--care-amber-ink) 40%, var(--care-amber)); }
@@ -75,4 +75,236 @@ main > div > section > header [data-slot="button"] { max-width: 100%; }
 .care-evaluation-card-back { transform: rotateY(180deg); }
 @media (prefers-reduced-motion: reduce) {
   .care-evaluation-card-inner { transition: none; }
+}
+
+/* Dropdowns are raised controls, distinct from the tinted panels behind them. */
+select:not([multiple]),
+[data-slot="select-trigger"] {
+  min-height: 2.5rem;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--input);
+  border-radius: .75rem;
+  background-color: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--foreground) 7%, transparent);
+  font-family: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+}
+.care-filter-select select,
+.care-organizer-panel select {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+select:not([multiple]):hover:not(:disabled),
+[data-slot="select-trigger"]:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+select:focus-visible,
+[data-slot="select-trigger"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+select:disabled { opacity: .55; cursor: not-allowed; }
+select option, select optgroup {
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+}
+
+/* Use the browser's accessible select behavior with a fully themed popup. */
+@supports (appearance: base-select) {
+  select:not([multiple]), select:not([multiple])::picker(select) {
+    appearance: base-select;
+  }
+  select:not([multiple]) {
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .75rem;
+  }
+  select:not([multiple])::picker-icon {
+    color: var(--primary);
+  }
+  select:not([multiple])::picker(select) {
+    margin-block: .375rem;
+    max-height: min(22rem, 60dvh);
+    padding: .375rem;
+    border: 1px solid var(--input);
+    border-radius: .875rem;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
+  }
+  select:not([multiple]) option {
+    min-height: 2.5rem;
+    padding: .5rem .75rem;
+    gap: .75rem;
+    border-radius: .5rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  select:not([multiple]) option:checked {
+    background: var(--care-amber);
+    color: var(--care-amber-ink);
+    font-weight: 600;
+  }
+  select:not([multiple]) option:hover,
+  select:not([multiple]) option:focus-visible {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+  select:not([multiple]) option:disabled { opacity: .5; cursor: not-allowed; }
+  select:not([multiple]) option::checkmark { color: var(--care-amber-ink); }
+  [data-slot="native-select-icon"] { display: none; }
+  .care-filter-select select::picker-icon { display: none; }
+}
+
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"] {
+  padding: .375rem;
+  border: 1px solid var(--input);
+  border-radius: .875rem;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+[data-slot="select-item"],
+[data-slot="dropdown-menu-item"],
+[data-slot="dropdown-menu-checkbox-item"],
+[data-slot="dropdown-menu-radio-item"],
+[data-slot="dropdown-menu-sub-trigger"] {
+  min-height: 2.5rem;
+  padding-block: .5rem;
+  border-radius: .5rem;
+}
+[data-slot="select-item"][data-selected] {
+  background: var(--care-amber);
+  color: var(--care-amber-ink);
+}
+[data-slot="select-item"][data-highlighted],
+[data-slot^="dropdown-menu-"][data-highlighted]:not([data-variant="destructive"]) {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+/* Entry surfaces stay separate from page, filter, and organizer panel fills. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="color"]),
+textarea {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+.care-filter-select[data-active="true"] select {
+  border-color: var(--primary);
+  box-shadow: inset 0 -3px 0 var(--care-amber-ink);
+}
+
+/* Icons occupy their own columns; input text never shares their space. */
+.care-filter-select,
+.care-search-field {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: .625rem;
+  min-width: 0;
+  padding-inline: .75rem;
+  border: 1px solid var(--input);
+  border-radius: .75rem;
+  background: var(--card);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+.care-search-field { grid-template-columns: 1rem minmax(0, 1fr); }
+.care-filter-select > svg,
+.care-search-field > svg { pointer-events: none; color: var(--primary); }
+.care-filter-select > select:not([multiple]),
+.care-search-field > input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  background: var(--card);
+}
+.care-filter-select:focus-within,
+.care-search-field:focus-within {
+  border-color: var(--primary);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.care-filter-select[data-active="true"] {
+  border-color: var(--primary);
+  box-shadow: inset 0 -3px 0 var(--care-amber-ink);
+}
+
+/* Native settings controls use the same green accent as form fields. */
+input[type="checkbox"], input[type="radio"], input[type="range"] {
+  accent-color: var(--primary);
+}
+[data-slot="input-group"] {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--input);
+}
+[data-slot="input-group-addon"] { color: var(--primary); }
+@media (max-width: 639px) {
+  select:not([multiple]), [data-slot="select-trigger"] { font-size: 1rem; }
+}
+
+/* Theme native toggles without replacing their labels or keyboard semantics. */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--input);
+  border-radius: .25rem;
+  background: var(--card);
+  color: var(--primary-foreground);
+  vertical-align: middle;
+  cursor: pointer;
+}
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:checked,
+input[type="checkbox"]:indeterminate,
+input[type="radio"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  width: .3rem;
+  height: .55rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+input[type="checkbox"]:indeterminate::after {
+  content: '';
+  width: .5rem;
+  height: 2px;
+  background: currentColor;
+}
+input[type="radio"]:checked::after {
+  content: '';
+  width: .375rem;
+  height: .375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+input[type="checkbox"]:disabled, input[type="radio"]:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+@media (forced-colors: active) {
+  input[type="checkbox"], input[type="radio"] { appearance: auto; }
+  input[type="checkbox"]::after, input[type="radio"]::after { content: none; }
 }

@@ -40,7 +40,7 @@ type ProposedAction = {
   summary: string;
   payload: Record<string, string>;
 };
-type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'propose_notification' | 'edit_notification'; notification?: unknown; recipientId?: string; message?: string; actionId?: string };
+type Body = { action?: 'message' | 'approve_action' | 'reject_action' | 'propose_notification' | 'edit_notification' | 'clear_history'; notification?: unknown; recipientId?: string; message?: string; actionId?: string; scope?: 'notifications' };
 
 const quickPrompts = [
   'What should I review today?',
@@ -76,9 +76,15 @@ function parseJson<T>(value: string | null, fallback: T): T {
 }
 
 async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessage[]> {
+  // Older app receipts have no action link; keep their original chat approval cards,
+  // but omit those ambiguous activity receipts from the conversation.
   const messages = await rows<MessageRow>(db, `SELECT m.*,a.action_type,a.summary action_summary,a.status action_status,a.requires_approval action_requires_approval,a.payload_json action_payload_json
     FROM chat_messages m LEFT JOIN chat_action_requests a ON a.id=m.action_request_id
-    WHERE m.thread_id=? ORDER BY m.created_at DESC,m.id DESC`, [threadId]);
+    WHERE m.thread_id=?
+      AND NOT (m.role='assistant' AND m.content = 'Review the caregiver, channel, and exact message before approving delivery.')
+      AND NOT (m.role='assistant' AND m.action_request_id IS NULL AND
+        (m.content='Action cancelled. No care-plan data was changed.' OR m.evidence_json LIKE '%"label":"Completed tool"%'))
+      ORDER BY m.created_at DESC,m.id DESC`, [threadId]);
   return messages.reverse().map((message) => ({
     id: message.id,
     role: message.role,
@@ -96,11 +102,20 @@ async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessag
   }));
 }
 
-async function chatState(db: D1Database, access: Access, threadId: string): Promise<ChatState> {
+async function chatState(db: D1Database, access: Access, threadId: string, notifications = false): Promise<ChatState> {
+  // The composer reads pending drafts directly; app activity is never a chat message.
+  const drafts = notifications ? await rows<ActionRow & { created_at: string }>(db,
+    "SELECT * FROM chat_action_requests WHERE thread_id=? AND recipient_id=? AND action_type='send_notification' AND status='pending' ORDER BY created_at,id",
+    [threadId, access.recipientId]) : [];
+
   return {
     recipientId: access.recipientId,
     recipientName: access.recipientName,
-    messages: await messagesFor(db, threadId),
+    messages: notifications ? drafts.map((draft) => ({
+      id: draft.id, role: 'assistant' as const, content: '', evidence: [], created_at: draft.created_at,
+      action: { id: draft.id, action_type: draft.action_type, summary: draft.summary, status: draft.status,
+        requires_approval: draft.requires_approval, payload: parseJson<Record<string, string>>(draft.payload_json, {}) },
+    })) : await messagesFor(db, threadId),
     quickPrompts,
     tools: [sendNotificationTool],
     notificationChannels: configuredChannels(await effectiveIntegrations(db, env)),
@@ -339,7 +354,7 @@ export async function GET(request: Request) {
     if (!recipientId) throw new AppError('recipient_required', 400, 'Choose a care recipient');
     const context = await resolveContext(request, recipientId);
     if ('error' in context) return context.error;
-    return Response.json(await chatState(context.db, context.access, context.threadId), { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(await chatState(context.db, context.access, context.threadId, new URL(request.url).searchParams.get('scope') === 'notifications'), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     await ensureDatabase(env.DB);
     await recordError(env.DB, { requestId, route: '/api/chat', action: 'read', errorCode: error instanceof AppError ? error.code : 'unhandled' });
@@ -352,18 +367,21 @@ export async function POST(request: Request) {
   let preview: Body = {};
   try {
     preview = await request.json() as Body;
-    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'propose_notification', 'edit_notification'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
+    if (typeof preview.recipientId !== 'string' || !preview.recipientId || !['message', 'approve_action', 'reject_action', 'propose_notification', 'edit_notification', 'clear_history'].includes(preview.action || '')) throw new AppError('invalid_chat_request', 400, 'A recipient and chat action are required');
     const context = await resolveContext(request, preview.recipientId);
     if ('error' in context) return context.error;
     const { db, member, access, threadId } = context;
     const now = new Date().toISOString();
-    if (preview.action === 'propose_notification') {
+    if (preview.action === 'clear_history') {
+      await enforceRateLimit(db, member.id, 'chat_action');
+      await db.prepare('DELETE FROM chat_messages WHERE thread_id=?').bind(threadId).run();
+      await audit(db, member, 'delete', 'chat', threadId, 'Cleared own saved voice and text conversation');
+    } else if (preview.action === 'propose_notification') {
       await enforceRateLimit(db, member.id, 'chat_action');
       if (!canWrite(access.accessRole)) throw new AppError('forbidden', 403, 'Your role cannot prepare notifications.');
       const proposals = await prepareNotifications(db, await effectiveIntegrations(db, env), access.recipientId, preview.notification);
       for (const proposal of proposals) {
         const actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
-        await saveMessage(db, threadId, 'assistant', 'Review the caregiver, channel, and exact message before approving delivery.', [], actionId, now);
         await audit(db, member, 'propose', 'chat_action', actionId, proposal.summary);
       }
     } else if (preview.action === 'message') {
@@ -416,6 +434,7 @@ export async function POST(request: Request) {
       const action = await db.prepare('SELECT * FROM chat_action_requests WHERE id=? AND thread_id=? AND recipient_id=?').bind(preview.actionId, threadId, access.recipientId).first<ActionRow>();
       if (!action) throw new AppError('action_not_found', 404, 'Action request not found');
       if (action.status !== 'pending') throw new AppError('action_already_decided', 409, 'This action was already decided');
+      const conversationAction = await db.prepare("SELECT id FROM chat_messages WHERE thread_id=? AND action_request_id=? AND content != 'Review the caregiver, channel, and exact message before approving delivery.' LIMIT 1").bind(threadId, action.id).first();
       if (preview.action === 'edit_notification') {
         if (action.action_type !== 'send_notification') throw new AppError('notification_not_editable', 409, 'Choose a notification draft.');
         const id = await editNotification(db, await effectiveIntegrations(db, env), access.recipientId, member.memberId, action.id, preview.notification);
@@ -423,14 +442,14 @@ export async function POST(request: Request) {
       } else if (preview.action === 'reject_action') {
         const rejected = await db.prepare("UPDATE chat_action_requests SET status='rejected',decided_at=? WHERE id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM notification_deliveries WHERE action_id=?)").bind(now, action.id, action.id).run();
         if (!rejected.meta.changes) throw new AppError('action_already_decided', 409, 'This action was already decided or delivery started.');
-        await saveMessage(db, threadId, 'assistant', 'Action cancelled. No care-plan data was changed.', [], null, now);
+        if (conversationAction) await saveMessage(db, threadId, 'assistant', 'Action cancelled. No care-plan data was changed.', [], action.id, now);
         await audit(db, member, 'reject', 'chat_action', action.id, action.summary);
       } else {
         const outcome = await executeAction(db, member, access, action, now);
-        await saveMessage(db, threadId, 'assistant', outcome, [evidence('Completed tool', action.action_type.replaceAll('_', ' ')), evidence('Audit', 'Approved action and outcome saved to the recipient timeline.')], null, new Date(Date.now() + 1).toISOString());
+        if (conversationAction) await saveMessage(db, threadId, 'assistant', outcome, [evidence('Completed tool', action.action_type.replaceAll('_', ' ')), evidence('Audit', 'Approved action and outcome saved to the recipient timeline.')], action.id, new Date(Date.now() + 1).toISOString());
       }
     }
-    return Response.json(await chatState(db, access, threadId), { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(await chatState(db, access, threadId, preview.scope === 'notifications' || preview.action === 'propose_notification' || preview.action === 'edit_notification'), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     await ensureDatabase(env.DB);
     await recordError(env.DB, { requestId, route: '/api/chat', action: preview.action || 'unknown', errorCode: error instanceof AppError ? error.code : 'unhandled', recipientId: preview.recipientId });
