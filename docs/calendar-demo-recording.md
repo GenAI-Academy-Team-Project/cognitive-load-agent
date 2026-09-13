@@ -4,11 +4,38 @@
 
 Use your existing Carestead login and its Google connection. The synthetic recipient is **Alex (calendar demo)**. All preparation below happens **before recording**. The optional handover ending stretches the recording to **2:00 maximum**.
 
+## Your 30-minute recording plan
+
+| Minutes | Do this | Finished when |
+| --- | --- | --- |
+| 0–5 | Start/check the existing app; sign in and check Google connection. | The app opens at the URL below and Calendar says Connected. |
+| 5–10 | Save the script login, then run the clean seed. | Terminal prints **Ready: Alex (calendar demo)**. |
+| 10–15 | Check the prepared proposal, voice permission, and script below. | You see both proposed time changes; microphone works. |
+| 15–20 | Record the 1:45 sequence. | Evaluation screen is the final frame. |
+| 20–27 | If needed, clean/reseed and record a second take. | A take you want to keep is saved. |
+| 27–30 | Clean the demo data, then optionally stop the app. | Cleanup completes before the server stops. |
+
+**Use two terminals:** Terminal A runs the app; Terminal B runs login/seed/cleanup. Keep the same app runtime throughout: switching between Docker and local development can select a different database. Do not rebuild between takes.
+
 ## 1. Start the current app — off camera
 
-1. Open the project in your terminal.
-2. If your normal development app is already running, let it refresh with the latest code. Otherwise run `make dev` from the project root. Leave that terminal running.
-3. If you use Docker instead, run `make up` from the project root to rebuild and start the current version. Do not run Docker and the development server on the same ports.
+1. Open **https://carestead.com:8083** first. If your existing app opens with your account and Google connection, keep that app running. Skip startup commands and continue at step 4.
+2. If you normally use local development and it is stopped, run these in **Terminal A**, leaving it open:
+
+   ```sh
+   cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent
+   make dev
+   ```
+
+   Development builds the pages as you open them; a separate build is unnecessary. If you specifically want to validate a production build, run `make build` from the project root before starting. If dependencies are missing, run `make install` once first. This existing setup requires Node 22.13+ and installed Google Chrome for the login script.
+3. **Only if Docker is your usual runtime**, use this instead of step 2:
+
+   ```sh
+   cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent
+   make up
+   ```
+
+   This builds and starts Docker in the background. Wait for success. Do not run Docker and development on the same ports. If a port is occupied, use the already-running app or stop its original terminal/runtime first. Do not delete database volumes.
 4. Open **https://carestead.com:8083** and sign in with **your existing email and password**.
 5. Open **Account settings → Integrations**. Google Calendar must be enabled and configured. If setup is incomplete, follow [Google Calendar setup](google-calendar-setup.md).
 6. Click the **Calendar icon** in the top bar. If needed, click **Connect Google Calendar**, use your existing Google account, and complete Google's consent screen. Select your calendar in **Calendar for [person]**.
@@ -16,10 +43,10 @@ Use your existing Carestead login and its Google connection. The synthetic recip
 
 ## 2. Authorize the preload script — off camera
 
-From the project root:
+In **Terminal B**, paste:
 
 ```sh
-cd web
+cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent/web
 node scripts/live-demo-login.mjs
 ```
 
@@ -38,13 +65,7 @@ In the same `web` terminal:
 node scripts/seed-calendar-demo.mjs --clean
 ```
 
-Optional fixed recording date, when preparing a new clean run:
-
-```sh
-node scripts/seed-calendar-demo.mjs --clean --date=2026-09-14
-```
-
-The date must be in the future. Without `--date`, the script chooses two days ahead in Toronto.
+For repeatable takes, use the command above without a fixed date. It chooses two calendar days ahead in Toronto, including across daylight-saving changes. All times in this script are Toronto time. Set your recording browser/computer to Toronto (Eastern Time) so the displayed times match the narration.
 
 The script:
 
@@ -59,6 +80,8 @@ The script:
 
 Wait for **Ready: Alex (calendar demo)**. Open the run-sheet file. Use its new link after every clean run; a fresh recipient has a fresh ID.
 
+In your IDE, open **`web/.playwright-runs/live-demo/calendar-demo.local.md`**. This is the source of truth for this take's date and recipient URL; do not reuse a bookmarked URL from an earlier take.
+
 Running the seed again without `--clean` retains an unused ready proposal. After a take, use `--clean` to get an empty history and fresh proposal. Sent external emails/SMS cannot be recalled; use **Carestead inbox** for repeatable recordings.
 
 Clean mode deliberately stops if Google has an uncertain action, an event has acquired guests, or the dedicated profile was renamed. Resolve the named condition rather than deleting unrelated records. A Google outage cannot be made safe by silently substituting seed results.
@@ -70,7 +93,7 @@ Clean mode deliberately stops if Google has an uncertain action, an event has ac
 3. Click **Ask Carestead**. Check the saved answer to **What does Alex prefer?** and its **Evidence used → Verified fact** section. It should recall “Alex prefers one concise written update when appointment times change,” with the synthetic verification source. This demonstrates memory saved before this conversation, not a fact invented in the answer.
 4. In the same browser you will record, click the **microphone / Start voice input** button and allow microphone access. Say **What does Alex prefer?**, check the transcript, then click **Send message**. This checks real speech recognition before the take. Leave spoken replies off for the 1:45 recording so the app does not talk over your narration. If the microphone is disabled, use a supported browser; typing is a fallback and must not be described as a live voice demo. Raw audio is not stored by Carestead; the browser may use its vendor's speech service. Press Escape to close chat.
 5. Keep the run sheet and this speaker script on another display or outside the recording area.
-6. Sign out in the browser where you tested microphone access. Enter your existing email/password before starting; leave the password masked. Start recording immediately before clicking **Sign in**.
+6. Click your **name/avatar at the top right → Log out** in the browser where you tested microphone access. If necessary, open **https://carestead.com:8083/sign-in**. Enter your existing email/password before starting; leave the password masked. Start recording immediately before clicking **Sign in**. Your email will be visible if the sign-in form is included; frame the capture according to your preference.
 7. After sign-in, choose **Alex (calendar demo)** from the recipient selector. If the app selected another patient, choose the demo explicitly.
 
 ## 5. Record this 1:45 sequence
@@ -122,3 +145,47 @@ Availability checks use recorded information for this recipient, not personal-ca
 5. Confirm the 10 AM appointment, 9:30 AM ride, and pending 2 PM proposal. Begin again at sign-in.
 
 Your real patient records, email, Google connection, and account identity are not reset.
+
+**Copy/paste reset for another take (app must still be running):**
+
+```sh
+cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent/web
+node scripts/seed-calendar-demo.mjs --clean
+```
+
+Wait for Ready, reopen the generated run sheet, use its **new** link, and repeat section 4. Do not click approval during this check. Sign-in, voice, approval, notification sending, and evaluation are the only recorded actions; terminal setup is off camera.
+
+## Finish: teardown without preparing another take
+
+1. Stop and save the recording. **Leave the app running** while removing the demo.
+2. In Terminal B, run:
+
+   ```sh
+   cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent/web
+   node scripts/clean-calendar-demo.mjs
+   ```
+
+3. Wait for **Demo cleanup complete**. This cancels the seed-owned guest-free Google event and deletes its dedicated recipient. It does not create a replacement. The old run-sheet link is now obsolete.
+4. If using local development, press **Ctrl+C in Terminal A**. If using Docker, run from the project root:
+
+   ```sh
+   cd /Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent
+   make down
+   ```
+
+5. To record another day, start the same app runtime, then run `seed-calendar-demo.mjs --clean` again. If your saved script session has expired, run the login script first. Keep the ignored local demo manifest: it identifies exactly which data cleanup owns. Never delete the database or use Docker volume removal as a demo reset.
+
+## If something interrupts the take
+
+| What you see | Exact next action |
+| --- | --- |
+| Login script/session expired | Run `node scripts/live-demo-login.mjs`, sign in with your existing account, then rerun the clean seed. |
+| Connection refused / app does not open | Start the same runtime from section 1, then retry. |
+| Google setup pending / reconnect required | Open **Account settings → Integrations** and **Calendar**, restore the existing Google connection and selected calendar, then rerun the seed. |
+| Seed says the app lacks linked rescheduling | Restart development with the current source, or rebuild your existing Docker runtime with `make up`; then rerun seed. |
+| Google update is uncertain or care save incomplete | Stop recording. In Calendar use **Retry / check result**, or **Review remaining changes** and review/approve the recovery. Wait for confirmed completion before clean/reseed. Do not repeatedly click approval or delete the profile. |
+| Microphone permission or transcription fails | Fix and test it off camera. If you type the question instead, remove the claim that this take demonstrates live voice. |
+| Clean mode reports guests, another appointment, or a renamed profile | Stop and inspect that specific record. Automated cleanup deliberately refuses to remove data it can no longer identify safely. |
+| Recording runs long | Finish within the two-minute stretch or redo. Omit the optional handover; preserve the real approval/result. |
+
+No script can guarantee success during expired authorization or a Google outage. The repeatable path preserves your login and connection, rebuilds only the dedicated scenario, and stops with an explicit reason when safe cleanup cannot finish.

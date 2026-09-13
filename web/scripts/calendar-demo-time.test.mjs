@@ -5,6 +5,7 @@ import { demoDay, demoInstant } from './calendar-demo-time.mjs';
 test('fresh recording date uses Toronto and rejects impossible or expired dates', () => {
   const now = new Date('2026-09-13T02:00:00Z');
   assert.equal(demoDay(undefined, now), '2026-09-14');
+  assert.equal(demoDay(undefined, new Date('2026-03-08T04:30:00Z')), '2026-03-09');
   assert.throws(() => demoDay('2026-02-30', now), /valid/);
   assert.throws(() => demoDay('2026-09-12', now), /future/);
   assert.equal(demoDay('2026-09-13', now), '2026-09-13');
