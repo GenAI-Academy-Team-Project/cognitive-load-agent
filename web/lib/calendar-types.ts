@@ -1,3 +1,11 @@
+export type CalendarCareChange = {
+  taskId: string; title: string; owner: string; before: string; after: string;
+  signature: string; status: string;
+};
+export type CalendarCarePlan = {
+  changes: CalendarCareChange[];
+  conflicts: string[];
+};
 export type CalendarDraft = {
   title: string;
   start: string;
@@ -11,7 +19,7 @@ export type CalendarAction = {
   id: string;
   kind: 'create' | 'reschedule' | 'cancel';
   status: 'pending' | 'executing' | 'executed' | 'failed' | 'uncertain' | 'rejected';
-  payload: CalendarDraft & { taskId: string; appointmentId: string; eventId: string; etag: string; calendarId: string; calendarName: string; organizer: string };
+  payload: CalendarDraft & { taskId: string; appointmentId: string; eventId: string; etag: string; calendarId: string; calendarName: string; organizer: string; carePlan?: CalendarCarePlan; googleConfirmed?: boolean };
   error: string | null;
   htmlLink: string | null;
 };
@@ -22,6 +30,7 @@ export type CalendarAppointment = {
   canManage?: boolean;
 };
 export type CalendarState = {
+  capabilities?: { linkedRescheduling: boolean };
   configured: boolean;
   connection: { email: string; status: string } | null;
   binding: { calendar_id: string; calendar_name: string } | null;
