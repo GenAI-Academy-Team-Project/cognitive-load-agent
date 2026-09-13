@@ -47,7 +47,7 @@ export function CreateRecipientDialog({ open, onOpenChange, onCreate, templates,
             </select>
           </label>
           <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" checked={customize} onChange={(event) => setCustomize(event.target.checked)} />Customize responsibilities</label>
-          {customize && <section className="grid gap-3 rounded-xl border p-4" aria-label="Customize responsibilities">
+          {customize && <section className="bg-[var(--care-inset)] grid gap-3 rounded-xl border p-4" aria-label="Customize responsibilities">
             <p className="text-sm text-muted-foreground">Edit, add, or remove responsibilities for this person. Due dates are measured in days from creation. Switching templates resets these edits. The original template stays unchanged.</p>
             <p className="text-xs text-muted-foreground">{'{{recipient_name}} will be replaced with the person’s display name.'}</p>
             {items.map((item, index) => <fieldset key={index} className="grid min-w-0 gap-3 rounded-lg border p-3">

@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createECDH, randomBytes } from 'node:crypto';
 import webpush from 'web-push';
 import { ensureDatabase } from '../db/bootstrap';
-import { executeNotification, prepareNotification, parseNotificationRequest, sendViaProvider, validateSubscription } from '../lib/notification-service';
+import { editNotification, executeNotification, prepareNotification, prepareNotifications, parseNotificationRequest, sendViaProvider, validateSubscription } from '../lib/notification-service';
 
 function database(sqlite: DatabaseSync): D1Database {
   function statement(sql: string, values: unknown[] = []) {
@@ -32,7 +32,13 @@ const input = { channel: 'email' as const, memberId: 'target', title: 'Care upda
 test.beforeEach(async () => {
   sqlite = new DatabaseSync(':memory:'); db = database(sqlite); await ensureDatabase(db);
   sends = []; originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { sends.push({ url: url instanceof Request ? url.url : url.toString(), init }); return Response.json({ id: 'receipt', sid: 'sms-receipt' }); };
+  globalThis.fetch = async (url, init) => {
+    // Match Workers: redirect: 'error' is unsupported, and following redirects
+    // would forward the provider request to an unapproved destination.
+    if (init?.redirect !== 'manual') throw new TypeError('Unsupported or unsafe redirect mode');
+    sends.push({ url: url instanceof Request ? url.url : url.toString(), init });
+    return Response.json({ id: 'receipt', sid: 'sms-receipt' });
+  };
   for (const id of ['actor', 'target']) {
     sqlite.prepare('INSERT INTO care_circle_members VALUES (?,?,?,?,?,?,?,?,?)').run(id, 'household', id, id + '@example.com', id, 'caregiver', 'active', '2030', '2030');
     sqlite.prepare('INSERT INTO recipient_members VALUES (?,?,?,?,?)').run(id, 'recipient-alex', id, 'caregiver', '2030');
@@ -48,6 +54,54 @@ async function proposal(override = {}) {
   return { id, payload: proposed.payload };
 }
 const execute = (action: Awaited<ReturnType<typeof proposal>>) => executeNotification(db, config, 'recipient-alex', 'actor', action.id, action.payload);
+
+test('multiple channels prepare independent approvals without sending and retain separate results', async () => {
+  const drafts = await prepareNotifications(db, config, 'recipient-alex', { ...input, channels: ['email', 'sms', 'in_app'] });
+  expect(drafts.map(draft => draft.payload.channel)).toEqual(['email', 'sms', 'in_app']);
+  expect(sends).toHaveLength(0);
+  const actions = drafts.map(draft => {
+    const id = crypto.randomUUID();
+    sqlite.prepare('INSERT INTO chat_action_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, 'thread', 'recipient-alex', 'actor', draft.type, draft.summary, JSON.stringify(draft.payload), 'pending', 'true', '2030', null, null);
+    return { id, payload: draft.payload };
+  });
+  globalThis.fetch = async () => new Response(null, { status: 400 });
+  expect(await execute(actions[0])).toContain('failed');
+  expect(sqlite.prepare('SELECT status FROM chat_action_requests WHERE id=?').get(actions[1].id)?.status).toBe('pending');
+  globalThis.fetch = async () => Response.json({ sid: 'sms-receipt' });
+  expect(await execute(actions[1])).toContain('accepted');
+  expect(await execute(actions[2])).toContain('posted');
+  expect(sqlite.prepare('SELECT channel,status FROM notification_deliveries ORDER BY channel').all()).toEqual([
+    { channel: 'email', status: 'failed' }, { channel: 'in_app', status: 'posted' }, { channel: 'sms', status: 'accepted' },
+  ]);
+});
+
+test('channel selection rejects empty, duplicate, unsupported and unavailable channels', async () => {
+  for (const channels of [[], ['email', 'email'], ['email', 'fax'], 'email', null]) {
+    await expect(prepareNotifications(db, config, 'recipient-alex', { ...input, channels })).rejects.toThrow('Choose at least one');
+  }
+  sqlite.exec('UPDATE notification_preferences SET sms_enabled=0');
+  await expect(prepareNotifications(db, config, 'recipient-alex', { ...input, channels: ['email', 'sms'] })).rejects.toThrow('enable SMS');
+  expect(sends).toHaveLength(0);
+  expect(sqlite.prepare('SELECT count(*) AS count FROM chat_action_requests').get()?.count).toBe(0);
+  expect(await prepareNotifications(db, config, 'recipient-alex', input)).toHaveLength(1);
+});
+
+test('editing replaces only the selected draft and invalidates stale approvals', async () => {
+  const email = await proposal(), sms = await proposal({ channel: 'sms' });
+  sqlite.prepare('INSERT INTO chat_messages VALUES (?,?,?,?,?,?,?)').run('draft-message', 'thread', 'assistant', 'Review', '[]', email.id, '2030');
+  const id = await editNotification(db, config, 'recipient-alex', 'actor', email.id, { title: 'Updated email', detail: 'Email only.', channel: 'sms', memberId: 'actor' });
+  const edited = sqlite.prepare('SELECT payload_json,status FROM chat_action_requests WHERE id=?').get(id)!;
+  expect(edited.status).toBe('pending');
+  expect(JSON.parse(edited.payload_json as string)).toMatchObject({ title: 'Updated email', detail: 'Email only.', channel: 'email', memberId: 'target' });
+  expect(sqlite.prepare('SELECT action_request_id FROM chat_messages WHERE id=?').get('draft-message')?.action_request_id).toBe(id);
+  expect(sqlite.prepare('SELECT status,payload_json FROM chat_action_requests WHERE id=?').get(sms.id)).toEqual({ status: 'pending', payload_json: JSON.stringify(sms.payload) });
+  await expect(execute(email)).rejects.toThrow('already attempted');
+  expect(sends).toHaveLength(0);
+  await expect(editNotification(db, config, 'recipient-alex', 'actor', email.id, input)).rejects.toThrow('unsent');
+  await expect(editNotification(db, config, 'recipient-alex', 'target', sms.id, input)).rejects.toThrow('unsent');
+  expect(await execute({ id, payload: JSON.parse(edited.payload_json as string) })).toContain('accepted');
+  await expect(editNotification(db, config, 'recipient-alex', 'actor', id, input)).rejects.toThrow('unsent');
+});
 
 test('preparing a tool call never sends; approved execution sends the exact preview once', async () => {
   const action = await proposal();
@@ -113,13 +167,44 @@ test('provider rejections and timeouts are recorded without claiming delivery or
   await expect(execute(uncertain)).rejects.toThrow('already attempted');
 });
 
-test('SMS uses the saved opted-in number and exact approved text', async () => {
+test('provider redirects fail without forwarding the notification or retrying', async () => {
+  globalThis.fetch = async (url, init) => {
+    if (init?.redirect !== 'manual') throw new TypeError('Unsupported or unsafe redirect mode');
+    sends.push({ url: url instanceof Request ? url.url : url.toString(), init });
+    return new Response(null, { status: 307, headers: { Location: 'https://other.example/emails' } });
+  };
+  const action = await proposal();
+  expect(await execute(action)).toContain('failed');
+  expect(sqlite.prepare('SELECT status,error_code FROM notification_deliveries WHERE action_id=?').get(action.id)).toEqual({ status: 'failed', error_code: 'provider_http_307' });
+  await expect(execute(action)).rejects.toThrow('already attempted');
+  expect(sends).toHaveLength(1);
+  expect(sends[0].url).toBe('https://api.resend.com/emails');
+});
+
+test('SMS uses the saved opted-in number and Twilio trial appointment template', async () => {
   const action = await proposal({ channel: 'sms' });
   await execute(action);
   expect(sends[0].url).toContain('api.twilio.com/2010-04-01/Accounts/');
   const body = new URLSearchParams(sends[0].init!.body as string);
   expect(body.get('To')).toBe('+14165550123');
-  expect(body.get('Body')).toBe(input.title + '\n' + input.detail);
+  expect(body.get('Body')).toBe('sms_appointment_reminders');
+});
+
+test('SMS retains the specific provider rejection without storing private details', async () => {
+  globalThis.fetch = async () => Response.json({ code: 21608, message: 'Private phone number and account details' }, { status: 400 });
+  const action = await proposal({ channel: 'sms' });
+  expect(await execute(action)).toContain('failed');
+  expect(sqlite.prepare('SELECT status,error_code FROM notification_deliveries WHERE action_id=?').get(action.id)).toEqual({ status: 'failed', error_code: 'twilio_21608' });
+  await expect(execute(action)).rejects.toThrow('already attempted');
+});
+
+test('SMS preserves HTTP status when the provider error body is unusable', async () => {
+  for (const body of ['not json', 'null', '{"code":"private detail"}', '{"code":21608.5}', '{}']) {
+    globalThis.fetch = async () => new Response(body, { status: 400 });
+    expect(await sendViaProvider(config, { ...input, channel: 'sms' }, '+14165550123', 'action', 'recipient-alex')).toMatchObject({ status: 'failed', errorCode: 'provider_http_400' });
+  }
+  globalThis.fetch = async () => Response.json({ code: 21608 }, { status: 500 });
+  expect(await sendViaProvider(config, { ...input, channel: 'sms' }, '+14165550123', 'action', 'recipient-alex')).toMatchObject({ status: 'unknown', errorCode: 'twilio_21608' });
 });
 
 test('in-app sends work without provider keys and are targeted', async () => {
@@ -160,31 +245,32 @@ test('ntfy mobile push sends approved Unicode text once and conceals the topic',
   expect(sends).toHaveLength(0);
   const id = crypto.randomUUID();
   sqlite.prepare('INSERT INTO chat_action_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, 'thread', 'recipient-alex', 'actor', 'send_notification', p.summary, JSON.stringify(p.payload), 'pending', 'true', '2030', null, null);
-  globalThis.fetch = async (url, init) => { sends.push({ url: String(url), init }); return Response.json({ id: 'receipt', event: 'message', topic }); };
+  globalThis.fetch = async (url, init) => { sends.push({ url: url instanceof Request ? url.url : url.toString(), init }); return Response.json({ id: 'receipt', event: 'message', topic }); };
   expect(await executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).toContain('accepted');
   expect(sends[0].url).toBe('https://ntfy.sh/');
   expect(JSON.parse(sends[0].init!.body as string)).toEqual({ topic, title: request.title, message: request.detail, priority: 3 });
   expect(sends[0].init!.headers).toMatchObject({ Authorization: 'Bearer synthetic-token' });
-  expect(sends[0].init!.redirect).toBe('error');
-  expect(sqlite.prepare('SELECT destination FROM notification_deliveries').get()?.destination).toBe('Registered ntfy topic');
+  expect(sends[0].init!.redirect).toBe('manual');
+  expect(sqlite.prepare('SELECT destination FROM notification_deliveries').get()?.destination).toBe('Registered mobile push topic');
   await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', id, p.payload)).rejects.toThrow('already attempted');
   expect(sends).toHaveLength(1);
 });
 
 test('ntfy requires opt-in and blocks changed topics, servers, disabled channels and withdrawn consent', async () => {
   const cfg = { NTFY_SERVER_URL: 'https://ntfy.sh' }, request = { ...input, channel: 'ntfy' as const };
-  await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('enable ntfy');
+  await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('enable mobile push');
   sqlite.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?)').run('recipient-alex', 'target', cfg.NTFY_SERVER_URL, 'first-topic', '2030');
   const p = await prepareNotification(db, cfg, 'recipient-alex', request);
   sqlite.prepare('UPDATE ntfy_preferences SET topic=?').run('new-topic');
   await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('destination changed');
-  await expect(executeNotification(db, { NTFY_SERVER_URL: 'https://other.example' }, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable ntfy');
+  await expect(executeNotification(db, { NTFY_SERVER_URL: 'https://other.example' }, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable mobile push');
   await expect(executeNotification(db, {}, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('not configured');
   sqlite.exec("UPDATE consent_records SET status='withdrawn'");
   await expect(prepareNotification(db, cfg, 'recipient-alex', request)).rejects.toThrow('Consent');
   sqlite.exec("UPDATE consent_records SET status='active'; DELETE FROM ntfy_preferences");
-  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable ntfy');
+  await expect(executeNotification(db, cfg, 'recipient-alex', 'actor', 'unused', p.payload)).rejects.toThrow('enable mobile push');
   expect(sends).toHaveLength(0);
+  expect(parseNotificationRequest('Mobile push me: Mobile test.')).toMatchObject({ channel: 'ntfy', target: 'me', detail: 'Mobile test.' });
   expect(parseNotificationRequest('ntfy me: Mobile test.')).toMatchObject({ channel: 'ntfy', target: 'me', detail: 'Mobile test.' });
 });
 

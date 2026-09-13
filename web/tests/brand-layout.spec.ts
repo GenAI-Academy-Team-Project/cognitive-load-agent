@@ -128,7 +128,7 @@ for (const width of [390, 1440]) {
     for (const title of ['Open risks', 'Due next', 'Verify']) {
       await expect(latest.getByRole('region', { name: title })).toBeVisible();
     }
-    const colors = await latest.locator('.care-review-grid [data-care-tone]').evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor));
+    const colors = await latest.locator('h3 [data-care-tone]').evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor));
     expect(new Set(colors).size).toBe(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(await latest.locator('.line-clamp-2').count()).toBe(0);

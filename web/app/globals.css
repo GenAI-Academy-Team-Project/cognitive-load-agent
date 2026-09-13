@@ -52,7 +52,8 @@
 :root {
   --background: #f4dcc7;
   --foreground: #30304f;
-  --card: #f6e0c9;
+  --card: #e7dcf5;
+  --care-inset: #dcebf5;
   --card-foreground: #30304f;
   --popover: #e4d6f5;
   --popover-foreground: #30304f;
@@ -100,6 +101,7 @@
   --background: #171e30;
   --foreground: #edf0fa;
   --card: #222c42;
+  --care-inset: #283d50;
   --card-foreground: #edf0fa;
   --popover: #29314b;
   --popover-foreground: #edf0fa;

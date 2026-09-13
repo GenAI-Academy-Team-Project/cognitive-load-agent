@@ -63,3 +63,16 @@ main > div > section > header [data-slot="button"] { max-width: 100%; }
 .care-organizer-panel[data-care-tone] > :is(h2, h3) { color: var(--foreground); }
 .care-organizer-panel > svg { color: var(--care-ink, var(--primary)); }
 .care-organizer-panel :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background-color: var(--card); color: var(--foreground); }
+
+/* Notification categories share their badge, card tint, and accent color. */
+.care-notification { border-left-color: var(--care-ink); }
+
+/* Both faces size the card, including long definitions and enlarged text. */
+.care-evaluation-card { perspective: 1000px; border-radius: 20px; }
+.care-evaluation-card-inner { display: grid; transform-style: preserve-3d; transition: transform .35s ease; }
+.care-evaluation-card-inner[data-flipped="true"] { transform: rotateY(180deg); }
+.care-evaluation-card-face { display: block; grid-area: 1 / 1; backface-visibility: hidden; }
+.care-evaluation-card-back { transform: rotateY(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .care-evaluation-card-inner { transition: none; }
+}

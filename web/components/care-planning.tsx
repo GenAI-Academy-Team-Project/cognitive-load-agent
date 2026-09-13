@@ -321,7 +321,12 @@ export function CarePlanning(props: Props) {
                   times or task requirements need a fresh acceptance.
                 </p>
                 <div className="mt-5 space-y-3">
-                  {state.tasks
+                  <PaginatedList label="Your responsibilities" records={state.tasks
+                    .filter(
+                      (task) =>
+                        isOpen(task) &&
+                        task.planning.owner_member_id === state.memberId,
+                    )} resetKey={dashboard.selectedRecipient.id}>{state.tasks
                     .filter(
                       (task) =>
                         isOpen(task) &&
@@ -342,7 +347,7 @@ export function CarePlanning(props: Props) {
                           {task.accepted ? 'Accepted' : 'Needs acceptance'}
                         </Badge>
                       </div>
-                    ))}
+                    ))}</PaginatedList>
                   {!state.tasks.some(
                     (task) =>
                       isOpen(task) &&
@@ -395,13 +400,27 @@ export function CarePlanning(props: Props) {
                   zone={zone}
                 />
               </div>
-              <Button
-                className="mt-4"
-                disabled={busy || !writable || !taskId}
-                onClick={() => move()}
-              >
-                Preview the ripple effect
-              </Button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button
+                  disabled={busy || !writable || !taskId || !newTime}
+                  onClick={() => move()}
+                >
+                  Preview the ripple effect
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setTaskId('');
+                    setNewTime('');
+                    setSimulation(null);
+                    setError('');
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
               {simulation && (
                 <div className="mt-6 space-y-5">
                   <ol className="border-l-2 border-primary/30 pl-5">
@@ -498,7 +517,22 @@ export function CarePlanning(props: Props) {
                   capabilities, and time budget.
                 </p>
                 <div className="mt-4 space-y-3">
-                  {state.tasks
+                  <PaginatedList label="Available responsibilities" records={state.tasks
+                    .filter(
+                      (task) =>
+                        isOpen(task) &&
+                        !task.planning.owner_member_id &&
+                        task.owner === 'Unassigned' &&
+                        task.planning.duration_minutes <= minutes &&
+                        !taskFactIssues(task, state.memories, renderTime).length &&
+                        Date.parse(task.due_at) > renderTime &&
+                        availableFor(
+                          task,
+                          state.memberId,
+                          state.availability,
+                          state.tasks,
+                        ),
+                    )} resetKey={dashboard.selectedRecipient.id}>{state.tasks
                     .filter(
                       (task) =>
                         isOpen(task) &&
@@ -515,7 +549,7 @@ export function CarePlanning(props: Props) {
                         ),
                     )
                     .map((task) => (
-                      <div className="rounded-xl border p-4" key={task.id}>
+                      <div className="bg-[var(--care-inset)] rounded-xl border p-4" key={task.id}>
                         <p className="font-medium">{task.title}</p>
                         <p className="my-2 text-xs text-muted-foreground">
                           {task.planning.duration_minutes} minutes ·{' '}
@@ -528,7 +562,7 @@ export function CarePlanning(props: Props) {
                           I’ll take this
                         </Button>
                       </div>
-                    ))}
+                    ))}</PaginatedList>
                   <p className="text-xs leading-5 text-muted-foreground">
                     No matching task? Share another time window or ask your care
                     circle to add a small responsibility.
@@ -562,7 +596,7 @@ export function CarePlanning(props: Props) {
             <h2 className="font-heading text-xl font-semibold">
               Requests waiting for you
             </h2>
-            <PaginatedList label="Coverage requests" records={state.offers
+            <PaginatedList label="Coverage requests" removal={{ individual: false, disabled: busy || !writable, description: 'Decline all coverage requests waiting for you. Responsibilities remain unfilled.', remove: async ids => { for (const id of ids) if (!await act('decline_offer', { id })) return false; return true; } }} records={state.offers
               .filter(
                 (offer) =>
                   offer.member_id === state.memberId &&
@@ -860,7 +894,7 @@ function AvailabilityEditor({
         </Button>
       </form>
       <div className="mt-5 space-y-3">
-        {state.availability.map((window) => (
+        <PaginatedList label="Availability" records={state.availability}>{state.availability.map((window) => (
           <div
             key={window.id}
             className="flex items-start justify-between gap-3 border-t pt-3"
@@ -889,7 +923,7 @@ function AvailabilityEditor({
               </Button>
             )}
           </div>
-        ))}
+        ))}</PaginatedList>
       </div>
     </section>
   );
@@ -1028,7 +1062,7 @@ function BrainDump({
       {!!drafts.length && (
         <div className="mt-6 space-y-4">
           {drafts.map((draft, index) => (
-            <article key={index} className="space-y-3 rounded-xl border p-4">
+            <article key={index} className="bg-[var(--care-inset)] space-y-3 rounded-xl border p-4">
               <div className="flex items-start justify-between gap-3">
                 <blockquote className="border-l-2 border-primary/40 pl-3 text-sm text-muted-foreground">
                   {draft.source}
@@ -1309,16 +1343,17 @@ function ProposalCard({
 }
 
 export function SinceAway(props: Props) {
+  const [handoverFiltered, setHandoverFiltered] = useState(false);
   const { state, act, busy, error, message } = usePlanning(props);
   if (!state) return null;
   return (
-    <section data-care-tone="sky" className={`${panel} mb-6 border-primary/30`}>
+    <section data-care-tone="sky" className="min-w-0 rounded-2xl border border-primary/30 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-primary">
             Your personal handover
           </p>
-          <h2 className="mt-1 font-heading text-2xl font-semibold">
+          <h2 className="mt-1 font-heading text-xl font-semibold">
             {state.handover.acknowledgedAt
               ? `${state.handover.changes.length} ${state.handover.changes.length === 1 ? 'change' : 'changes'} since you were away`
               : 'Start with the current picture'}
@@ -1330,7 +1365,8 @@ export function SinceAway(props: Props) {
           </p>
         </div>
         <Button
-          disabled={busy || props.dashboard.consent.status !== 'active'}
+          className="h-auto min-h-11 max-w-full whitespace-normal text-left"
+          disabled={busy || handoverFiltered || props.dashboard.consent.status !== 'active'}
           onClick={() =>
             act('acknowledge', {
               snapshot: JSON.stringify(state.handover.snapshot),
@@ -1341,9 +1377,10 @@ export function SinceAway(props: Props) {
           reviewed this handover
         </Button>
       </div>
+      {handoverFiltered && <output className="mt-3 block text-sm text-muted-foreground">Clear handover filters and review all changes before acknowledging the full handover.</output>}
       <Notice error={error} message={message} />
       <div className="mt-4 space-y-3">
-        {state.handover.changes.map((change) => (
+        <PaginatedList label="Handover changes" filterFields={[["kind", "Information type"], ["change_type", "Change type"]]} hideSingleValueFilters onFilterActiveChange={setHandoverFiltered} resetKey={props.dashboard.selectedRecipient.id} pageSize={3} collapsibleFilters records={state.handover.changes.map(change => ({ ...change, change_type: change.before === null ? "added" : change.after === null ? "removed" : "changed" }))}>{state.handover.changes.map((change) => (
           <article key={change.id} className="rounded-xl bg-muted/60 p-4">
             <p className="text-xs font-medium text-primary">
               {change.kind} ·{' '}
@@ -1354,6 +1391,7 @@ export function SinceAway(props: Props) {
                   : 'Changed'}
             </p>
             <h3 className="mt-1 text-sm font-semibold">{change.label}</h3>
+            <details className="mt-2"><summary className="cursor-pointer text-sm text-primary">View change details</summary>
             {change.before && (
               <p className="mt-2 text-sm text-muted-foreground">
                 <strong>Before:</strong> {change.before}
@@ -1364,8 +1402,9 @@ export function SinceAway(props: Props) {
                 <strong>Now:</strong> {change.after}
               </p>
             )}
+            </details>
           </article>
-        ))}
+        ))}</PaginatedList>
       </div>
     </section>
   );
@@ -1389,7 +1428,7 @@ export function MemoryConflicts(props: Props) {
       </p>
       <Notice error={error} message={message} />
       <div className="mt-4 space-y-4">
-        {state.conflicts.map((conflict) => (
+        <PaginatedList label="Conflicting facts" records={state.conflicts}>{state.conflicts.map((conflict) => (
           <form
             className="rounded-xl border border-destructive/40 p-4"
             key={conflict.key}
@@ -1452,7 +1491,7 @@ export function MemoryConflicts(props: Props) {
               Confirm verified value
             </Button>
           </form>
-        ))}
+        ))}</PaginatedList>
         {!state.conflicts.length && (
           <p className="text-sm text-primary">
             No conflicts found among the structured, current facts.
@@ -1464,7 +1503,7 @@ export function MemoryConflicts(props: Props) {
           Describe facts and review expiry dates
         </summary>
         <div className="mt-4 space-y-4">
-          {state.memories.map((memory) => (
+          <PaginatedList label="Fact details" records={state.memories}>{state.memories.map((memory) => (
             <form
               key={memory.id}
               className="rounded-xl border p-4"
@@ -1535,7 +1574,7 @@ export function MemoryConflicts(props: Props) {
                 Save fact context
               </Button>
             </form>
-          ))}
+          ))}</PaginatedList>
         </div>
       </details>
     </section>

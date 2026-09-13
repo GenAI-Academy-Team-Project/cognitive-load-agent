@@ -4,7 +4,7 @@ import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
 import { AppError, enforceRateLimit, errorResponse, recordError } from '@/lib/guardrails';
 import { randomToken, sessionToken, tokenHash } from '@/lib/sessions';
-import { approveCalendarAction, calendarContext, connectionFor, field, proposeCalendarAction, publicAction, requireCalendarWrite, requireConnection, type ActionRow } from '@/lib/calendar-service';
+import { approveCalendarAction, editCalendarAction, calendarContext, connectionFor, field, proposeCalendarAction, publicAction, requireCalendarWrite, requireConnection, type ActionRow } from '@/lib/calendar-service';
 import { accessToken, calendarScopes, isGoogleConfigured, ownedCalendars, requireGoogleConfig, type GoogleConfig } from '@/lib/google-calendar';
 import type { CalendarAppointment, CalendarState } from '@/lib/calendar-types';
 
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const connection = await connectionFor(context);
     const binding = connection ? await db.prepare('SELECT calendar_id,calendar_name FROM calendar_bindings WHERE member_id=? AND recipient_id=? AND connection_id=?').bind(auth.member.memberId, recipientId, connection.id).first<CalendarState['binding']>() : null;
     const appointments = (await db.prepare('SELECT * FROM calendar_appointments WHERE recipient_id=? ORDER BY start_at').bind(recipientId).all<CalendarAppointment>()).results;
-    const actions = (await db.prepare('SELECT * FROM calendar_actions WHERE recipient_id=? AND member_id=? ORDER BY created_at DESC LIMIT 100').bind(recipientId, auth.member.memberId).all<ActionRow>()).results;
+    const actions = (await db.prepare('SELECT * FROM calendar_actions WHERE recipient_id=? AND member_id=? ORDER BY created_at DESC').bind(recipientId, auth.member.memberId).all<ActionRow>()).results;
     const result: CalendarState = { configured: isGoogleConfigured(await config()), connection: connection ? { email: connection.email, status: connection.status } : null, binding, calendars: [], appointments: appointments.map((a) => ({ ...a, canManage: a.member_id === auth.member.memberId && a.connection_id === connection?.id })), actions: actions.map(publicAction) };
     // Listing local results continues to work during provider outages or withdrawn consent.
     if (connection?.status === 'connected' && context.consent && result.configured) {
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
       return json({ ok: true });
     }
     if (action === 'propose') return json({ actionId: await proposeCalendarAction(context, await config(), body) });
+    if (action === 'edit') { await editCalendarAction(context, await config(), field(body, 'actionId', 100), body); return json({ ok: true }); }
     if (action === 'approve') { await approveCalendarAction(context, await config(), field(body, 'actionId', 100)); return json({ ok: true }); }
     if (action === 'reject') {
       const updated = await db.prepare("UPDATE calendar_actions SET status='rejected',updated_at=? WHERE id=? AND recipient_id=? AND member_id=? AND status IN ('pending','failed')").bind(new Date().toISOString(), field(body, 'actionId', 100), recipientId, auth.member.memberId).run();

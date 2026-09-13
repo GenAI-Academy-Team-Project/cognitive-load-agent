@@ -216,6 +216,7 @@ export type BenchmarkSummary = {
 };
 
 export type DashboardState = {
+  listDismissals?: { entity_type: string; entity_id: string }[];
   confirmedCoverage: number;
   risks: Risk[];
   tasks: CareTask[];

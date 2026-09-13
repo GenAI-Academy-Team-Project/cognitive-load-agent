@@ -37,7 +37,7 @@ async function handle(request: Request) {
       if (access.consent !== 'active' && !(body.action === 'disable_ntfy' || body.action === 'disable_push' || (body.action === 'save_preferences' && body.emailEnabled === false && body.smsEnabled === false))) throw new AppError('consent_inactive', 409, 'Restore consent before enabling notifications.');
       if (body.action === 'enable_ntfy') {
         const server = ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL);
-        if (!server) throw new AppError('channel_unconfigured', 409, 'Enable ntfy in Integrations first.');
+        if (!server) throw new AppError('channel_unconfigured', 409, 'Enable mobile push in Integrations first.');
         if (!validNtfyTopic(body.topic)) throw new AppError('invalid_ntfy_topic', 400, 'Enter a topic of 1–64 letters, digits, underscores or hyphens, excluding reserved names.');
         await env.DB.prepare('INSERT INTO ntfy_preferences VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET server_url=excluded.server_url,topic=excluded.topic,updated_at=excluded.updated_at').bind(recipientId, memberId, server, body.topic, now).run();
       } else if (body.action === 'disable_ntfy') {
@@ -58,9 +58,10 @@ async function handle(request: Request) {
       } finally { await release(); }
     }
     const prefs = await env.DB.prepare('SELECT * FROM notification_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<NotificationPreferences>();
-    const deliveries = (await env.DB.prepare(`SELECT d.action_id,d.channel,d.status,d.error_code,d.created_at,c.display_name target_name,n.title FROM notification_deliveries d JOIN care_circle_members c ON c.id=d.member_id LEFT JOIN notifications n ON n.id=d.notification_id LEFT JOIN chat_action_requests a ON a.id=d.action_id WHERE d.recipient_id=? AND (d.member_id=? OR a.actor_member_id=?) ORDER BY d.created_at DESC LIMIT 30`).bind(recipientId, memberId, memberId).all()).results;
-    const ntfyEnabled = Boolean(await env.DB.prepare('SELECT 1 FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first());
-    return Response.json({ ntfyEnabled, ntfyServerUrl: ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
+    const deliveries = (await env.DB.prepare(`SELECT d.action_id,d.channel,d.status,d.error_code,d.created_at,c.display_name target_name,n.title FROM notification_deliveries d JOIN care_circle_members c ON c.id=d.member_id LEFT JOIN notifications n ON n.id=d.notification_id LEFT JOIN chat_action_requests a ON a.id=d.action_id WHERE d.recipient_id=? AND (d.member_id=? OR a.actor_member_id=?) ORDER BY d.created_at DESC`).bind(recipientId, memberId, memberId).all()).results;
+    const ntfyPreference = await env.DB.prepare('SELECT topic FROM ntfy_preferences WHERE recipient_id=? AND member_id=?').bind(recipientId, memberId).first<{ topic: string }>();
+    const ntfyEnabled = Boolean(ntfyPreference);
+    return Response.json({ ntfyEnabled, ntfyTopic: ntfyPreference?.topic || null, ntfyServerUrl: ntfyServerUrl((await effectiveIntegrations(env.DB, env)).NTFY_SERVER_URL), email: auth.member.email, emailEnabled: Boolean(prefs?.email_enabled), smsEnabled: Boolean(prefs?.sms_enabled), phone: prefs?.phone || '', pushEnabled: Boolean(prefs?.push_json), vapidPublicKey: (await effectiveIntegrations(env.DB, env)).VAPID_PUBLIC_KEY || null, channels: configuredChannels(await effectiveIntegrations(env.DB, env)), deliveries }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return errorResponse(error, crypto.randomUUID()); }
 }
 

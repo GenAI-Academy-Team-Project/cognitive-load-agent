@@ -76,6 +76,8 @@ for (const role of ['caregiver', 'viewer'] as const) {
         await memberPage.getByRole('button', { name: 'Use category', exact: true }).click();
         await memberPage.getByLabel('Due date and time').fill('2026-10-10T10:00');
         await memberPage.getByRole('button', { name: 'Add to plan', exact: true }).click();
+        await expect(memberPage.getByRole('dialog')).toBeHidden();
+        await memberPage.getByRole('searchbox', { name: 'Search responsibilities', exact: true }).fill('Arrange music time');
         await expect(memberPage.getByRole('heading', { name: 'Arrange music time' })).toBeVisible();
         await memberPage.reload();
         await add.click();

@@ -1,4 +1,16 @@
 export const notificationChannels = ['in_app', 'email', 'sms', 'push', 'ntfy'] as const;
+
+export function notificationDeliveryHint(channel: string, errorCode: string | null): string | null {
+  if (channel !== 'sms') return null;
+  switch (errorCode) {
+    case 'twilio_21211': return 'Check the receiving caregiver’s phone number, including the country code. The sender and recipient must be different numbers.';
+    case 'twilio_21606': return 'Check that the configured sender belongs to your SMS account and supports messaging.';
+    case 'twilio_21608': return 'The receiving number is not verified for this account. Check verified recipients and account restrictions in the SMS provider console.';
+    case 'twilio_21610': return 'This recipient opted out of SMS. They must choose to resubscribe before SMS can resume.';
+    case 'provider_http_400': return 'The SMS provider rejected this request. Check its error logs for the specific reason; this record contains only the HTTP status.';
+    default: return errorCode?.startsWith('twilio_') ? 'Check this error code in the SMS provider console for the required correction.' : null;
+  }
+}
 export type NotificationChannel = typeof notificationChannels[number];
 export type NotificationConfig = {
   NTFY_SERVER_URL?: string;

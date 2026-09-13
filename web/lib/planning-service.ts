@@ -154,7 +154,7 @@ export async function loadPlanning(
     ]),
     all<Omit<PlanningProposal, 'payload'> & { payload_json: string }>(
       db,
-      'SELECT * FROM planning_proposals WHERE recipient_id=? ORDER BY created_at DESC LIMIT 40',
+      'SELECT * FROM planning_proposals WHERE recipient_id=? ORDER BY created_at DESC',
       [recipientId],
     ),
     all<CoverageOffer>(

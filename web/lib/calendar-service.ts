@@ -89,6 +89,26 @@ export async function proposeCalendarAction(context: CalendarContext, config: Go
   return id;
 }
 
+export async function editCalendarAction(context: CalendarContext, config: GoogleConfig, actionId: string, body: Record<string, unknown>) {
+  requireCalendarWrite(context);
+  const action = await context.db.prepare('SELECT * FROM calendar_actions WHERE id=? AND recipient_id=? AND member_id=?').bind(actionId, context.recipientId, context.member.memberId).first<ActionRow>();
+  if (!action) throw new AppError('action_not_found', 404, 'Calendar action not found.');
+  if (!['pending', 'failed'].includes(action.status) || action.kind === 'cancel') throw new AppError('action_in_progress', 409, 'This proposal cannot be edited. Check any pending Google result first.');
+  const connection = await requireConnection(context);
+  if (connection.id !== action.connection_id) throw new AppError('account_changed', 409, 'Reconnect the Google account used for this proposal.');
+  const payload = JSON.parse(action.payload_json) as CalendarAction['payload'];
+  const binding = await context.db.prepare('SELECT 1 FROM calendar_bindings WHERE member_id=? AND recipient_id=? AND connection_id=? AND calendar_id=?').bind(context.member.memberId, context.recipientId, connection.id, payload.calendarId).first();
+  if (!binding) throw new AppError('calendar_changed', 409, 'Select the calendar used in this proposal before editing.');
+  let draft = draftFor(body);
+  if (action.kind === 'reschedule') {
+    const current = await getGoogleEvent(await accessToken(context.db, config, connection), payload.calendarId, payload.eventId);
+    if (!current || current.status === 'cancelled' || current.etag !== payload.etag) throw new AppError('calendar_changed', 409, 'This event changed in Google Calendar. Discard this proposal and review it again.');
+    draft = { ...payload, start: draft.start, end: draft.end, timeZone: draft.timeZone };
+  }
+  const updated = await context.db.prepare("UPDATE calendar_actions SET payload_json=?,status='pending',error=NULL,updated_at=? WHERE id=? AND status IN ('pending','failed') AND payload_json=?").bind(JSON.stringify({ ...payload, ...draft }), new Date().toISOString(), action.id, action.payload_json).run();
+  if (!updated.meta.changes) throw new AppError('action_in_progress', 409, 'This proposal changed while you were editing. Refresh and review it again.');
+}
+
 async function writeGoogleAction(token: string, action: ActionRow, payload: CalendarAction['payload']) {
   const current = await getGoogleEvent(token, payload.calendarId, payload.eventId);
   const marker = current?.extendedProperties?.private?.caresteadActionId;
@@ -139,7 +159,7 @@ export async function approveCalendarAction(context: CalendarContext, config: Go
     if (linked) throw new AppError('already_scheduled', 409, 'This responsibility already has an appointment.');
   }
   const now = new Date().toISOString();
-  const claimed = await db.prepare("UPDATE calendar_actions SET status='executing',error=NULL,updated_at=? WHERE id=? AND (status IN ('pending','failed','uncertain') OR (status='executing' AND updated_at<?))").bind(now, action.id, new Date(Date.now() - 120000).toISOString()).run();
+  const claimed = await db.prepare("UPDATE calendar_actions SET status='executing',error=NULL,updated_at=? WHERE id=? AND payload_json=? AND (status IN ('pending','failed','uncertain') OR (status='executing' AND updated_at<?))").bind(now, action.id, action.payload_json, new Date(Date.now() - 120000).toISOString()).run();
   if (!claimed.meta.changes) throw new AppError('action_in_progress', 409, 'This action is already being processed. Refresh shortly.');
   try {
     const token = await accessToken(db, config, connection);

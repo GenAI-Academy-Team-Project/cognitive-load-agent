@@ -29,9 +29,13 @@ export async function openToken(value: string, secret: string, memberId: string)
   return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: Buffer.from(iv, 'base64'), additionalData: new TextEncoder().encode(memberId) }, key, Buffer.from(data, 'base64')));
 }
 
-export async function googleFetch(url: string, init: RequestInit = {}) {
-  try { return await fetch(url, { ...init, signal: AbortSignal.timeout(12000), redirect: 'error' }); }
-  catch { throw new AppError('google_unavailable', 503, 'Google did not confirm the result. Retry this action to check its status safely.'); }
+export async function googleFetch(url: string, init: RequestInit = {}, failureMessage = 'Google could not be reached. Try again shortly.') {
+  try {
+    // Workers supports manual/follow only. Never forward credentials to a redirect target.
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(12000), redirect: 'manual' });
+    if (response.status >= 300 && response.status < 400) throw new Error('Unexpected Google redirect');
+    return response;
+  } catch { throw new AppError('google_unavailable', 503, failureMessage); }
 }
 
 export async function exchangeCode(config: GoogleConfig, code: string, verifier: string) {
@@ -66,15 +70,18 @@ export async function accessToken(db: D1Database, config: GoogleConfig, connecti
 }
 
 export async function calendarRequest(token: string, path: string, init: RequestInit = {}, allowed: number[] = []) {
+  const failureMessage = ['GET', 'HEAD'].includes((init.method || 'GET').toUpperCase())
+    ? 'Google Calendar could not be loaded. Refresh to try again.'
+    : 'Google did not confirm the result. Retry this action to check its status safely.';
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`); headers.set('Content-Type', 'application/json');
-  const response = await googleFetch(`https://www.googleapis.com/calendar/v3/${path}`, { ...init, headers });
+  const response = await googleFetch(`https://www.googleapis.com/calendar/v3/${path}`, { ...init, headers }, failureMessage);
   if (!response.ok && !allowed.includes(response.status)) {
     if (response.status === 400) throw new AppError('invalid_calendar_event', 400, 'Google rejected these event details. Discard the proposal and review the appointment fields.');
     if (response.status === 401) throw new AppError('google_reconnect', 409, 'Reconnect your Google account to continue.');
     if (response.status === 403) throw new AppError('calendar_forbidden', 403, 'Google denied access. Check your calendar permissions and reconnect if needed.');
     if (response.status === 404 || response.status === 410 || response.status === 412) throw new AppError('calendar_changed', 409, 'This event changed or was removed in Google Calendar. Discard this proposal and review it again.');
-    throw new AppError('google_unavailable', 503, 'Google did not confirm the result. Retry this action to check its status safely.');
+    throw new AppError('google_unavailable', 503, failureMessage);
   }
   return response;
 }
