@@ -1,0 +1,57 @@
+ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers
+  built with Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+  configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --arch=arm64 --cc=/usr/bin/clang --enable-gpl --enable-libvmaf --enable-libopenjpeg --enable-libopus --enable-libmp3lame --enable-libx264 --enable-libx265 --enable-libvpx --enable-libwebp --enable-libass --enable-libfreetype --enable-fontconfig --enable-libtheora --enable-libvorbis --enable-libsnappy --enable-libaom --enable-libvidstab --enable-libzimg --enable-libsvtav1 --enable-libharfbuzz --enable-libkvazaar --pkg-config-flags=--static --enable-ffplay --enable-postproc --enable-neon --enable-runtime-cpudetect --disable-indev=qtkit --disable-indev=x11grab_xcb
+  libavutil      59. 39.100 / 59. 39.100
+  libavcodec     61. 19.100 / 61. 19.100
+  libavformat    61.  7.100 / 61.  7.100
+  libavdevice    61.  3.100 / 61.  3.100
+  libavfilter    10.  4.100 / 10.  4.100
+  libswscale      8.  3.100 /  8.  3.100
+  libswresample   5.  3.100 /  5.  3.100
+  libpostproc    58.  3.100 / 58.  3.100
+Input #0, rawvideo, from 'fd:':
+  Duration: N/A, start: 0.000000, bitrate: 1194393 kb/s
+  Stream #0:0: Video: rawvideo (RGB[24] / 0x18424752), rgb24, 1920x1080, 1194393 kb/s, 24 tbr, 24 tbn
+[aist#1:0/pcm_s16le @ 0x157e19240] Guessed Channel Layout: stereo
+Input #1, wav, from '/Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent/docs/pitch-v6/assets/mix.wav':
+  Duration: 00:00:34.00, bitrate: 1536 kb/s
+  Stream #1:0: Audio: pcm_s16le ([1][0][0][0] / 0x0001), 48000 Hz, stereo, s16, 1536 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (rawvideo (native) -> h264 (libx264))
+  Stream #1:0 -> #0:1 (pcm_s16le (native) -> aac (native))
+[libx264 @ 0x157e1b900] using cpu capabilities: ARMv8 NEON
+[libx264 @ 0x157e1b900] profile High, level 4.0, 4:2:0, 8-bit
+[libx264 @ 0x157e1b900] 264 - core 164 r3190 7ed753b - H.264/MPEG-4 AVC codec - Copyleft 2003-2024 - http://www.videolan.org/x264.html - options: cabac=1 ref=2 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=6 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=12 lookahead_threads=2 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=1 keyint=250 keyint_min=24 scenecut=40 intra_refresh=0 rc_lookahead=30 rc=crf mbtree=1 crf=18.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+Output #0, mp4, to '/Users/maneettaantony/Workspaces/team-projects/cognitive-load-agent/docs/pitch-v6/carestead-ad-v6.mp4':
+  Metadata:
+    encoder         : Lavf61.7.100
+  Stream #0:0: Video: h264 (avc1 / 0x31637661), yuv420p(tv, progressive), 1920x1080, q=2-31, 24 fps, 12288 tbn
+      Metadata:
+        encoder         : Lavc61.19.100 libx264
+      Side data:
+        cpb: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+  Stream #0:1: Audio: aac (LC) (mp4a / 0x6134706D), 96000 Hz, stereo, fltp, 192 kb/s
+      Metadata:
+        encoder         : Lavc61.19.100 aac
+frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A    frame=   23 fps= 23 q=23.0 size=       0KiB time=00:00:00.87 bitrate=   0.4kbits/s speed=0.866x    frame=   52 fps= 34 q=23.0 size=       0KiB time=00:00:02.08 bitrate=   0.2kbits/s speed=1.38x    frame=   84 fps= 42 q=23.0 size=       0KiB time=00:00:03.41 bitrate=   0.1kbits/s speed=1.69x    frame=  114 fps= 45 q=23.0 size=       0KiB time=00:00:04.66 bitrate=   0.1kbits/s speed=1.85x    frame=  146 fps= 48 q=23.0 size=     256KiB time=00:00:06.00 bitrate= 349.6kbits/s speed=1.98x    frame=  180 fps= 51 q=23.0 size=     256KiB time=00:00:07.41 bitrate= 282.8kbits/s speed= 2.1x    frame=  215 fps= 53 q=23.0 size=     256KiB time=00:00:08.87 bitrate= 236.3kbits/s speed= 2.2x    frame=  249 fps= 55 q=23.0 size=     256KiB time=00:00:10.29 bitrate= 203.8kbits/s speed=2.27x    frame=  281 fps= 56 q=23.0 size=     512KiB time=00:00:11.62 bitrate= 360.8kbits/s speed= 2.3x    frame=  311 fps= 56 q=23.0 size=     512KiB time=00:00:12.87 bitrate= 325.8kbits/s speed=2.32x    frame=  339 fps= 56 q=23.0 size=     768KiB time=00:00:14.04 bitrate= 448.1kbits/s speed=2.32x    frame=  371 fps= 57 q=23.0 size=     768KiB time=00:00:15.37 bitrate= 409.2kbits/s speed=2.35x    frame=  404 fps= 57 q=23.0 size=     768KiB time=00:00:16.75 bitrate= 375.6kbits/s speed=2.37x    frame=  435 fps= 58 q=23.0 size=     768KiB time=00:00:18.04 bitrate= 348.7kbits/s speed=2.39x    frame=  465 fps= 58 q=23.0 size=     768KiB time=00:00:19.29 bitrate= 326.1kbits/s speed=2.39x    frame=  495 fps= 58 q=23.0 size=    1024KiB time=00:00:20.54 bitrate= 408.4kbits/s speed= 2.4x    frame=  530 fps= 58 q=23.0 size=    1024KiB time=00:00:22.00 bitrate= 381.3kbits/s speed=2.42x    frame=  563 fps= 59 q=23.0 size=    1024KiB time=00:00:23.37 bitrate= 358.9kbits/s speed=2.44x    frame=  594 fps= 59 q=23.0 size=    1280KiB time=00:00:24.66 bitrate= 425.1kbits/s speed=2.45x    frame=  625 fps= 59 q=23.0 size=    1280KiB time=00:00:25.95 bitrate= 404.0kbits/s speed=2.45x    frame=  665 fps= 60 q=23.0 size=    1280KiB time=00:00:27.62 bitrate= 379.6kbits/s speed=2.49x    frame=  702 fps= 61 q=23.0 size=    1280KiB time=00:00:29.16 bitrate= 359.5kbits/s speed=2.51x    frame=  736 fps= 61 q=23.0 size=    1536KiB time=00:00:30.58 bitrate= 411.4kbits/s speed=2.53x    frame=  799 fps= 63 q=23.0 size=    1536KiB time=N/A bitrate=N/A speed=N/A    [mp4 @ 0x157e19620] Starting second pass: moving the moov atom to the beginning of the file
+[out#0/mp4 @ 0x157e19560] video:847KiB audio:812KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 1.874275%
+frame=  816 fps= 65 q=-1.0 Lsize=    1690KiB time=00:00:33.91 bitrate= 408.2kbits/s speed=2.69x    
+[libx264 @ 0x157e1b900] frame I:6     Avg QP: 3.54  size: 25896
+[libx264 @ 0x157e1b900] frame P:295   Avg QP:14.11  size:  2109
+[libx264 @ 0x157e1b900] frame B:515   Avg QP:10.64  size:   174
+[libx264 @ 0x157e1b900] consecutive B-frames: 10.4% 14.2%  6.2% 69.1%
+[libx264 @ 0x157e1b900] mb I  I16..4: 90.6%  4.0%  5.4%
+[libx264 @ 0x157e1b900] mb P  I16..4:  0.5%  0.3%  0.3%  P16..4:  1.2%  0.1%  0.0%  0.0%  0.0%    skip:97.7%
+[libx264 @ 0x157e1b900] mb B  I16..4:  0.1%  0.0%  0.0%  B16..8:  0.5%  0.1%  0.0%  direct: 0.1%  skip:99.3%  L0:41.9% L1:46.9% BI:11.1%
+[libx264 @ 0x157e1b900] 8x8 transform intra:11.2% inter:24.9%
+[libx264 @ 0x157e1b900] coded y,uvDC,uvAC intra: 7.4% 13.7% 12.5% inter: 0.2% 0.3% 0.1%
+[libx264 @ 0x157e1b900] i16 v,h,dc,p: 84% 14%  1%  0%
+[libx264 @ 0x157e1b900] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 23%  5% 71%  0%  0%  0%  0%  0%  0%
+[libx264 @ 0x157e1b900] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 41% 19% 22%  2%  3%  4%  3%  3%  3%
+[libx264 @ 0x157e1b900] i8c dc,h,v,p: 75% 16%  9%  1%
+[libx264 @ 0x157e1b900] Weighted P-Frames: Y:1.7% UV:0.3%
+[libx264 @ 0x157e1b900] ref P L0: 81.2% 18.8%
+[libx264 @ 0x157e1b900] ref B L0: 94.4%  5.6%
+[libx264 @ 0x157e1b900] ref B L1: 98.8%  1.2%
+[libx264 @ 0x157e1b900] kb/s:204.02
+[aac @ 0x137f06d00] Qavg: 692.770

@@ -1,0 +1,22 @@
+{
+  "carestead-ad-v6.mp4": {
+    "durationSeconds": 34.0,
+    "decodePassed": true,
+    "hasAudio": true,
+    "bytes": 1730685
+  },
+  "carestead-ad-v6.webm": {
+    "durationSeconds": 34.01,
+    "decodePassed": true,
+    "hasAudio": true,
+    "bytes": 1488385
+  },
+  "audio": {
+    "input_i": "-16.34",
+    "input_tp": "-2.90",
+    "input_lra": "5.60"
+  },
+  "speechSpeedChanged": false,
+  "overlappingVoiceSegments": false,
+  "captionTimingSource": "Speech service word boundaries"
+}
