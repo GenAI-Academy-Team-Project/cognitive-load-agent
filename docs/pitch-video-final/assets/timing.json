@@ -1,0 +1,524 @@
+{
+  "duration": 34.0,
+  "voice": "en-US-AvaMultilingualNeural",
+  "speechSpeedChanged": false,
+  "synthesisRate": "-3%",
+  "segments": [
+    {
+      "start": 0.4,
+      "end": 6.6414583333333335,
+      "text": "An older parent. A new baby. Recovery after surgery. Care changes every day.",
+      "words": [
+        {
+          "start": 0.3813955,
+          "end": 0.5489365,
+          "text": "An",
+          "segment": 0
+        },
+        {
+          "start": 0.6133535,
+          "end": 0.9097285000000002,
+          "text": "older",
+          "segment": 0
+        },
+        {
+          "start": 0.9226034999999999,
+          "end": 1.4251865,
+          "text": "parent",
+          "segment": 0
+        },
+        {
+          "start": 1.8246874999999998,
+          "end": 1.8762283999999998,
+          "text": "A",
+          "segment": 0
+        },
+        {
+          "start": 1.8891034999999998,
+          "end": 2.1854785000000003,
+          "text": "new",
+          "segment": 0
+        },
+        {
+          "start": 2.1855205000000004,
+          "end": 2.7009785,
+          "text": "baby",
+          "segment": 0
+        },
+        {
+          "start": 3.0485205,
+          "end": 3.7057285,
+          "text": "Recovery",
+          "segment": 0
+        },
+        {
+          "start": 3.7186035,
+          "end": 4.014978500000001,
+          "text": "after",
+          "segment": 0
+        },
+        {
+          "start": 4.0278955000000005,
+          "end": 4.5820205000000005,
+          "text": "surgery",
+          "segment": 0
+        },
+        {
+          "start": 4.9818955,
+          "end": 5.226728500000001,
+          "text": "Care",
+          "segment": 0
+        },
+        {
+          "start": 5.226728500000001,
+          "end": 5.742186500000001,
+          "text": "changes",
+          "segment": 0
+        },
+        {
+          "start": 5.8066455,
+          "end": 6.077270500000001,
+          "text": "every",
+          "segment": 0
+        },
+        {
+          "start": 6.0901455,
+          "end": 6.463853500000001,
+          "text": "day",
+          "segment": 0
+        }
+      ]
+    },
+    {
+      "start": 6.941458333333333,
+      "end": 11.852166666666665,
+      "text": "An appointment moves. The ride doesn't. Everyone has part of the story.",
+      "words": [
+        {
+          "start": 6.9726034,
+          "end": 7.0499364,
+          "text": "An",
+          "segment": 1
+        },
+        {
+          "start": 7.0628125,
+          "end": 7.552478499999999,
+          "text": "appointment",
+          "segment": 1
+        },
+        {
+          "start": 7.552478499999999,
+          "end": 8.1452695,
+          "text": "moves",
+          "segment": 1
+        },
+        {
+          "start": 8.5451455,
+          "end": 8.6611455,
+          "text": "The",
+          "segment": 1
+        },
+        {
+          "start": 8.6740205,
+          "end": 9.1508115,
+          "text": "ride",
+          "segment": 1
+        },
+        {
+          "start": 9.1636875,
+          "end": 9.6791455,
+          "text": "doesn't",
+          "segment": 1
+        },
+        {
+          "start": 10.0657705,
+          "end": 10.465270499999999,
+          "text": "Everyone",
+          "segment": 1
+        },
+        {
+          "start": 10.4781455,
+          "end": 10.7229785,
+          "text": "has",
+          "segment": 1
+        },
+        {
+          "start": 10.7358535,
+          "end": 10.9291445,
+          "text": "part",
+          "segment": 1
+        },
+        {
+          "start": 10.942062499999999,
+          "end": 10.9936034,
+          "text": "of",
+          "segment": 1
+        },
+        {
+          "start": 11.0064785,
+          "end": 11.0708945,
+          "text": "the",
+          "segment": 1
+        },
+        {
+          "start": 11.0838125,
+          "end": 11.6894785,
+          "text": "story",
+          "segment": 1
+        }
+      ]
+    },
+    {
+      "start": 12.202166666666667,
+      "end": 16.336624999999998,
+      "text": "Carestead brings the plan and people into one shared care picture.",
+      "words": [
+        {
+          "start": 12.1995205,
+          "end": 12.7794365,
+          "text": "Carestead",
+          "segment": 2
+        },
+        {
+          "start": 12.7923125,
+          "end": 13.0371455,
+          "text": "brings",
+          "segment": 2
+        },
+        {
+          "start": 13.0500205,
+          "end": 13.1273535,
+          "text": "the",
+          "segment": 2
+        },
+        {
+          "start": 13.1402285,
+          "end": 13.6299365,
+          "text": "plan",
+          "segment": 2
+        },
+        {
+          "start": 13.7072705,
+          "end": 13.9134365,
+          "text": "and",
+          "segment": 2
+        },
+        {
+          "start": 13.9263125,
+          "end": 14.3128955,
+          "text": "people",
+          "segment": 2
+        },
+        {
+          "start": 14.3258125,
+          "end": 14.6351035,
+          "text": "into",
+          "segment": 2
+        },
+        {
+          "start": 14.647978499999999,
+          "end": 14.9443535,
+          "text": "one",
+          "segment": 2
+        },
+        {
+          "start": 14.9572705,
+          "end": 15.4340615,
+          "text": "shared",
+          "segment": 2
+        },
+        {
+          "start": 15.446937499999999,
+          "end": 15.7046875,
+          "text": "care",
+          "segment": 2
+        },
+        {
+          "start": 15.7175625,
+          "end": 16.207270500000003,
+          "text": "picture",
+          "segment": 2
+        }
+      ]
+    },
+    {
+      "start": 16.686625,
+      "end": 23.237833333333334,
+      "text": "Review the change. Update the shared plan. See what still needs attention, with you in control.",
+      "words": [
+        {
+          "start": 16.697645066666666,
+          "end": 17.032686066666667,
+          "text": "Review",
+          "segment": 3
+        },
+        {
+          "start": 17.045562166666667,
+          "end": 17.135770166666667,
+          "text": "the",
+          "segment": 3
+        },
+        {
+          "start": 17.135770166666667,
+          "end": 17.741436166666666,
+          "text": "change",
+          "segment": 3
+        },
+        {
+          "start": 18.154229166666667,
+          "end": 18.656812166666665,
+          "text": "Update",
+          "segment": 3
+        },
+        {
+          "start": 18.746979166666666,
+          "end": 18.824312166666665,
+          "text": "the",
+          "segment": 3
+        },
+        {
+          "start": 18.837187166666666,
+          "end": 19.249562166666664,
+          "text": "shared",
+          "segment": 3
+        },
+        {
+          "start": 19.262437166666665,
+          "end": 19.674812166666666,
+          "text": "plan",
+          "segment": 3
+        },
+        {
+          "start": 20.061437166666664,
+          "end": 20.396478166666665,
+          "text": "See",
+          "segment": 3
+        },
+        {
+          "start": 20.409354166666667,
+          "end": 20.576895166666667,
+          "text": "what",
+          "segment": 3
+        },
+        {
+          "start": 20.589770166666664,
+          "end": 20.937728166666666,
+          "text": "still",
+          "segment": 3
+        },
+        {
+          "start": 20.950604166666665,
+          "end": 21.208354166666666,
+          "text": "needs",
+          "segment": 3
+        },
+        {
+          "start": 21.221229166666667,
+          "end": 21.852687166666666,
+          "text": "attention",
+          "segment": 3
+        },
+        {
+          "start": 22.045979166666665,
+          "end": 22.213520166666665,
+          "text": "with",
+          "segment": 3
+        },
+        {
+          "start": 22.226395166666666,
+          "end": 22.368145166666665,
+          "text": "you",
+          "segment": 3
+        },
+        {
+          "start": 22.381020166666666,
+          "end": 22.484103166666664,
+          "text": "in",
+          "segment": 3
+        },
+        {
+          "start": 22.496979166666666,
+          "end": 23.089770166666668,
+          "text": "control",
+          "segment": 3
+        }
+      ]
+    },
+    {
+      "start": 23.587833333333332,
+      "end": 27.702166666666667,
+      "text": "Just ten minutes from you can mean so much to someone who needs support.",
+      "words": [
+        {
+          "start": 23.660832999999997,
+          "end": 23.931457999999996,
+          "text": "Just",
+          "segment": 4
+        },
+        {
+          "start": 23.944332999999997,
+          "end": 24.253583,
+          "text": "ten",
+          "segment": 4
+        },
+        {
+          "start": 24.253583,
+          "end": 24.665957999999996,
+          "text": "minutes",
+          "segment": 4
+        },
+        {
+          "start": 24.678874999999998,
+          "end": 24.820624999999996,
+          "text": "from",
+          "segment": 4
+        },
+        {
+          "start": 24.833499999999997,
+          "end": 24.988124999999997,
+          "text": "you",
+          "segment": 4
+        },
+        {
+          "start": 25.001040999999997,
+          "end": 25.168581999999997,
+          "text": "can",
+          "segment": 4
+        },
+        {
+          "start": 25.181457999999996,
+          "end": 25.439207999999997,
+          "text": "mean",
+          "segment": 4
+        },
+        {
+          "start": 25.452040999999998,
+          "end": 25.812873999999997,
+          "text": "so",
+          "segment": 4
+        },
+        {
+          "start": 25.812875,
+          "end": 26.122165999999996,
+          "text": "much",
+          "segment": 4
+        },
+        {
+          "start": 26.122165999999996,
+          "end": 26.186581999999998,
+          "text": "to",
+          "segment": 4
+        },
+        {
+          "start": 26.199457999999996,
+          "end": 26.598957999999996,
+          "text": "someone",
+          "segment": 4
+        },
+        {
+          "start": 26.611832999999997,
+          "end": 26.766457999999997,
+          "text": "who",
+          "segment": 4
+        },
+        {
+          "start": 26.779374999999998,
+          "end": 26.998457999999996,
+          "text": "needs",
+          "segment": 4
+        },
+        {
+          "start": 27.011332999999997,
+          "end": 27.578332999999997,
+          "text": "support",
+          "segment": 4
+        }
+      ]
+    },
+    {
+      "start": 28.052166666666665,
+      "end": 31.656479166666664,
+      "text": "Carestead. Less to carry, more care to give.",
+      "words": [
+        {
+          "start": 28.04910383333333,
+          "end": 28.79651983333333,
+          "text": "Carestead",
+          "segment": 5
+        },
+        {
+          "start": 29.15693683333333,
+          "end": 29.45331183333333,
+          "text": "Less",
+          "segment": 5
+        },
+        {
+          "start": 29.466228833333332,
+          "end": 29.55643683333333,
+          "text": "to",
+          "segment": 5
+        },
+        {
+          "start": 29.56931183333333,
+          "end": 30.04610283333333,
+          "text": "carry",
+          "segment": 5
+        },
+        {
+          "start": 30.30385383333333,
+          "end": 30.57447883333333,
+          "text": "more",
+          "segment": 5
+        },
+        {
+          "start": 30.58735383333333,
+          "end": 30.89664483333333,
+          "text": "care",
+          "segment": 5
+        },
+        {
+          "start": 30.909520833333332,
+          "end": 31.01260383333333,
+          "text": "to",
+          "segment": 5
+        },
+        {
+          "start": 31.02552083333333,
+          "end": 31.51522883333333,
+          "text": "give",
+          "segment": 5
+        }
+      ]
+    }
+  ],
+  "visualAnchors": [
+    [
+      0.4,
+      0.0
+    ],
+    [
+      6.941458333333333,
+      1.0
+    ],
+    [
+      12.202166666666667,
+      2.0
+    ],
+    [
+      16.686625,
+      3.0
+    ],
+    [
+      23.587833333333332,
+      4.0
+    ],
+    [
+      28.052166666666665,
+      5.0
+    ],
+    [
+      34.0,
+      6.0
+    ]
+  ]
+}
