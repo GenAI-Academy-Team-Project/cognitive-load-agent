@@ -14,7 +14,7 @@ def stamp(t):
 def prepare():
  global DURATION
  lines=json.loads((R/'copy.json').read_text());words=[];segments=[]
- starts=[];cursor=.4;gaps=[.30,.35,.35,.35,.35,0]
+ starts=[];cursor=.4;gaps=[.30,.35,.35,.35,.30,.35,0]
  for i in range(len(lines)):
   raw=np.frombuffer(v.run(['-i',A/f'ava-{i:02}.mp3','-ac',1,'-ar',SR,'-f','f32le','-']),'<f4')
   nz=np.flatnonzero(abs(raw)>.002);lo=max(0,int(nz[0])-.045*SR);hi=min(len(raw),int(nz[-1])+.09*SR)
@@ -45,7 +45,7 @@ def prepare():
  (R/'captions.vtt').write_text('WEBVTT\n\n'+'\n\n'.join(f'{stamp(a)} --> {stamp(b)}\n{s}' for a,b,s in cues)+'\n')
  # Anchor the approved picture sequence to words in the new voice recording.
  def word(i,term,occurrence=0):return [w['start'] for w in segments[i]['words'] if w['text'].lower().strip('.,!?')==term.lower()][occurrence]
- anchors=[(starts[i],float(i)) for i in range(len(starts))]+[(DURATION,6.)]
+ anchors=[(starts[i],float(i)) for i in range(len(starts))]+[(DURATION,7.)]
  (A/'timing.json').write_text(json.dumps({'duration':DURATION,'voice':'en-US-AvaMultilingualNeural','speechSpeedChanged':False,'synthesisRate':'-3%','segments':segments,'visualAnchors':anchors},indent=2)+'\n')
  # An original warm plucked-key score with a soft pulse and restrained stereo space.
  music=np.zeros(int(DURATION*SR));rng=np.random.default_rng(491);beat=60/82
@@ -85,18 +85,18 @@ def card(im,x,y,w,label,value,accent=None):
  v.txt(im,(x+42,y+20),label,15,v.MUTED)
  v.txt(im,(x+42,y+51),value,25 if len(value)>20 else 30,v.INK)
 
-def scene(t,segs):
+def base_scene(t,segs):
  k=max([i for i,s in enumerate(segs) if t>=s['start']] or [0]);q=t-segs[k]['start']
- dark=k in (1,5);im=Image.new('RGBA',(1920,1080),v.INK if dark else v.PAPER);v.brand(im,dark)
+ dark=k in (1,6);im=Image.new('RGBA',(1920,1080),v.INK if dark else v.PAPER);v.brand(im,dark)
  fg=v.WHITE if dark else v.INK
  def title(label,size=65):v.ktxt(im,q,0,(65,100),label,size,fg,.45)
  def word(term):
   return next((w['start']-segs[k]['start'] for w in segs[k]['words'] if w['text'].lower().strip('.,?!')==term),0)
  if k==0:
-  title('Care changes every day.',62)
-  contexts=[('SUPPORTING AN OLDER PARENT','Groceries · Check-ins','parent'),('NEW MOTHER & BABY','Rest · Feeding · Support','baby'),('RECOVERY AFTER SURGERY','Home help · Follow-ups','recovery')]
+  v.ktxt(im,q,word('care'),(65,100),'Care changes every day.',62,v.INK,.3)
+  contexts=[('SUPPORTING AN OLDER PARENT','Groceries · Check-ins','older'),('NEW MOTHER & BABY','Rest · Feeding · Support','new'),('RECOVERY AFTER SURGERY','Home help · Follow-ups','recovery')]
   for j,(label,detail,term) in enumerate(contexts):
-   start=max(0,word(term)-.55);p=v.out((q-start)/.5)
+   start=max(0,word(term));p=v.out((q-start)/.24)
    if p<=0:continue
    x=70+j*405;y=315+60*(1-p)
    card(im,x,y,375,label,detail,[v.TEAL,'#726193','#A35A2C'][j])
@@ -122,34 +122,60 @@ def scene(t,segs):
    for x in [258,663,1068]:v.circ(im,(x-5,475,x+5,485),v.TEAL)
    v.ktxt(im,q,.8,(70,543),'The plan. The people. The follow-through.',35)
  elif k==3:
-  approved=q>=word('plan')+.25
-  title('Your review. Your decision.',57)
-  v.rect(im,(65,235,680,605),v.WHITE,22)
-  v.txt(im,(95,260),'REVIEW CARE PLAN CHANGE',14,v.TEAL)
-  v.txt(im,(95,299),'Physiotherapy',36)
-  v.txt(im,(95,358),'9:00',45,v.MUTED);v.line(im,[(95,389),(193,389)],v.MUTED,2)
-  v.arrow(im,280,388);v.txt(im,(326,358),'11:00',45)
-  v.rect(im,(95,452,650,517),v.MINT if approved else v.TEAL,12)
-  v.txt(im,(373,483),'Plan updated' if approved else 'Confirm change',25,v.INK if approved else v.WHITE,'mm')
-  v.txt(im,(95,548),'Reviewed by the caregiver',18,v.MUTED)
-  card(im,725,267,490,'SHARED PLAN','11:00' if approved else '9:00')
-  card(im,725,432,490,'NEXT STEP · NEEDS ATTENTION','Confirm the ride','#A35A2C')
-  if approved:v.check(im,1165,331)
+  title('Care happens across people.',56)
+  items=[('THE PLAN','A shared care picture','plan'),('THE PEOPLE','Clear responsibilities','people'),('THE FOLLOW-THROUGH','Next steps visible','follow-through')]
+  for j,(label,value,term) in enumerate(items):
+   p=v.out((q-word(term))/.3)
+   if p>0:card(im,65+j*405,285+40*(1-p),375,label,value)
+  v.ktxt(im,q,word('clear'),(70,473),'A clear next step.',40,v.INK,.3)
+  v.ktxt(im,q,word('caregiver'),(690,473),'A caregiver in control.',35,v.INK,.3)
  elif k==4:
+  title('A clear handover.',64)
+  v.txt(im,(70,199),'FOR THE NEXT CAREGIVER',14,v.TEAL)
+  rows=[('WHAT CHANGED','Physiotherapy moved to 11:00'),('WHO’S HELPING','Evening check-in · assigned'),('WHAT NEEDS ATTENTION','Ride & grocery pickup need owners')]
+  for j,(label,value) in enumerate(rows):
+   p=v.out((q-.12-j*.14)/.35)
+   if p<=0:continue
+   y=263+j*112+24*(1-p);v.rect(im,(65,y,755,y+95),v.WHITE,16)
+   v.txt(im,(90,y+15),label,12,v.TEAL);v.txt(im,(90,y+40),value,24,v.INK)
+  v.ktxt(im,q,word('less'),(815,280),'Less time',40,v.INK,.3)
+  v.ktxt(im,q,word('chasing'),(815,332),'chasing updates.',32,v.INK,.3)
+  v.ktxt(im,q,word('more'),(815,438),'More time',40,v.TEAL,.3)
+  v.ktxt(im,q,word('being'),(815,490),'being there.',40,v.TEAL,.3)
+ elif k==5:
   title('A little of your time.',62)
   v.ktxt(im,q,.35,(75,235),'10',160,v.TEAL,.6)
   v.ktxt(im,q,.5,(285,341),'minutes',45,v.TEAL,.5)
   v.ktxt(im,q,word('mean')-.2,(660,264),'Can mean',52)
   v.ktxt(im,q,word('much')-.2,(660,331),'so much.',66)
   v.line(im,[(80,465),(1200,465)],'#B8D6D5',2)
-  v.ktxt(im,q,.5,(80,517),'A grocery pickup. A check-in. Being there.',32)
+  v.ktxt(im,q,.5,(80,517),'Small moments of support. Being there.',32)
 
  else:
   v.ktxt(im,q,0,(65,122),'Carestead',83,v.WHITE,.4)
-  v.ktxt(im,q,word('less')-.1,(70,287),'Less to carry.',68,v.WHITE,.4)
-  v.ktxt(im,q,word('more')-.1,(70,377),'More care to give.',68,v.MINT,.4)
+  v.ktxt(im,q,word('less'),(70,287),'Less to carry.',68,v.WHITE,.4)
+  v.ktxt(im,q,word('more'),(70,377),'More care to give.',68,v.MINT,.4)
   v.line(im,[(73,520),(1200,520)],'#53777D',2)
   v.ktxt(im,q,word('give'),(75,557),'YOU CARE. WE PLAN.',24,v.PEACH,.4)
+ return im
+
+def scene(t,segs):
+ problem=segs[1];intro=segs[2];end=segs[3]['start']
+ if problem['start']<=t<intro['start']:
+  ww=problem['words'];every=[w['start'] for w in ww if w['text'].lower()=='everyone']
+  ride=next(w['start'] for w in ww if w['text'].lower()=='ride')
+  # Use v3's original scene renderer directly, without baked-in captions.
+  if t<every[1]:src=float(np.interp(t,[problem['start'],ride,every[0],every[1]],[0,2.023,3.276,6.5]))
+  else:src=float(np.interp(t,[every[1],intro['start']],[6.5,10.99]))
+  return v.scene(src)
+ if intro['start']<=t<end:
+  return v.scene(float(np.interp(t,[intro['start'],end],[11,14.99])))
+ im=base_scene(t,segs)
+ for i in range(3,len(segs)):
+  st=segs[i]['start']
+  if st<=t<st+.20:
+   previous=v.scene(14.99) if i==3 else base_scene(st-.001,segs)
+   return Image.blend(previous,im,v.ease((t-st)/.20))
  return im
 
 def render():
@@ -160,7 +186,7 @@ def render():
   t=n/24;visual=float(np.interp(t,xs,ys));im=scene(t,segments)
   cue=next((s for a,b,s in cues if a<=t<b),None)
   if cue:
-   dark=segments[1]['start']<=t<segments[2]['start'] or t>=segments[5]['start']
+   dark=segments[1]['start']<=t<segments[2]['start'] or t>=segments[6]['start']
    width=ImageDraw.Draw(im).textlength(cue,font=v.font(21))/v.S
    v.rect(im,(640-width/2-19,669,640+width/2+19,703),v.PAPER if dark else v.INK,9)
    v.txt(im,(640,674),cue,21,v.INK if dark else v.WHITE,'mt')

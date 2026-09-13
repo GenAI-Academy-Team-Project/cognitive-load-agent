@@ -220,7 +220,7 @@ export default function Home() {
               </Button>
               {state && !guest && <Button variant="ghost" size="icon" aria-label={`Notifications, ${state.notifications.filter((item) => !item.read_at).length} unread`} title="Notifications" aria-pressed={view === 'Notifications'} onClick={() => setView('Notifications')} className="relative"><Bell />{state.notifications.some((item) => !item.read_at) && <span className="absolute top-1 right-1 size-2 rounded-full bg-[#b6533d]" />}</Button>}
               {state && !guest && <Button variant="ghost" size="icon" aria-label="Calendar" title="Calendar" aria-pressed={view === 'Calendar'} onClick={() => setView('Calendar')}><CalendarDays /></Button>}
-              {state && <AccountMenus user={state.currentUser} recipientName={state.selectedRecipient.display_name} view={view} onNavigate={setView} onSignOut={signOut} busy={!!busy} />}
+              {state && <AccountMenus user={state.currentUser} recipientName={state.selectedRecipient.display_name} view={view} onNavigate={setView} onSignOut={signOut} onProfileUpdated={(displayName) => setState((current) => current ? { ...current, currentUser: { ...current.currentUser, displayName }, careCircle: current.careCircle.map((member) => member.email === current.currentUser.email ? { ...member, display_name: displayName } : member) } : current)} busy={!!busy} />}
             </div>
           </header>
 

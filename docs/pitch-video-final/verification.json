@@ -1,20 +1,20 @@
 {
   "carestead-ad-v6.mp4": {
-    "durationSeconds": 34.0,
+    "durationSeconds": 39.0,
     "decodePassed": true,
     "hasAudio": true,
-    "bytes": 1730685
+    "bytes": 2342456
   },
   "carestead-ad-v6.webm": {
-    "durationSeconds": 34.01,
+    "durationSeconds": 39.02,
     "decodePassed": true,
     "hasAudio": true,
-    "bytes": 1488385
+    "bytes": 1983585
   },
   "audio": {
-    "input_i": "-16.34",
-    "input_tp": "-2.90",
-    "input_lra": "5.60"
+    "input_i": "-16.24",
+    "input_tp": "-3.08",
+    "input_lra": "2.30"
   },
   "speechSpeedChanged": false,
   "overlappingVoiceSegments": false,

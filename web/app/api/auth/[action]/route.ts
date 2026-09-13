@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       if (await authenticatedUser(db, request)) return Response.json({ ok: true }, { headers: noStore });
       return Response.json({ ok: true }, { headers: { ...noStore, 'Set-Cookie': await createSession(db, request, 'guest') } });
     }
-    if (!['sign-in', 'sign-up', 'update-password', 'forgot-password', 'reset-password'].includes(action || ''))
+    if (!['sign-in', 'sign-up', 'update-profile', 'update-password', 'forgot-password', 'reset-password'].includes(action || ''))
       return new Response(null, { status: 404 });
     if (!request.headers.get('content-type')?.includes('application/json'))
       throw new AppError('invalid_body', 400, 'Send the sign-in form as JSON.');
@@ -69,6 +69,21 @@ export async function POST(request: Request) {
     }
     if (!body || typeof body !== 'object' || Array.isArray(body))
       throw new AppError('invalid_body', 400, 'Check the form and try again.');
+    if (action === 'update-profile') {
+      const user = await authenticatedUser(db, request);
+      if (!user) throw new AppError('authentication_required', 401, 'Sign in to update your profile.');
+      if (user.isGuest) throw new AppError('guest_access', 403, 'Guest accounts cannot update profiles.');
+      if (Object.keys(body).some((key) => key !== 'displayName'))
+        throw new AppError('invalid_profile', 400, 'Only your display name can be changed here.');
+      const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+      if (!displayName || displayName.length > 100)
+        throw new AppError('invalid_name', 400, 'Enter a display name of 1 to 100 characters.');
+      await db.batch([
+        db.prepare('UPDATE auth_accounts SET display_name=? WHERE id=?').bind(displayName, user.id),
+        db.prepare('UPDATE care_circle_members SET display_name=?,updated_at=? WHERE user_id=?').bind(displayName, new Date().toISOString(), user.id),
+      ]);
+      return Response.json({ user: { ...user, displayName } }, { headers: noStore });
+    }
     if (action === 'forgot-password' || action === 'reset-password') {
       await enforceRateLimit(db, `recovery-ip:${tokenHash(request.headers.get('cf-connecting-ip') || 'local')}`, 'auth_ip');
       if (action === 'forgot-password') {
