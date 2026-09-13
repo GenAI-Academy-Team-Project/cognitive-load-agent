@@ -1,6 +1,6 @@
 import { request } from 'playwright';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Only the recipient recorded by this seeder is eligible. Never search by name
 // and delete matches: real recipients may share the same display name.
@@ -47,4 +47,9 @@ export async function cleanCalendarDemo() {
     writeFileSync(file, '{}', { mode: 0o600 });
     console.log('Cleaned only the seed-owned Alex calendar demo and cancelled its guest-free Google event.');
   } finally { await api.dispose(); }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await cleanCalendarDemo();
+  console.log('Demo cleanup complete. Your login, Google connection, and other recipients are preserved.');
 }
