@@ -15,13 +15,14 @@ Caregiving is not one task—it is the ongoing work of remembering what changed,
 | Product area | What it provides |
 | --- | --- |
 | **Care recipient and profile** | An isolated profile for each person, including care context, preferences, access notes, key contacts, and support systems. |
-| **Care plan and templates** | Reusable, versioned plans that can be personalized, safely cloned, and applied to another person without copying private history. |
+| **Care plan and templates** | Reusable, versioned plans that can be personalized, safely cloned, and applied to another person without copying private history. An AI builder can propose responsibilities and clarification questions from the selected recipient’s profile. |
 | **Care Circle and intelligent handover** | Recipient-specific roles plus a live handover and an on-demand AI brief of current state, risks, priorities, changes, and supporting evidence. |
-| **Care Organizer, calendar, and timeline** | Plans breaks and recurring care, organizes free-form updates into reviewable tasks, connects appointments to Google Calendar, and preserves actions and outcomes in chronological context. |
+| **Care Organizer, calendar, and timeline** | Plans breaks and recurring care, organizes free-form updates into reviewable tasks, proposes and deterministically validates conflict alternatives, connects appointments to Google Calendar, and preserves actions and outcomes in chronological context. |
 | **Grounded chat and voice** | A model-backed copilot answers recipient-specific questions from visible evidence, with microphone input and spoken replies where the browser supports them. Raw audio is not stored. |
 | **Approval-aware actions** | Chat can prepare rescheduling, assignment, task, notification, and care-check actions. Authorized caregivers review the exact proposal before it executes. |
 | **Risk checks and memory** | Explainable coordination-risk rules and durable, source-linked facts with verification and review status. |
 | **Privacy and evaluation** | Consent, recipient access, retention, export, deletion, audit history, rate limiting, accessibility checks, and trajectory-level evaluation. |
+| **Document and image intake** | Transiently analyzes a consented PDF, image, or text file for explicit dates, contacts, follow-ups, task drafts, and source-linked facts. Extracted facts remain unverified until caregiver review. |
 
 ## Product walkthrough
 
@@ -86,6 +87,17 @@ The caregiver experience calls authenticated server routes that enforce identity
 
 The important MVP information is already structured, attributable, and time-sensitive. Carestead therefore retrieves exact rows from D1 instead of relying on a separate vector index. Every query is filtered by an authorized recipient identifier. The model receives compact records with stable evidence IDs, and its citations are rejected if they do not map back to those records.
 
+### Agent tool surface
+
+The model can propose through a narrow tool surface; direct write tools are deliberately unavailable. Each proposal passes through server-side authorization, consent, validation, and caregiver approval before an existing execution service may change data or contact anyone.
+
+| Workflow | Read and proposal tools | Execution boundary |
+| --- | --- | --- |
+| **Conflict resolution** | `get_calendar_conflicts`, `get_care_circle_availability`, `simulate_care_plan`, `propose_calendar_change` | The deterministic scheduler rejects infeasible options; an approved proposal uses the existing calendar/planning service. |
+| **Adaptive care plan** | `get_recipient_profile`, `get_plan_template`, `propose_template_adaptation`, `request_clarification` | Responsibilities become a reviewable bundle; another person’s history is never copied. |
+| **Communication composer** | `get_verified_outcome`, `get_care_circle_member`, `draft_notification` | AI fills a draft only. Existing channel-specific approval and delivery controls send it. |
+| **Document and image intake** | `analyze_document`, `propose_responsibility_bundle`, `propose_trusted_fact`, `request_clarification` | The source file is not retained. Approved facts enter D1 as `review_due`, not verified. |
+
 ## Tech stack
 
 | Layer | Technology |
@@ -100,7 +112,7 @@ The important MVP information is already structured, attributable, and time-sens
 | **Testing** | Playwright, axe-core, synthetic benchmark runner, GitHub Actions |
 | **Hosting** | OpenAI Sites and Cloudflare infrastructure |
 
-Set `OPENAI_API_KEY` in `web/.dev.vars` for model-backed chat, care-update extraction, and handover briefs. `OPENAI_MODEL` defaults to `gpt-5.6-terra`, and `OPENAI_REASONING_EFFORT` defaults to `low`. Model requests use `store: false`; when the key or service is unavailable, the product continues with its deterministic local behavior.
+Set `OPENAI_API_KEY` in `web/.dev.vars` for model-backed chat, care-update extraction, handover briefs, conflict alternatives, adaptive care plans, communication drafts, and document intake. `OPENAI_MODEL` defaults to `gpt-5.6-terra`, and `OPENAI_REASONING_EFFORT` defaults to `low`. Model requests use `store: false`. Existing risk checks, simulations, and fallback summaries remain deterministic; explicitly generative workflows report model unavailability instead of pretending a model result was produced.
 
 ## Memory, access, and safety
 

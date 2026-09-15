@@ -1,13 +1,21 @@
 import { AppError } from './guardrails';
 import { extractCareUpdate, type LlmConfig } from './llm-agent';
 import { loadAnticipation } from './anticipation-service';
-import { coverageSuggestion, nextLocalDate, preferredMove, preparationDrafts, preparationKey, routineKey } from './anticipation-engine';
+import {
+  coverageSuggestion,
+  nextLocalDate,
+  preferredMove,
+  preparationDrafts,
+  preparationKey,
+  routineKey,
+} from './anticipation-engine';
 import type { CareMembership } from './auth';
 import type { CareCircleMember, CareTask, MemoryRecord } from './types';
 import type {
   Availability,
   CoverageOffer,
   DraftItem,
+  FactDraft,
   FactDetails,
   PlannedTask,
   PlanningProposal,
@@ -92,15 +100,34 @@ export async function loadPlanning(
   recipientId: string,
   memberId: string,
 ): Promise<PlanningState> {
-  const retention = await db.prepare('SELECT retention_days FROM consent_records WHERE recipient_id=?').bind(recipientId).first<{ retention_days: string }>();
+  const retention = await db
+    .prepare('SELECT retention_days FROM consent_records WHERE recipient_id=?')
+    .bind(recipientId)
+    .first<{ retention_days: string }>();
   const days = Number(retention?.retention_days ?? 0);
   if (days > 0) {
     const cutoff = new Date(Date.now() - days * 86400000).toISOString();
     await db.batch([
-      db.prepare('DELETE FROM planning_proposals WHERE recipient_id=? AND created_at<?').bind(recipientId, cutoff),
-      db.prepare('DELETE FROM coverage_offers WHERE recipient_id=? AND created_at<?').bind(recipientId, cutoff),
-      db.prepare('DELETE FROM handover_checkpoints WHERE recipient_id=? AND acknowledged_at<?').bind(recipientId, cutoff),
-      db.prepare('DELETE FROM caregiver_availability WHERE recipient_id=? AND end_at<?').bind(recipientId, cutoff),
+      db
+        .prepare(
+          'DELETE FROM planning_proposals WHERE recipient_id=? AND created_at<?',
+        )
+        .bind(recipientId, cutoff),
+      db
+        .prepare(
+          'DELETE FROM coverage_offers WHERE recipient_id=? AND created_at<?',
+        )
+        .bind(recipientId, cutoff),
+      db
+        .prepare(
+          'DELETE FROM handover_checkpoints WHERE recipient_id=? AND acknowledged_at<?',
+        )
+        .bind(recipientId, cutoff),
+      db
+        .prepare(
+          'DELETE FROM caregiver_availability WHERE recipient_id=? AND end_at<?',
+        )
+        .bind(recipientId, cutoff),
     ]);
   }
   const scoped = (table: string, kind: string) =>
@@ -218,8 +245,15 @@ export async function loadPlanning(
       duration_minutes: saved?.duration_minutes ?? 20,
       depends_on: saved?.depends_on ?? '',
       backup_member_id: saved?.backup_member_id ?? '',
-      requirements: saved ? (Array.isArray(JSON.parse(saved.requirements_json)) ? JSON.parse(saved.requirements_json) : JSON.parse(saved.requirements_json).capabilities) : [],
-      fact_ids: saved && !Array.isArray(JSON.parse(saved.requirements_json)) ? JSON.parse(saved.requirements_json).factIds ?? [] : [],
+      requirements: saved
+        ? Array.isArray(JSON.parse(saved.requirements_json))
+          ? JSON.parse(saved.requirements_json)
+          : JSON.parse(saved.requirements_json).capabilities
+        : [],
+      fact_ids:
+        saved && !Array.isArray(JSON.parse(saved.requirements_json))
+          ? (JSON.parse(saved.requirements_json).factIds ?? [])
+          : [],
       accepted_signature: saved?.accepted_signature ?? '',
     };
     const result = {
@@ -237,23 +271,34 @@ export async function loadPlanning(
     ...memory,
     fact: facts.find((fact) => fact.memory_id === memory.id) ?? null,
   }));
-  for (const task of tasks) if (taskFactIssues(task, memories).length) task.accepted = false;
+  for (const task of tasks)
+    if (taskFactIssues(task, memories).length) task.accepted = false;
   const liveOffers: CoverageOffer[] = offers.map((offer) => {
-      const task = tasks.find((t) => t.id === offer.task_id);
-      return {
-        ...offer,
-        status:
-          ((offer.status === 'accepted' && (!task?.accepted || task.planning.owner_member_id !== offer.member_id)) || offer.status === 'pending' &&
+    const task = tasks.find((t) => t.id === offer.task_id);
+    return {
+      ...offer,
+      status:
+        (offer.status === 'accepted' &&
+          (!task?.accepted ||
+            task.planning.owner_member_id !== offer.member_id)) ||
+        (offer.status === 'pending' &&
           (!task ||
             !isOpen(task) ||
             taskSignature(task) !== offer.signature ||
             Date.parse(task.due_at) < Date.now()))
-            ? 'stale'
-            : offer.status,
-      };
-    });
+          ? 'stale'
+          : offer.status,
+    };
+  });
   const snapshot: SnapshotEntry[] = [
-    ...liveOffers.map((offer) => ({ id: `coverage:${offer.id}`, label: tasks.find((task) => task.id === offer.task_id)?.title ?? 'Coverage request', kind: 'Coverage request', detail: `${members.find((member) => member.id === offer.member_id)?.display_name ?? 'Caregiver'} · ${offer.status}` })),
+    ...liveOffers.map((offer) => ({
+      id: `coverage:${offer.id}`,
+      label:
+        tasks.find((task) => task.id === offer.task_id)?.title ??
+        'Coverage request',
+      kind: 'Coverage request',
+      detail: `${members.find((member) => member.id === offer.member_id)?.display_name ?? 'Caregiver'} · ${offer.status}`,
+    })),
     ...tasks.map((task) => ({
       id: `task:${task.id}`,
       label: task.title,
@@ -329,7 +374,10 @@ function saveDetails(db: D1Database, task: PlannedTask) {
       p.duration_minutes,
       p.depends_on,
       p.backup_member_id,
-      JSON.stringify({ capabilities: p.requirements, factIds: p.fact_ids ?? [] }),
+      JSON.stringify({
+        capabilities: p.requirements,
+        factIds: p.fact_ids ?? [],
+      }),
       p.accepted_signature,
     );
 }
@@ -419,6 +467,71 @@ export async function planningAction(
       );
     return target;
   };
+  const reviewedDrafts = (value: unknown, optional = false): DraftItem[] => {
+    if (
+      !Array.isArray(value) ||
+      value.length > 12 ||
+      (!optional && value.length < 1)
+    )
+      throw new AppError(
+        'invalid_drafts',
+        400,
+        optional
+          ? 'Review up to 12 draft items.'
+          : 'Review between 1 and 12 draft items.',
+      );
+    const drafts = value.map((raw: unknown) => {
+      if (!raw || typeof raw !== 'object')
+        throw new AppError('invalid_draft', 400, 'Review each draft.');
+      const item = raw as Record<string, unknown>;
+      if (!['create', 'reschedule'].includes(String(item.kind)))
+        throw new AppError(
+          'invalid_kind',
+          400,
+          'Choose a supported draft action.',
+        );
+      const kind = item.kind as DraftItem['kind'],
+        task = kind === 'reschedule' ? taskFor(item.taskId) : null;
+      if (task?.calendarLinked)
+        throw new AppError(
+          'linked_calendar_task',
+          409,
+          'Use Calendar to reschedule connected appointments.',
+        );
+      const dueAt = instant(item.dueAt);
+      if (Date.parse(dueAt) <= Date.now())
+        throw new AppError(
+          'past_date',
+          400,
+          'Confirm a future date and time for every draft.',
+        );
+      return {
+        kind,
+        taskId: task?.id ?? '',
+        title: text(item.title, 'task title'),
+        dueAt,
+        category:
+          task?.category ??
+          (taskCategories.includes(
+            item.category as (typeof taskCategories)[number],
+          )
+            ? String(item.category)
+            : 'general'),
+        source: text(item.source, 'source text', 4000),
+        question: '',
+      };
+    });
+    const ids = drafts
+      .filter((draft) => draft.taskId)
+      .map((draft) => draft.taskId);
+    if (new Set(ids).size !== ids.length)
+      throw new AppError(
+        'duplicate_task',
+        400,
+        'Keep only one change for each appointment.',
+      );
+    return drafts;
+  };
   const audit = (title: string, detail: string): D1PreparedStatement[] => {
     const eventId = crypto.randomUUID(),
       traceId = crypto.randomUUID();
@@ -478,68 +591,293 @@ export async function planningAction(
 
   switch (body.action) {
     case 'propose_preferred_move': {
-      const task = taskFor(body.taskId), dueAt = preferredMove(state, task, recipient.timezone);
-      if (!dueAt || dueAt !== body.dueAt || !state.anticipation.preference) throw new AppError('preference_changed', 409, 'The preference or schedule changed. Review the refreshed suggestion.');
-      const simulation = simulateMove(state.tasks, state.availability, task.id, dueAt, recipient.timezone);
-      return propose('simulation', { rootTaskId: task.id, title: `Preferred visit time: ${task.title}`, preferenceEvidence: state.anticipation.preference, changes: simulation.changes, baseline: state.tasks.filter(item => simulation.changes.some(change => change.taskId === item.id)) });
+      const task = taskFor(body.taskId),
+        dueAt = preferredMove(state, task, recipient.timezone);
+      if (!dueAt || dueAt !== body.dueAt || !state.anticipation.preference)
+        throw new AppError(
+          'preference_changed',
+          409,
+          'The preference or schedule changed. Review the refreshed suggestion.',
+        );
+      const simulation = simulateMove(
+        state.tasks,
+        state.availability,
+        task.id,
+        dueAt,
+        recipient.timezone,
+      );
+      return propose('simulation', {
+        rootTaskId: task.id,
+        title: `Preferred visit time: ${task.title}`,
+        preferenceEvidence: state.anticipation.preference,
+        changes: simulation.changes,
+        baseline: state.tasks.filter((item) =>
+          simulation.changes.some((change) => change.taskId === item.id),
+        ),
+      });
     }
     case 'save_attention': {
-      const daily = Number(body.dailyMinutes), hour = Number(body.digestHour);
-      if (!Number.isInteger(daily) || daily < 15 || daily > 1440 || !Number.isInteger(hour) || hour < 0 || hour > 23 || typeof body.focusMode !== 'boolean')
-        throw new AppError('invalid_preferences', 400, 'Choose 15–1440 minutes per day and a digest hour from 0–23.');
-      await commit(db, [db.prepare('INSERT INTO attention_settings VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET daily_minutes=excluded.daily_minutes,digest_hour=excluded.digest_hour,focus_mode=excluded.focus_mode').bind(recipientId, member.memberId, daily, hour, Number(body.focusMode)), ...audit('Personal planning preferences updated', 'Daily care capacity and in-app digest preferences saved.')]);
+      const daily = Number(body.dailyMinutes),
+        hour = Number(body.digestHour);
+      if (
+        !Number.isInteger(daily) ||
+        daily < 15 ||
+        daily > 1440 ||
+        !Number.isInteger(hour) ||
+        hour < 0 ||
+        hour > 23 ||
+        typeof body.focusMode !== 'boolean'
+      )
+        throw new AppError(
+          'invalid_preferences',
+          400,
+          'Choose 15–1440 minutes per day and a digest hour from 0–23.',
+        );
+      await commit(db, [
+        db
+          .prepare(
+            'INSERT INTO attention_settings VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id) DO UPDATE SET daily_minutes=excluded.daily_minutes,digest_hour=excluded.digest_hour,focus_mode=excluded.focus_mode',
+          )
+          .bind(
+            recipientId,
+            member.memberId,
+            daily,
+            hour,
+            Number(body.focusMode),
+          ),
+        ...audit(
+          'Personal planning preferences updated',
+          'Daily care capacity and in-app digest preferences saved.',
+        ),
+      ]);
       break;
     }
     case 'save_care_preference': {
       if (body.memoryId === '') {
-        await commit(db, [db.prepare('DELETE FROM care_preferences WHERE recipient_id=?').bind(recipientId), ...audit('Visit preference cleared', 'Scheduling suggestions no longer use a preferred visit window.')]);
+        await commit(db, [
+          db
+            .prepare('DELETE FROM care_preferences WHERE recipient_id=?')
+            .bind(recipientId),
+          ...audit(
+            'Visit preference cleared',
+            'Scheduling suggestions no longer use a preferred visit window.',
+          ),
+        ]);
         break;
       }
-      const memory = state.anticipation.verifiedMemories.find(item => item.id === body.memoryId);
-      const start = Number(body.startHour), end = Number(body.endHour);
-      if (!memory || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > 24 || start >= end)
-        throw new AppError('invalid_preference', 400, 'Choose a current verified fact and a valid visit window.');
-      await commit(db, [db.prepare('INSERT INTO care_preferences VALUES (?,?,?,?,?) ON CONFLICT(recipient_id) DO UPDATE SET memory_id=excluded.memory_id,memory_value=excluded.memory_value,start_hour=excluded.start_hour,end_hour=excluded.end_hour').bind(recipientId, memory.id, memory.value, start, end), ...audit('Visit preference confirmed', `Use ${start}:00–${end}:00 for visit suggestions. Source: ${memory.id}`)]);
+      const memory = state.anticipation.verifiedMemories.find(
+        (item) => item.id === body.memoryId,
+      );
+      const start = Number(body.startHour),
+        end = Number(body.endHour);
+      if (
+        !memory ||
+        !Number.isInteger(start) ||
+        !Number.isInteger(end) ||
+        start < 0 ||
+        end > 24 ||
+        start >= end
+      )
+        throw new AppError(
+          'invalid_preference',
+          400,
+          'Choose a current verified fact and a valid visit window.',
+        );
+      await commit(db, [
+        db
+          .prepare(
+            'INSERT INTO care_preferences VALUES (?,?,?,?,?) ON CONFLICT(recipient_id) DO UPDATE SET memory_id=excluded.memory_id,memory_value=excluded.memory_value,start_hour=excluded.start_hour,end_hour=excluded.end_hour',
+          )
+          .bind(recipientId, memory.id, memory.value, start, end),
+        ...audit(
+          'Visit preference confirmed',
+          `Use ${start}:00–${end}:00 for visit suggestions. Source: ${memory.id}`,
+        ),
+      ]);
       break;
     }
     case 'save_routine': {
-      const days = Number(body.everyDays), nextAt = instant(body.nextAt), title = text(body.title, 'routine title');
-      if (!Number.isInteger(days) || days < 1 || days > 365 || Date.parse(nextAt) <= Date.now() || !taskCategories.includes(body.category as typeof taskCategories[number]))
-        throw new AppError('invalid_routine', 400, 'Choose a future start, task category, and interval of 1–365 days.');
+      const days = Number(body.everyDays),
+        nextAt = instant(body.nextAt),
+        title = text(body.title, 'routine title');
+      if (
+        !Number.isInteger(days) ||
+        days < 1 ||
+        days > 365 ||
+        Date.parse(nextAt) <= Date.now() ||
+        !taskCategories.includes(
+          body.category as (typeof taskCategories)[number],
+        )
+      )
+        throw new AppError(
+          'invalid_routine',
+          400,
+          'Choose a future start, task category, and interval of 1–365 days.',
+        );
       const id = body.id ? text(body.id, 'routine') : crypto.randomUUID();
-      if (body.id && !state.anticipation.routines.some(item => item.id === id)) throw new AppError('missing_routine', 404, 'Routine not found in this care plan.');
-      await commit(db, [db.prepare('INSERT INTO care_routines VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,category=excluded.category,every_days=excluded.every_days,next_at=excluded.next_at,updated_at=excluded.updated_at').bind(id, recipientId, title, body.category, days, nextAt, crypto.randomUUID()), ...audit('Care routine saved', `${title}: every ${days} days. Each occurrence requires review.`)]);
+      if (
+        body.id &&
+        !state.anticipation.routines.some((item) => item.id === id)
+      )
+        throw new AppError(
+          'missing_routine',
+          404,
+          'Routine not found in this care plan.',
+        );
+      await commit(db, [
+        db
+          .prepare(
+            'INSERT INTO care_routines VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,category=excluded.category,every_days=excluded.every_days,next_at=excluded.next_at,updated_at=excluded.updated_at',
+          )
+          .bind(
+            id,
+            recipientId,
+            title,
+            body.category,
+            days,
+            nextAt,
+            crypto.randomUUID(),
+          ),
+        ...audit(
+          'Care routine saved',
+          `${title}: every ${days} days. Each occurrence requires review.`,
+        ),
+      ]);
       break;
     }
     case 'remove_routine': {
-      await commit(db, [db.prepare('DELETE FROM care_routines WHERE id=? AND recipient_id=?').bind(text(body.id, 'routine'), recipientId), ...audit('Care routine removed', 'Existing responsibilities remain available for review.')]);
+      await commit(db, [
+        db
+          .prepare('DELETE FROM care_routines WHERE id=? AND recipient_id=?')
+          .bind(text(body.id, 'routine'), recipientId),
+        ...audit(
+          'Care routine removed',
+          'Existing responsibilities remain available for review.',
+        ),
+      ]);
       break;
     }
     case 'propose_routine': {
-      const routine = state.anticipation.routines.find(item => item.id === body.id);
-      if (!routine) throw new AppError('missing_routine', 404, 'Routine not found.');
-      if (Date.parse(routine.next_at) <= Date.now()) throw new AppError('past_routine', 409, 'Update this routine’s next date before preparing it.');
-      return propose('dump', { title: `Next occurrence: ${routine.title}`, baseline: [], generated: { key: routineKey(routine), routineId: routine.id, revision: routine.updated_at, nextAt: nextLocalDate(routine.next_at, routine.every_days, recipient.timezone) }, drafts: [{ kind: 'create', taskId: '', title: routine.title, category: routine.category, dueAt: routine.next_at, source: `Reviewed routine: every ${routine.every_days} days.`, question: '' }] });
+      const routine = state.anticipation.routines.find(
+        (item) => item.id === body.id,
+      );
+      if (!routine)
+        throw new AppError('missing_routine', 404, 'Routine not found.');
+      if (Date.parse(routine.next_at) <= Date.now())
+        throw new AppError(
+          'past_routine',
+          409,
+          'Update this routine’s next date before preparing it.',
+        );
+      return propose('dump', {
+        title: `Next occurrence: ${routine.title}`,
+        baseline: [],
+        generated: {
+          key: routineKey(routine),
+          routineId: routine.id,
+          revision: routine.updated_at,
+          nextAt: nextLocalDate(
+            routine.next_at,
+            routine.every_days,
+            recipient.timezone,
+          ),
+        },
+        drafts: [
+          {
+            kind: 'create',
+            taskId: '',
+            title: routine.title,
+            category: routine.category,
+            dueAt: routine.next_at,
+            source: `Reviewed routine: every ${routine.every_days} days.`,
+            question: '',
+          },
+        ],
+      });
     }
     case 'propose_preparation': {
       const task = taskFor(body.taskId);
-      if (task.category !== 'appointment') throw new AppError('not_appointment', 400, 'Choose an appointment.');
+      if (task.category !== 'appointment')
+        throw new AppError('not_appointment', 400, 'Choose an appointment.');
       const key = preparationKey(task);
-      if (state.anticipation.generatedKeys.includes(key)) throw new AppError('already_prepared', 409, 'Preparation tasks already exist for this appointment plan.');
+      if (state.anticipation.generatedKeys.includes(key))
+        throw new AppError(
+          'already_prepared',
+          409,
+          'Preparation tasks already exist for this appointment plan.',
+        );
       const drafts = preparationDrafts(task, recipient.timezone);
-      if (!drafts.length) throw new AppError('no_preparation', 400, 'This appointment has no future preparation or follow-up dates.');
-      return propose('dump', { title: `Prepare for ${task.title}`, preparationFor: task.id, baseline: [task], generated: { key }, drafts });
+      if (!drafts.length)
+        throw new AppError(
+          'no_preparation',
+          400,
+          'This appointment has no future preparation or follow-up dates.',
+        );
+      return propose('dump', {
+        title: `Prepare for ${task.title}`,
+        preparationFor: task.id,
+        baseline: [task],
+        generated: { key },
+        drafts,
+      });
     }
     case 'save_appointment_notes': {
-      const task = state.tasks.find(item => item.id === body.taskId && item.category === 'appointment');
-      if (!task) throw new AppError('missing_appointment', 404, 'Appointment not found.');
-      await commit(db, [db.prepare('INSERT INTO appointment_notes VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id,task_id) DO UPDATE SET questions=excluded.questions,follow_up=excluded.follow_up').bind(recipientId, member.memberId, task.id, text(body.questions, 'questions', 4000, true), text(body.followUp, 'follow-up notes', 4000, true)), ...audit('Appointment notes saved', 'Personal questions and follow-up notes updated.')]);
+      const task = state.tasks.find(
+        (item) => item.id === body.taskId && item.category === 'appointment',
+      );
+      if (!task)
+        throw new AppError(
+          'missing_appointment',
+          404,
+          'Appointment not found.',
+        );
+      await commit(db, [
+        db
+          .prepare(
+            'INSERT INTO appointment_notes VALUES (?,?,?,?,?) ON CONFLICT(recipient_id,member_id,task_id) DO UPDATE SET questions=excluded.questions,follow_up=excluded.follow_up',
+          )
+          .bind(
+            recipientId,
+            member.memberId,
+            task.id,
+            text(body.questions, 'questions', 4000, true),
+            text(body.followUp, 'follow-up notes', 4000, true),
+          ),
+        ...audit(
+          'Appointment notes saved',
+          'Personal questions and follow-up notes updated.',
+        ),
+      ]);
       break;
     }
     case 'propose_forecast_coverage': {
-      const task = taskFor(body.taskId), candidate = coverageSuggestion(state, task);
-      if (!candidate || candidate.id !== body.memberId || Date.parse(task.due_at) <= Date.now()) throw new AppError('coverage_changed', 409, 'Coverage options changed. Review the refreshed forecast.');
-      return propose('relief', { title: `Coverage for ${task.title}`, start: task.due_at, end: new Date(Date.parse(task.due_at) + task.planning.duration_minutes * 60000).toISOString(), baseline: [task], coverage: [{ taskId: task.id, memberId: candidate.id, reason: `${candidate.display_name} has matching availability and task capabilities. Acceptance is still required.` }] });
+      const task = taskFor(body.taskId),
+        candidate = coverageSuggestion(state, task);
+      if (
+        !candidate ||
+        candidate.id !== body.memberId ||
+        Date.parse(task.due_at) <= Date.now()
+      )
+        throw new AppError(
+          'coverage_changed',
+          409,
+          'Coverage options changed. Review the refreshed forecast.',
+        );
+      return propose('relief', {
+        title: `Coverage for ${task.title}`,
+        start: task.due_at,
+        end: new Date(
+          Date.parse(task.due_at) + task.planning.duration_minutes * 60000,
+        ).toISOString(),
+        baseline: [task],
+        coverage: [
+          {
+            taskId: task.id,
+            memberId: candidate.id,
+            reason: `${candidate.display_name} has matching availability and task capabilities. Acceptance is still required.`,
+          },
+        ],
+      });
     }
     case 'acknowledge': {
       // Acknowledge exactly the snapshot the user saw, never silently include newer changes.
@@ -656,7 +994,16 @@ export async function planningAction(
           fact_ids: strings(body.factIds ?? [], 'required facts'),
         },
       };
-      if (updated.planning.fact_ids?.some((id) => !state.memories.some((memory) => memory.id === id))) throw new AppError('invalid_fact', 400, 'Choose care facts from this recipient.');
+      if (
+        updated.planning.fact_ids?.some(
+          (id) => !state.memories.some((memory) => memory.id === id),
+        )
+      )
+        throw new AppError(
+          'invalid_fact',
+          400,
+          'Choose care facts from this recipient.',
+        );
       if (taskSignature(updated) !== taskSignature(task))
         updated.planning.accepted_signature = '';
       await commit(db, [
@@ -679,7 +1026,13 @@ export async function planningAction(
         start,
         end,
       );
-      for (const item of coverage) { const issues = taskFactIssues(taskFor(item.taskId), state.memories); if (issues.length) { item.memberId = ''; item.reason = issues.join(' '); } }
+      for (const item of coverage) {
+        const issues = taskFactIssues(taskFor(item.taskId), state.memories);
+        if (issues.length) {
+          item.memberId = '';
+          item.reason = issues.join(' ');
+        }
+      }
       if (!coverage.length)
         throw new AppError(
           'no_tasks',
@@ -710,7 +1063,11 @@ export async function planningAction(
         dueAt,
         recipient.timezone,
       );
-      simulation.conflicts.push(...simulation.changes.flatMap((change) => taskFactIssues(taskFor(change.taskId), state.memories)));
+      simulation.conflicts.push(
+        ...simulation.changes.flatMap((change) =>
+          taskFactIssues(taskFor(change.taskId), state.memories),
+        ),
+      );
       if (body.action === 'simulate') return { simulation };
       if (simulation.conflicts.length)
         throw new AppError(
@@ -729,77 +1086,72 @@ export async function planningAction(
     }
     case 'extract': {
       const message = text(body.message, 'update', 4000);
-      const generated = await extractCareUpdate(modelConfig, message, state.tasks, recipient.timezone);
+      const generated = await extractCareUpdate(
+        modelConfig,
+        message,
+        state.tasks,
+        recipient.timezone,
+      );
       return {
-        drafts: generated?.value ?? extractDrafts(message, state.tasks, recipient.timezone),
+        drafts:
+          generated?.value ??
+          extractDrafts(message, state.tasks, recipient.timezone),
         agentMode: generated ? 'model' : 'deterministic',
         model: generated?.model,
       };
     }
     case 'propose_dump': {
-      if (
-        !Array.isArray(body.drafts) ||
-        body.drafts.length < 1 ||
-        body.drafts.length > 12
-      )
-        throw new AppError(
-          'invalid_drafts',
-          400,
-          'Review between 1 and 12 draft items.',
-        );
-      const drafts: DraftItem[] = body.drafts.map((raw: unknown) => {
-        if (!raw || typeof raw !== 'object')
-          throw new AppError('invalid_draft', 400, 'Review each draft.');
-        const item = raw as Record<string, unknown>;
-        if (!['create', 'reschedule'].includes(String(item.kind)))
-          throw new AppError(
-            'invalid_kind',
-            400,
-            'Choose a supported draft action.',
-          );
-        const kind = item.kind as DraftItem['kind'],
-          task = kind === 'reschedule' ? taskFor(item.taskId) : null;
-        if (task?.calendarLinked)
-          throw new AppError(
-            'linked_calendar_task',
-            409,
-            'Use Calendar to reschedule connected appointments.',
-          );
-        const dueAt = instant(item.dueAt);
-        if (Date.parse(dueAt) <= Date.now())
-          throw new AppError(
-            'past_date',
-            400,
-            'Confirm a future date and time for every draft.',
-          );
-        return {
-          kind,
-          taskId: task?.id ?? '',
-          title: text(item.title, 'task title'),
-          dueAt,
-          category:
-            task?.category ??
-            (taskCategories.includes(
-              item.category as (typeof taskCategories)[number],
-            )
-              ? String(item.category)
-              : 'general'),
-          source: text(item.source, 'source text', 4000),
-          question: '',
-        };
-      });
+      const drafts = reviewedDrafts(body.drafts);
       const ids = drafts.filter((d) => d.taskId).map((d) => d.taskId);
-      if (new Set(ids).size !== ids.length)
-        throw new AppError(
-          'duplicate_task',
-          400,
-          'Keep only one change for each appointment.',
-        );
       return propose('dump', {
         title: `Review ${drafts.length} items from your update`,
         drafts,
         baseline: state.tasks.filter((task) => ids.includes(task.id)),
         sourceMode: body.sourceMode === 'model' ? 'model' : 'deterministic',
+      });
+    }
+    case 'propose_intake': {
+      const drafts = reviewedDrafts(body.drafts ?? [], true);
+      if (!Array.isArray(body.facts) || body.facts.length > 10)
+        throw new AppError(
+          'invalid_facts',
+          400,
+          'Review up to 10 extracted facts.',
+        );
+      const facts: FactDraft[] = body.facts.map((raw: unknown) => {
+        if (!raw || typeof raw !== 'object')
+          throw new AppError(
+            'invalid_fact',
+            400,
+            'Review each extracted fact.',
+          );
+        const item = raw as Record<string, unknown>;
+        const confidence = String(item.confidence);
+        if (!['high', 'medium', 'low'].includes(confidence))
+          throw new AppError(
+            'invalid_confidence',
+            400,
+            'Choose a valid confidence for every fact.',
+          );
+        return {
+          kind: text(item.kind, 'fact type', 80),
+          value: text(item.value, 'fact value', 500),
+          source: text(item.source, 'source excerpt', 500),
+          confidence: confidence as FactDraft['confidence'],
+        };
+      });
+      if (!drafts.length && !facts.length)
+        throw new AppError(
+          'empty_intake',
+          400,
+          'Choose at least one task or fact to review.',
+        );
+      return propose('dump', {
+        title: `Review ${drafts.length + facts.length} extracted items`,
+        drafts,
+        facts,
+        baseline: [],
+        sourceMode: 'model',
       });
     }
     case 'reject_proposal': {
@@ -845,18 +1197,48 @@ export async function planningAction(
             'A responsibility changed. Prepare a fresh proposal.',
           );
         const issues = taskFactIssues(task, state.memories);
-        if (issues.length) throw new AppError('fact_review_required', 409, issues.join(' '));
+        if (issues.length)
+          throw new AppError('fact_review_required', 409, issues.join(' '));
         guards.push(assertTask(db, task));
       }
       const changes: D1PreparedStatement[] = [];
-      if (proposal.payload.preferenceEvidence && JSON.stringify(proposal.payload.preferenceEvidence) !== JSON.stringify(state.anticipation.preference))
-        throw new AppError('preference_changed', 409, 'The verified preference changed. Prepare a fresh suggestion.');
+      if (
+        proposal.payload.preferenceEvidence &&
+        JSON.stringify(proposal.payload.preferenceEvidence) !==
+          JSON.stringify(state.anticipation.preference)
+      )
+        throw new AppError(
+          'preference_changed',
+          409,
+          'The verified preference changed. Prepare a fresh suggestion.',
+        );
       const generated = proposal.payload.generated;
       if (generated) {
-        changes.push(db.prepare('INSERT INTO generated_batches VALUES (?,?,?)').bind(recipientId, generated.key, now));
+        changes.push(
+          db
+            .prepare('INSERT INTO generated_batches VALUES (?,?,?)')
+            .bind(recipientId, generated.key, now),
+        );
         if (generated.routineId) {
-          guards.push(guard(db, 'SELECT 1 FROM care_routines WHERE id=? AND recipient_id=? AND updated_at=?', [generated.routineId, recipientId, generated.revision]));
-          changes.push(db.prepare('UPDATE care_routines SET next_at=?,updated_at=? WHERE id=? AND recipient_id=?').bind(generated.nextAt, crypto.randomUUID(), generated.routineId, recipientId));
+          guards.push(
+            guard(
+              db,
+              'SELECT 1 FROM care_routines WHERE id=? AND recipient_id=? AND updated_at=?',
+              [generated.routineId, recipientId, generated.revision],
+            ),
+          );
+          changes.push(
+            db
+              .prepare(
+                'UPDATE care_routines SET next_at=?,updated_at=? WHERE id=? AND recipient_id=?',
+              )
+              .bind(
+                generated.nextAt,
+                crypto.randomUUID(),
+                generated.routineId,
+                recipientId,
+              ),
+          );
         }
       }
       if (proposal.kind === 'relief') {
@@ -914,10 +1296,32 @@ export async function planningAction(
           );
       } else if (proposal.kind === 'simulation') {
         if (proposal.payload.rootTaskId) {
-          const rootChange = proposal.payload.changes?.find((change) => change.taskId === proposal.payload.rootTaskId);
-          if (!rootChange) throw new AppError('invalid_simulation', 409, 'Prepare a new simulation.');
-          const refreshed = simulateMove(state.tasks, state.availability, rootChange.taskId, rootChange.dueAt, recipient.timezone, false);
-          if (JSON.stringify(refreshed.changes) !== JSON.stringify(proposal.payload.changes)) throw new AppError('dependencies_changed', 409, 'Linked responsibilities changed. Run the simulation again.');
+          const rootChange = proposal.payload.changes?.find(
+            (change) => change.taskId === proposal.payload.rootTaskId,
+          );
+          if (!rootChange)
+            throw new AppError(
+              'invalid_simulation',
+              409,
+              'Prepare a new simulation.',
+            );
+          const refreshed = simulateMove(
+            state.tasks,
+            state.availability,
+            rootChange.taskId,
+            rootChange.dueAt,
+            recipient.timezone,
+            false,
+          );
+          if (
+            JSON.stringify(refreshed.changes) !==
+            JSON.stringify(proposal.payload.changes)
+          )
+            throw new AppError(
+              'dependencies_changed',
+              409,
+              'Linked responsibilities changed. Run the simulation again.',
+            );
         }
         const projected = state.tasks.map((task) => ({
           ...task,
@@ -979,8 +1383,30 @@ export async function planningAction(
             const id = crypto.randomUUID();
             if (proposal.payload.preparationFor) {
               const appointment = taskFor(proposal.payload.preparationFor);
-              changes.push(saveDetails(db, { ...appointment, id, title: item.title, owner: 'Unassigned', due_at: item.dueAt, category: item.category, status: 'open', accepted: false, calendarLinked: false,
-                planning: { task_id: id, recipient_id: recipientId, owner_member_id: '', duration_minutes: 20, depends_on: appointment.id, backup_member_id: '', requirements: [], fact_ids: [], accepted_signature: '' } }));
+              changes.push(
+                saveDetails(db, {
+                  ...appointment,
+                  id,
+                  title: item.title,
+                  owner: 'Unassigned',
+                  due_at: item.dueAt,
+                  category: item.category,
+                  status: 'open',
+                  accepted: false,
+                  calendarLinked: false,
+                  planning: {
+                    task_id: id,
+                    recipient_id: recipientId,
+                    owner_member_id: '',
+                    duration_minutes: 20,
+                    depends_on: appointment.id,
+                    backup_member_id: '',
+                    requirements: [],
+                    fact_ids: [],
+                    accepted_signature: '',
+                  },
+                }),
+              );
             }
             changes.push(
               db
@@ -997,6 +1423,23 @@ export async function planningAction(
               scope('task', id),
             );
           }
+        }
+        for (const fact of proposal.payload.facts ?? []) {
+          const id = crypto.randomUUID();
+          changes.push(
+            db
+              .prepare('INSERT INTO memories VALUES (?,?,?,?,?,?,?)')
+              .bind(
+                id,
+                fact.kind,
+                fact.value,
+                fact.source,
+                fact.confidence,
+                'review_due',
+                now,
+              ),
+            scope('memory', id),
+          );
         }
       }
       await commit(db, [
@@ -1053,7 +1496,8 @@ export async function planningAction(
         break;
       }
       if (
-        !offer && task.owner !== 'Unassigned' &&
+        !offer &&
+        task.owner !== 'Unassigned' &&
         task.planning.owner_member_id !== member.memberId
       )
         throw new AppError(
@@ -1062,7 +1506,8 @@ export async function planningAction(
           'This responsibility belongs to another caregiver. Ask them for a coverage request.',
         );
       const factIssues = taskFactIssues(task, state.memories);
-      if (factIssues.length) throw new AppError('fact_review_required', 409, factIssues.join(' '));
+      if (factIssues.length)
+        throw new AppError('fact_review_required', 409, factIssues.join(' '));
       if (
         Date.parse(task.due_at) <= Date.now() ||
         !availableFor(task, member.memberId, state.availability, state.tasks)
@@ -1164,7 +1609,19 @@ export async function planningAction(
         ...statements,
         ...audit(
           'Conflicting care facts resolved',
-          JSON.stringify({ subject: conflict.subject, attribute: conflict.attribute, verificationSource: source, chosenId: chosen.id, previousRecords: conflict.records.map(({ id, value, source: originalSource }) => ({ id, value, source: originalSource })) }),
+          JSON.stringify({
+            subject: conflict.subject,
+            attribute: conflict.attribute,
+            verificationSource: source,
+            chosenId: chosen.id,
+            previousRecords: conflict.records.map(
+              ({ id, value, source: originalSource }) => ({
+                id,
+                value,
+                source: originalSource,
+              }),
+            ),
+          }),
         ),
       ]);
       break;

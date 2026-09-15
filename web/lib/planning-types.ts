@@ -1,5 +1,9 @@
 import type { CareCircleMember, CareTask, MemoryRecord } from './types';
-import type { AnticipationState, CarePreference, GeneratedBatch } from './anticipation-types';
+import type {
+  AnticipationState,
+  CarePreference,
+  GeneratedBatch,
+} from './anticipation-types';
 
 export const taskCategories = [
   'general',
@@ -74,6 +78,34 @@ export type DraftItem = {
   question: string;
   confidence?: 'high' | 'medium' | 'low';
 };
+export type FactDraft = {
+  kind: string;
+  value: string;
+  source: string;
+  confidence: 'high' | 'medium' | 'low';
+};
+export type ConflictOption = {
+  label: string;
+  dueAt: string;
+  rationale: string;
+  affected: string[];
+  uncertainty: string;
+  evidenceIds: string[];
+};
+export type PlanAdaptation = {
+  summary: string;
+  drafts: DraftItem[];
+  questions: string[];
+  evidenceIds: string[];
+};
+export type DocumentIntake = {
+  summary: string;
+  drafts: DraftItem[];
+  facts: FactDraft[];
+  contacts: string[];
+  questions: string[];
+  warnings: string[];
+};
 export type PlanChange = {
   taskId: string;
   dueAt: string;
@@ -97,6 +129,7 @@ export type ProposalPayload = {
   coverage?: CoverageItem[];
   changes?: PlanChange[];
   drafts?: DraftItem[];
+  facts?: FactDraft[];
   baseline: PlannedTask[];
   handover?: SnapshotEntry[];
   sourceMode?: 'model' | 'deterministic';

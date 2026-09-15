@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, ChevronDown, Send } from 'lucide-react';
+import { Bell, ChevronDown, Send, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -68,6 +68,8 @@ export function NotificationComposer({
   const [channels, setChannels] = useState<string[]>(['in_app']);
   const [title, setTitle] = useState(initialDraft?.title || '');
   const [detail, setDetail] = useState(initialDraft?.detail || '');
+  const [aiContext, setAiContext] = useState('');
+  const [tone, setTone] = useState('family');
   const [pending, setPending] = useState<ChatActionRequest[]>([]);
   const [reviewChannel, setReviewChannel] = useState('in_app');
   const [edits, setEdits] = useState<
@@ -97,9 +99,12 @@ export function NotificationComposer({
   };
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/chat?recipientId=${encodeURIComponent(recipientId)}&scope=notifications`, {
-      signal: controller.signal,
-    })
+    fetch(
+      `/api/chat?recipientId=${encodeURIComponent(recipientId)}&scope=notifications`,
+      {
+        signal: controller.signal,
+      },
+    )
       .then(async (response) => {
         const result = (await response.json()) as ChatState & {
           error?: string;
@@ -180,6 +185,45 @@ export function NotificationComposer({
       setBusy(false);
     }
   }
+  async function draftWithAi() {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/agent-workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'compose_message',
+          recipientId,
+          memberId,
+          tone,
+          context: aiContext,
+        }),
+      });
+      const result = (await response.json()) as {
+        draft?: { title: string; detail: string };
+        model?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.draft)
+        throw new Error(result.error || 'Unable to draft this message.');
+      setTitle(result.draft.title);
+      setDetail(result.draft.detail);
+      setTemplate('custom');
+      setNotice(
+        `Drafted with ${result.model || 'the configured model'}. Review it before preparing delivery.`,
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to draft this message.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section
       className="mt-6 min-w-0 rounded-2xl border bg-card p-5"
@@ -195,10 +239,17 @@ export function NotificationComposer({
         >
           <Bell className="size-5 shrink-0" />
           Send a notification
-          <span aria-hidden="true" className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="hidden text-sm font-medium sm:inline">{composing ? 'Collapse' : 'Expand'}</span>
+          <span
+            aria-hidden="true"
+            className="ml-auto flex shrink-0 items-center gap-2"
+          >
+            <span className="hidden text-sm font-medium sm:inline">
+              {composing ? 'Collapse' : 'Expand'}
+            </span>
             <span className="grid size-8 place-items-center rounded-full bg-primary-foreground/15">
-              <ChevronDown className={`size-5 transition-transform ${composing ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={`size-5 transition-transform ${composing ? 'rotate-180' : ''}`}
+              />
             </span>
           </span>
         </button>
@@ -280,6 +331,61 @@ export function NotificationComposer({
               ))}
           </select>
         </label>
+        <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:col-span-2">
+          <div>
+            <p className="text-sm font-medium">Draft with Carestead AI</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Describe the verified outcome or request. AI drafts only; it
+              cannot send.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+            <label
+              htmlFor="notification-ai-context"
+              className="grid gap-2 text-sm"
+            >
+              What should the message communicate?
+              <Textarea
+                id="notification-ai-context"
+                value={aiContext}
+                maxLength={1200}
+                placeholder="Example: Ask Maya to confirm transport for Thursday’s appointment…"
+                disabled={busy || !writable}
+                onChange={(event) => setAiContext(event.target.value)}
+              />
+            </label>
+            <label className="grid content-start gap-2 text-sm">
+              Message style
+              <select
+                className={selectClass}
+                value={tone}
+                disabled={busy || !writable}
+                onChange={(event) => setTone(event.target.value)}
+              >
+                <option value="sms">Concise SMS</option>
+                <option value="family">Family-friendly</option>
+                <option value="formal">Formal handover</option>
+                <option value="calendar">Calendar explanation</option>
+                <option value="response">Clear response options</option>
+              </select>
+            </label>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit"
+            disabled={
+              busy || !writable || !memberId || aiContext.trim().length < 10
+            }
+            onClick={draftWithAi}
+          >
+            <Sparkles /> Draft message
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Tools: get verified outcome → get care-circle member → draft
+            notification → caregiver approval.
+          </p>
+        </div>
         <fieldset className="grid gap-2 text-sm" disabled={busy || !writable}>
           <legend className="mb-2">Delivery channels</legend>
           <p className="text-xs text-muted-foreground">

@@ -2,10 +2,14 @@ import { expect, test } from '@playwright/test';
 
 import type { CareAgentRecord, CareSnapshot } from '../lib/care-context';
 import {
+  analyzeCareDocument,
+  composeCareMessage,
   deterministicHandover,
   extractCareUpdate,
+  generateConflictSuggestions,
   generateGroundedAnswer,
   generateHandoverBrief,
+  generatePlanAdaptation,
 } from '../lib/llm-agent';
 import type { PlannedTask } from '../lib/planning-types';
 
@@ -229,4 +233,148 @@ test('handover has a deterministic fallback', () => {
   const brief = deterministicHandover(snapshot, 'Alex');
   expect(brief.generatedBy).toBe('deterministic');
   expect(brief.headline).toBe('Pickup risk');
+});
+
+test('conflict suggestions reject unknown evidence and keep valid future options', async () => {
+  const result = await generateConflictSuggestions(
+    { OPENAI_API_KEY: 'test-key' },
+    task,
+    'America/Toronto',
+    records,
+    [],
+    jsonFetcher({
+      options: [
+        {
+          label: 'Tomorrow afternoon',
+          due_at: '2030-02-05T20:00:00.000Z',
+          rationale: 'The plan has room.',
+          affected: ['Physiotherapy appointment'],
+          uncertainty: 'Availability still needs final confirmation.',
+          evidence_ids: ['task:task-1'],
+        },
+        {
+          label: 'Unsupported',
+          due_at: '2030-02-06T20:00:00.000Z',
+          rationale: 'Invented.',
+          affected: [],
+          uncertainty: '',
+          evidence_ids: ['task:invented'],
+        },
+      ],
+    }),
+  );
+  expect(result?.value).toHaveLength(1);
+  expect(result?.value[0].evidenceIds).toEqual(['task:task-1']);
+});
+
+test('adaptive plan creates reviewable drafts and preserves clarification', async () => {
+  const result = await generatePlanAdaptation(
+    { OPENAI_API_KEY: 'test-key' },
+    'Add a weekly check-in next Monday.',
+    'America/Toronto',
+    records,
+    [task],
+    jsonFetcher({
+      summary: 'A weekly check-in draft is ready.',
+      responsibilities: [
+        {
+          kind: 'create',
+          task_id: '',
+          title: 'Weekly check-in',
+          due_at: '2030-02-04T15:00:00.000Z',
+          category: 'checkin',
+          source: 'weekly check-in',
+          question: '',
+          confidence: 'high',
+        },
+      ],
+      questions: ['Who should own it?'],
+      evidence_ids: ['task:task-1'],
+    }),
+  );
+  expect(result?.value.drafts[0]).toMatchObject({
+    title: 'Weekly check-in',
+    kind: 'create',
+  });
+  expect(result?.value.questions).toEqual(['Who should own it?']);
+});
+
+test('communication composer returns a draft but performs no delivery tool call', async () => {
+  let body: Record<string, unknown> = {};
+  const result = await composeCareMessage(
+    { OPENAI_API_KEY: 'test-key' },
+    'Ask Maya to confirm transport.',
+    'sms',
+    'Maya',
+    records,
+    jsonFetcher(
+      {
+        title: 'Transport confirmation',
+        detail: 'Can you confirm transport?',
+        evidence_ids: ['task:task-1'],
+      },
+      (request) => {
+        body = JSON.parse(
+          typeof request.body === 'string' ? request.body : '{}',
+        );
+      },
+    ),
+  );
+  expect(result?.value.title).toBe('Transport confirmation');
+  expect(JSON.stringify(body)).not.toContain('send_notification');
+});
+
+test('document intake sends multimodal input without wrapping it as a JSON string', async () => {
+  let body: Record<string, unknown> = {};
+  const input = [
+    {
+      role: 'user',
+      content: [
+        { type: 'input_text', text: 'Appointment on February 8, 2030.' },
+      ],
+    },
+  ];
+  const result = await analyzeCareDocument(
+    { OPENAI_API_KEY: 'test-key' },
+    input,
+    'appointment.txt',
+    jsonFetcher(
+      {
+        summary: 'One appointment found.',
+        responsibilities: [
+          {
+            kind: 'create',
+            task_id: '',
+            title: 'Attend appointment',
+            due_at: '2030-02-08T15:00:00.000Z',
+            category: 'appointment',
+            source: 'Appointment on February 8, 2030.',
+            question: '',
+            confidence: 'high',
+          },
+        ],
+        facts: [
+          {
+            kind: 'appointment date',
+            value: 'February 8, 2030',
+            source: 'Appointment on February 8, 2030.',
+            confidence: 'high',
+          },
+        ],
+        contacts: [],
+        questions: [],
+        warnings: [],
+      },
+      (request) => {
+        body = JSON.parse(
+          typeof request.body === 'string' ? request.body : '{}',
+        );
+      },
+    ),
+  );
+  expect(body.input).toEqual(input);
+  expect(result?.value.facts[0]).toMatchObject({
+    kind: 'appointment date',
+    confidence: 'high',
+  });
 });

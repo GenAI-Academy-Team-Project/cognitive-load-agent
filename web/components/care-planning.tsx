@@ -10,9 +10,11 @@ import {
   Coffee,
   GitBranch,
   HeartHandshake,
+  FileUp,
   LoaderCircle,
   Mic,
   NotebookPen,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -20,19 +22,35 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
 import { localInput, localToInstant } from '@/lib/calendar-time';
-import { availableFor, isOpen, taskSignature, taskFactIssues } from '@/lib/planning-engine';
+import {
+  availableFor,
+  isOpen,
+  taskSignature,
+  taskFactIssues,
+} from '@/lib/planning-engine';
 import {
   taskCategories,
   type DraftItem,
+  type ConflictOption,
   type PlannedTask,
   type PlanningProposal,
   type PlanningState,
   type Simulation,
 } from '@/lib/planning-types';
 import type { DashboardState } from '@/lib/types';
-import { WeekAhead, CareRoutines, AppointmentPreparation, AttentionDigest } from './care-ahead';
+import {
+  WeekAhead,
+  CareRoutines,
+  AppointmentPreparation,
+  AttentionDigest,
+} from './care-ahead';
+import { AdaptivePlanBuilder, DocumentIntakePanel } from './agent-workflows';
 
-type Props = { dashboard: DashboardState; onChanged: () => void; onCalendar?: (taskId: string) => void };
+type Props = {
+  dashboard: DashboardState;
+  onChanged: () => void;
+  onCalendar?: (taskId: string) => void;
+};
 type Result = {
   state: PlanningState;
   simulation?: Simulation;
@@ -40,10 +58,11 @@ type Result = {
   agentMode?: 'model' | 'deterministic';
   model?: string;
 };
-type Action = (
+export type PlanningAction = (
   action: string,
   payload?: Record<string, unknown>,
 ) => Promise<Result | null>;
+type Action = PlanningAction;
 const field = 'grid gap-2 text-sm font-medium';
 const selectStyle =
   'min-h-10 min-w-0 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring';
@@ -105,7 +124,7 @@ function usePlanning({ dashboard, onChanged }: Props) {
             ? 'Handover acknowledged.'
             : action.startsWith('propose_') || action === 'preview_relief'
               ? 'Proposal ready for review below. No responsibilities changed.'
-            : 'Saved to the care plan.',
+              : 'Saved to the care plan.',
         );
         onChanged();
       }
@@ -194,6 +213,8 @@ export function CarePlanning(props: Props) {
   const [taskId, setTaskId] = useState('');
   const [newTime, setNewTime] = useState(() => localInput(future(1440), zone));
   const [simulation, setSimulation] = useState<Simulation | null>(null);
+  const [conflictOptions, setConflictOptions] = useState<ConflictOption[]>([]);
+  const [agentBusy, setAgentBusy] = useState(false);
   const [minutes, setMinutes] = useState(20);
   const tabs = [
     { id: 'week', title: 'Your week ahead', icon: Clock3 },
@@ -202,6 +223,8 @@ export function CarePlanning(props: Props) {
     { id: 'attention', title: 'My attention', icon: HeartHandshake },
     { id: 'break', title: 'I need a break', icon: Coffee },
     { id: 'simulate', title: 'What if?', icon: GitBranch },
+    { id: 'adapt', title: 'Adapt a care plan', icon: Sparkles },
+    { id: 'intake', title: 'Review a document', icon: FileUp },
     { id: 'dump', title: 'Organize an update', icon: NotebookPen },
     { id: 'help', title: 'I can help', icon: HeartHandshake },
     { id: 'tasks', title: 'Task planning', icon: Clock3 },
@@ -235,8 +258,48 @@ export function CarePlanning(props: Props) {
       setError((reason as Error).message);
     }
   }
+  async function suggestConflictOptions() {
+    setAgentBusy(true);
+    setError('');
+    setConflictOptions([]);
+    try {
+      const response = await fetch('/api/agent-workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'conflict_options',
+          recipientId: dashboard.selectedRecipient.id,
+          taskId,
+        }),
+      });
+      const result = (await response.json()) as {
+        options?: ConflictOption[];
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(result.error || 'Unable to suggest options.');
+      setConflictOptions(result.options ?? []);
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : 'Unable to suggest options.',
+      );
+    } finally {
+      setAgentBusy(false);
+    }
+  }
   return (
-    <div className="care-organizer space-y-6" data-organizer-tone={["break", "help"].includes(tab) ? "peach" : ["dump", "routines"].includes(tab) ? "plum" : tab === "attention" ? "amber" : "sky"}>
+    <div
+      className="care-organizer space-y-6"
+      data-organizer-tone={
+        ['break', 'help'].includes(tab)
+          ? 'peach'
+          : ['dump', 'routines'].includes(tab)
+            ? 'plum'
+            : tab === 'attention'
+              ? 'amber'
+              : 'sky'
+      }
+    >
       <div className="care-page-heading">
         <p className="text-sm font-medium text-primary">
           A little room to breathe
@@ -245,16 +308,19 @@ export function CarePlanning(props: Props) {
           A little less to remember.
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-          See what’s coming, prepare the next steps, and share the care.
-          Every change stays reviewable.
+          See what’s coming, prepare the next steps, and share the care. Every
+          change stays reviewable.
         </p>
       </div>
-      <fieldset className="care-organizer-tools flex flex-wrap gap-2 rounded-2xl border p-3" aria-label="Planning tools">
+      <fieldset
+        className="care-organizer-tools flex flex-wrap gap-2 rounded-2xl border p-3"
+        aria-label="Planning tools"
+      >
         {tabs.map(({ id, title, icon: Icon }) => (
           <Button
             key={id}
             variant={tab === id ? 'default' : 'outline'}
-              className="transition-none"
+            className="transition-none"
             aria-pressed={tab === id}
             onClick={() => setTab(id)}
           >
@@ -264,7 +330,14 @@ export function CarePlanning(props: Props) {
         ))}
       </fieldset>
       <Notice error={error} message={message} />
-      {message.startsWith('Proposal ready') && <a className="inline-block text-sm font-medium text-primary underline underline-offset-4" href="#reviewable-plans">Go to your proposal</a>}
+      {message.startsWith('Proposal ready') && (
+        <a
+          className="inline-block text-sm font-medium text-primary underline underline-offset-4"
+          href="#reviewable-plans"
+        >
+          Go to your proposal
+        </a>
+      )}
       {!writable && (
         <Empty>
           {dashboard.consent.status !== 'active'
@@ -276,10 +349,42 @@ export function CarePlanning(props: Props) {
         <output className="text-sm">Loading care planning…</output>
       ) : (
         <>
-          {tab === 'week' && <WeekAhead state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
-          {tab === 'routines' && <CareRoutines state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
-          {tab === 'visits' && <AppointmentPreparation state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
-          {tab === 'attention' && <AttentionDigest state={state} dashboard={dashboard} disabled={busy || !writable} act={act} navigate={setTab} />}
+          {tab === 'week' && (
+            <WeekAhead
+              state={state}
+              dashboard={dashboard}
+              disabled={busy || !writable}
+              act={act}
+              navigate={setTab}
+            />
+          )}
+          {tab === 'routines' && (
+            <CareRoutines
+              state={state}
+              dashboard={dashboard}
+              disabled={busy || !writable}
+              act={act}
+              navigate={setTab}
+            />
+          )}
+          {tab === 'visits' && (
+            <AppointmentPreparation
+              state={state}
+              dashboard={dashboard}
+              disabled={busy || !writable}
+              act={act}
+              navigate={setTab}
+            />
+          )}
+          {tab === 'attention' && (
+            <AttentionDigest
+              state={state}
+              dashboard={dashboard}
+              disabled={busy || !writable}
+              act={act}
+              navigate={setTab}
+            />
+          )}
           {tab === 'break' && (
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
               <div data-care-tone="peach" className={panel}>
@@ -323,33 +428,38 @@ export function CarePlanning(props: Props) {
                   times or task requirements need a fresh acceptance.
                 </p>
                 <div className="mt-5 space-y-3">
-                  <PaginatedList label="Your responsibilities" records={state.tasks
-                    .filter(
+                  <PaginatedList
+                    label="Your responsibilities"
+                    records={state.tasks.filter(
                       (task) =>
                         isOpen(task) &&
                         task.planning.owner_member_id === state.memberId,
-                    )} resetKey={dashboard.selectedRecipient.id}>{state.tasks
-                    .filter(
-                      (task) =>
-                        isOpen(task) &&
-                        task.planning.owner_member_id === state.memberId,
-                    )
-                    .map((task) => (
-                      <div
-                        key={task.id}
-                        className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{task.title}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {when(task.due_at, zone)}
-                          </p>
+                    )}
+                    resetKey={dashboard.selectedRecipient.id}
+                  >
+                    {state.tasks
+                      .filter(
+                        (task) =>
+                          isOpen(task) &&
+                          task.planning.owner_member_id === state.memberId,
+                      )
+                      .map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{task.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {when(task.due_at, zone)}
+                            </p>
+                          </div>
+                          <Badge variant="outline">
+                            {task.accepted ? 'Accepted' : 'Needs acceptance'}
+                          </Badge>
                         </div>
-                        <Badge variant="outline">
-                          {task.accepted ? 'Accepted' : 'Needs acceptance'}
-                        </Badge>
-                      </div>
-                    ))}</PaginatedList>
+                      ))}
+                  </PaginatedList>
                   {!state.tasks.some(
                     (task) =>
                       isOpen(task) &&
@@ -402,7 +512,23 @@ export function CarePlanning(props: Props) {
                   zone={zone}
                 />
               </div>
-              {state.tasks.find(task => task.id === taskId)?.calendarLinked && props.onCalendar && <div className="mt-4 rounded-xl border bg-background p-4"><p className="text-sm">This appointment is connected to Google Calendar. Review its schedule, reschedule with linked responsibilities, or cancel it there.</p><Button className="mt-3" variant="outline" onClick={() => props.onCalendar?.(taskId)}>Manage in Calendar</Button></div>}
+              {state.tasks.find((task) => task.id === taskId)?.calendarLinked &&
+                props.onCalendar && (
+                  <div className="mt-4 rounded-xl border bg-background p-4">
+                    <p className="text-sm">
+                      This appointment is connected to Google Calendar. Review
+                      its schedule, reschedule with linked responsibilities, or
+                      cancel it there.
+                    </p>
+                    <Button
+                      className="mt-3"
+                      variant="outline"
+                      onClick={() => props.onCalendar?.(taskId)}
+                    >
+                      Manage in Calendar
+                    </Button>
+                  </div>
+                )}
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   disabled={busy || !writable || !taskId || !newTime}
@@ -413,17 +539,68 @@ export function CarePlanning(props: Props) {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={busy || agentBusy || !writable || !taskId}
+                  onClick={suggestConflictOptions}
+                >
+                  {agentBusy ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <Sparkles />
+                  )}
+                  Suggest workable options
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
                   disabled={busy}
                   onClick={() => {
                     setTaskId('');
                     setNewTime('');
                     setSimulation(null);
+                    setConflictOptions([]);
                     setError('');
                   }}
                 >
                   Clear
                 </Button>
               </div>
+              {conflictOptions.length > 0 && (
+                <div className="mt-5 grid gap-3">
+                  <h3 className="font-medium">Validated options</h3>
+                  {conflictOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.dueAt}
+                      className="rounded-xl border bg-background p-4 text-left hover:border-primary"
+                      onClick={() => {
+                        setNewTime(localInput(option.dueAt, zone));
+                        setSimulation(null);
+                      }}
+                    >
+                      <span className="font-medium">
+                        {option.label} · {when(option.dueAt, zone)}
+                      </span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {option.rationale}
+                      </span>
+                      {option.affected.length > 0 && (
+                        <span className="mt-2 block text-xs">
+                          Moves: {option.affected.join(', ')}
+                        </span>
+                      )}
+                      {option.uncertainty && (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Uncertainty: {option.uncertainty}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    AI proposes; the scheduling engine validates. Selecting an
+                    option does not change the plan.
+                  </p>
+                </div>
+              )}
               {simulation && (
                 <div className="mt-6 space-y-5">
                   <ol className="border-l-2 border-primary/30 pl-5">
@@ -487,6 +664,23 @@ export function CarePlanning(props: Props) {
               onError={setError}
             />
           )}
+          {tab === 'adapt' && (
+            <AdaptivePlanBuilder
+              dashboard={dashboard}
+              state={state}
+              act={act}
+              disabled={!writable || busy}
+              onError={setError}
+            />
+          )}
+          {tab === 'intake' && (
+            <DocumentIntakePanel
+              dashboard={dashboard}
+              act={act}
+              disabled={!writable || busy}
+              onError={setError}
+            />
+          )}
           {tab === 'help' && (
             <div className="grid gap-6 xl:grid-cols-2">
               <AvailabilityEditor
@@ -520,14 +714,16 @@ export function CarePlanning(props: Props) {
                   capabilities, and time budget.
                 </p>
                 <div className="mt-4 space-y-3">
-                  <PaginatedList label="Available responsibilities" records={state.tasks
-                    .filter(
+                  <PaginatedList
+                    label="Available responsibilities"
+                    records={state.tasks.filter(
                       (task) =>
                         isOpen(task) &&
                         !task.planning.owner_member_id &&
                         task.owner === 'Unassigned' &&
                         task.planning.duration_minutes <= minutes &&
-                        !taskFactIssues(task, state.memories, renderTime).length &&
+                        !taskFactIssues(task, state.memories, renderTime)
+                          .length &&
                         Date.parse(task.due_at) > renderTime &&
                         availableFor(
                           task,
@@ -535,37 +731,47 @@ export function CarePlanning(props: Props) {
                           state.availability,
                           state.tasks,
                         ),
-                    )} resetKey={dashboard.selectedRecipient.id}>{state.tasks
-                    .filter(
-                      (task) =>
-                        isOpen(task) &&
-                        !task.planning.owner_member_id &&
-                        task.owner === 'Unassigned' &&
-                        task.planning.duration_minutes <= minutes &&
-                        !taskFactIssues(task, state.memories, renderTime).length &&
-                        Date.parse(task.due_at) > renderTime &&
-                        availableFor(
-                          task,
-                          state.memberId,
-                          state.availability,
-                          state.tasks,
-                        ),
-                    )
-                    .map((task) => (
-                      <div className="bg-[var(--care-inset)] rounded-xl border p-4" key={task.id}>
-                        <p className="font-medium">{task.title}</p>
-                        <p className="my-2 text-xs text-muted-foreground">
-                          {task.planning.duration_minutes} minutes ·{' '}
-                          {when(task.due_at, zone)}
-                        </p>
-                        <Button
-                          disabled={busy || !writable}
-                          onClick={() => act('claim_task', { taskId: task.id })}
+                    )}
+                    resetKey={dashboard.selectedRecipient.id}
+                  >
+                    {state.tasks
+                      .filter(
+                        (task) =>
+                          isOpen(task) &&
+                          !task.planning.owner_member_id &&
+                          task.owner === 'Unassigned' &&
+                          task.planning.duration_minutes <= minutes &&
+                          !taskFactIssues(task, state.memories, renderTime)
+                            .length &&
+                          Date.parse(task.due_at) > renderTime &&
+                          availableFor(
+                            task,
+                            state.memberId,
+                            state.availability,
+                            state.tasks,
+                          ),
+                      )
+                      .map((task) => (
+                        <div
+                          className="bg-[var(--care-inset)] rounded-xl border p-4"
+                          key={task.id}
                         >
-                          I’ll take this
-                        </Button>
-                      </div>
-                    ))}</PaginatedList>
+                          <p className="font-medium">{task.title}</p>
+                          <p className="my-2 text-xs text-muted-foreground">
+                            {task.planning.duration_minutes} minutes ·{' '}
+                            {when(task.due_at, zone)}
+                          </p>
+                          <Button
+                            disabled={busy || !writable}
+                            onClick={() =>
+                              act('claim_task', { taskId: task.id })
+                            }
+                          >
+                            I’ll take this
+                          </Button>
+                        </div>
+                      ))}
+                  </PaginatedList>
                   <p className="text-xs leading-5 text-muted-foreground">
                     No matching task? Share another time window or ask your care
                     circle to add a small responsibility.
@@ -581,15 +787,21 @@ export function CarePlanning(props: Props) {
                 and simulations useful. Default durations are estimates; review
                 them here.
               </p>
-              <PaginatedList label="Task planning" records={state.tasks.filter(isOpen)} resetKey={dashboard.selectedRecipient.id}>{state.tasks.filter(isOpen).map((task) => (
-                <TaskPlanning
-                  key={`${task.id}:${taskSignature(task)}:${task.accepted}`}
-                  task={task}
-                  state={state}
-                  act={act}
-                  disabled={!writable || busy}
-                />
-              ))}</PaginatedList>
+              <PaginatedList
+                label="Task planning"
+                records={state.tasks.filter(isOpen)}
+                resetKey={dashboard.selectedRecipient.id}
+              >
+                {state.tasks.filter(isOpen).map((task) => (
+                  <TaskPlanning
+                    key={`${task.id}:${taskSignature(task)}:${task.accepted}`}
+                    task={task}
+                    state={state}
+                    act={act}
+                    disabled={!writable || busy}
+                  />
+                ))}
+              </PaginatedList>
               {!state.tasks.some(isOpen) && (
                 <Empty>Add a responsibility to begin planning.</Empty>
               )}
@@ -599,50 +811,66 @@ export function CarePlanning(props: Props) {
             <h2 className="font-heading text-xl font-semibold">
               Requests waiting for you
             </h2>
-            <PaginatedList label="Coverage requests" removal={{ individual: false, disabled: busy || !writable, description: 'Decline all coverage requests waiting for you. Responsibilities remain unfilled.', remove: async ids => { for (const id of ids) if (!await act('decline_offer', { id })) return false; return true; } }} records={state.offers
-              .filter(
+            <PaginatedList
+              label="Coverage requests"
+              removal={{
+                individual: false,
+                disabled: busy || !writable,
+                description:
+                  'Decline all coverage requests waiting for you. Responsibilities remain unfilled.',
+                remove: async (ids) => {
+                  for (const id of ids)
+                    if (!(await act('decline_offer', { id }))) return false;
+                  return true;
+                },
+              }}
+              records={state.offers.filter(
                 (offer) =>
                   offer.member_id === state.memberId &&
                   offer.status === 'pending',
-              )} resetKey={dashboard.selectedRecipient.id}>{state.offers
-              .filter(
-                (offer) =>
-                  offer.member_id === state.memberId &&
-                  offer.status === 'pending',
-              )
-              .map((offer) => (
-                <div
-                  key={offer.id}
-                  className={`${panel} flex flex-wrap items-center justify-between gap-4`}
-                >
-                  <div>
-                    <p className="font-medium">
-                      {
-                        state.tasks.find((task) => task.id === offer.task_id)
-                          ?.title
-                      }
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      A caregiver has asked you to cover this responsibility.
-                    </p>
+              )}
+              resetKey={dashboard.selectedRecipient.id}
+            >
+              {state.offers
+                .filter(
+                  (offer) =>
+                    offer.member_id === state.memberId &&
+                    offer.status === 'pending',
+                )
+                .map((offer) => (
+                  <div
+                    key={offer.id}
+                    className={`${panel} flex flex-wrap items-center justify-between gap-4`}
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {
+                          state.tasks.find((task) => task.id === offer.task_id)
+                            ?.title
+                        }
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        A caregiver has asked you to cover this responsibility.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={!writable || busy}
+                        onClick={() => act('decline_offer', { id: offer.id })}
+                      >
+                        Decline
+                      </Button>
+                      <Button
+                        disabled={!writable || busy}
+                        onClick={() => act('accept_offer', { id: offer.id })}
+                      >
+                        Accept coverage
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      disabled={!writable || busy}
-                      onClick={() => act('decline_offer', { id: offer.id })}
-                    >
-                      Decline
-                    </Button>
-                    <Button
-                      disabled={!writable || busy}
-                      onClick={() => act('accept_offer', { id: offer.id })}
-                    >
-                      Accept coverage
-                    </Button>
-                  </div>
-                </div>
-              ))}</PaginatedList>
+                ))}
+            </PaginatedList>
             {!state.offers.some(
               (offer) =>
                 offer.member_id === state.memberId &&
@@ -653,16 +881,22 @@ export function CarePlanning(props: Props) {
             <h2 className="font-heading text-xl font-semibold">
               Reviewable plans
             </h2>
-            <PaginatedList label="Reviewable plans" records={state.proposals} resetKey={dashboard.selectedRecipient.id}>{state.proposals.map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                state={state}
-                zone={zone}
-                act={act}
-                disabled={!writable || busy}
-              />
-            ))}</PaginatedList>
+            <PaginatedList
+              label="Reviewable plans"
+              records={state.proposals}
+              resetKey={dashboard.selectedRecipient.id}
+            >
+              {state.proposals.map((proposal) => (
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  state={state}
+                  zone={zone}
+                  act={act}
+                  disabled={!writable || busy}
+                />
+              ))}
+            </PaginatedList>
             {!state.proposals.length && (
               <Empty>
                 Your coverage plans, simulations, and organized updates will
@@ -690,7 +924,13 @@ function TaskPlanning({
   const caregivers = state.members.filter((member) => member.role !== 'viewer');
   return (
     <form
-      data-care-tone={task.category === "medication" ? "plum" : ["transport", "appointment", "mobility"].includes(task.category) ? "sky" : "peach"}
+      data-care-tone={
+        task.category === 'medication'
+          ? 'plum'
+          : ['transport', 'appointment', 'mobility'].includes(task.category)
+            ? 'sky'
+            : 'peach'
+      }
       className={panel}
       onSubmit={(event) => {
         event.preventDefault();
@@ -785,7 +1025,27 @@ function TaskPlanning({
           placeholder="e.g. accessible vehicle"
         />
       </label>
-      {!!state.memories.length && <fieldset className="mt-4"><legend className="text-sm font-medium">Care facts this task depends on</legend><div className="mt-2 space-y-2">{state.memories.map((memory) => <label key={memory.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" name="factIds" value={memory.id} defaultChecked={task.planning.fact_ids?.includes(memory.id)} />{memory.value}</label>)}</div></fieldset>}
+      {!!state.memories.length && (
+        <fieldset className="mt-4">
+          <legend className="text-sm font-medium">
+            Care facts this task depends on
+          </legend>
+          <div className="mt-2 space-y-2">
+            {state.memories.map((memory) => (
+              <label key={memory.id} className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  name="factIds"
+                  value={memory.id}
+                  defaultChecked={task.planning.fact_ids?.includes(memory.id)}
+                />
+                {memory.value}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="submit" variant="outline" disabled={disabled}>
           Save task planning
@@ -897,36 +1157,38 @@ function AvailabilityEditor({
         </Button>
       </form>
       <div className="mt-5 space-y-3">
-        <PaginatedList label="Availability" records={state.availability}>{state.availability.map((window) => (
-          <div
-            key={window.id}
-            className="flex items-start justify-between gap-3 border-t pt-3"
-          >
-            <div>
-              <p className="text-sm font-medium">
-                {state.members.find((m) => m.id === window.member_id)
-                  ?.display_name ?? 'Caregiver'}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {when(window.start_at, zone)} – {when(window.end_at, zone)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {window.categories.join(', ')}
-              </p>
+        <PaginatedList label="Availability" records={state.availability}>
+          {state.availability.map((window) => (
+            <div
+              key={window.id}
+              className="flex items-start justify-between gap-3 border-t pt-3"
+            >
+              <div>
+                <p className="text-sm font-medium">
+                  {state.members.find((m) => m.id === window.member_id)
+                    ?.display_name ?? 'Caregiver'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {when(window.start_at, zone)} – {when(window.end_at, zone)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {window.categories.join(', ')}
+                </p>
+              </div>
+              {window.member_id === state.memberId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Remove availability"
+                  disabled={disabled}
+                  onClick={() => act('remove_availability', { id: window.id })}
+                >
+                  <X />
+                </Button>
+              )}
             </div>
-            {window.member_id === state.memberId && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Remove availability"
-                disabled={disabled}
-                onClick={() => act('remove_availability', { id: window.id })}
-              >
-                <X />
-              </Button>
-            )}
-          </div>
-        ))}</PaginatedList>
+          ))}
+        </PaginatedList>
       </div>
     </section>
   );
@@ -959,7 +1221,9 @@ function BrainDump({
 }) {
   const [message, setMessage] = useState(''),
     [drafts, setDrafts] = useState<DraftItem[]>([]),
-    [extractionMode, setExtractionMode] = useState<'model' | 'deterministic' | null>(null),
+    [extractionMode, setExtractionMode] = useState<
+      'model' | 'deterministic' | null
+    >(null),
     [listening, setListening] = useState(false);
   const recognition = useRef<Recognition | null>(null);
   useEffect(
@@ -1065,13 +1329,21 @@ function BrainDump({
         </Button>
       </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        {extractionMode === 'model' ? 'Carestead AI organized this update into reviewable drafts. ' : extractionMode === 'deterministic' ? 'Local rules organized this update because the model was unavailable. ' : 'Carestead AI organizes the update when configured, with local rules as a fallback. '}
-        No raw audio is stored. Your browser’s speech service may process audio when voice input is used.
+        {extractionMode === 'model'
+          ? 'Carestead AI organized this update into reviewable drafts. '
+          : extractionMode === 'deterministic'
+            ? 'Local rules organized this update because the model was unavailable. '
+            : 'Carestead AI organizes the update when configured, with local rules as a fallback. '}
+        No raw audio is stored. Your browser’s speech service may process audio
+        when voice input is used.
       </p>
       {!!drafts.length && (
         <div className="mt-6 space-y-4">
           {drafts.map((draft, index) => (
-            <article key={index} className="bg-[var(--care-inset)] space-y-3 rounded-xl border p-4">
+            <article
+              key={index}
+              className="bg-[var(--care-inset)] space-y-3 rounded-xl border p-4"
+            >
               <div className="flex items-start justify-between gap-3">
                 <blockquote className="border-l-2 border-primary/40 pl-3 text-sm text-muted-foreground">
                   {draft.source}
@@ -1087,7 +1359,11 @@ function BrainDump({
                   <X />
                 </Button>
               </div>
-              {draft.confidence && <Badge variant="outline" className="capitalize">{draft.confidence} confidence</Badge>}
+              {draft.confidence && (
+                <Badge variant="outline" className="capitalize">
+                  {draft.confidence} confidence
+                </Badge>
+              )}
               {draft.question && (
                 <p className="text-sm font-medium text-primary">
                   {draft.question}
@@ -1200,7 +1476,10 @@ function BrainDump({
               )
             }
             onClick={async () => {
-              const result = await act('propose_dump', { drafts, sourceMode: extractionMode ?? 'deterministic' });
+              const result = await act('propose_dump', {
+                drafts,
+                sourceMode: extractionMode ?? 'deterministic',
+              });
               if (result) {
                 setDrafts([]);
                 setMessage('');
@@ -1231,7 +1510,10 @@ function ProposalCard({
 }) {
   const payload = proposal.payload;
   return (
-    <article data-care-tone={proposal.status === "pending" ? "amber" : "sky"} className={panel}>
+    <article
+      data-care-tone={proposal.status === 'pending' ? 'amber' : 'sky'}
+      className={panel}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-heading text-lg font-semibold">{payload.title}</h3>
         <Badge variant="outline">
@@ -1246,7 +1528,13 @@ function ProposalCard({
         </p>
       )}
       <div className="mt-4 space-y-3">
-        {payload.preferenceEvidence && <p className="text-sm text-muted-foreground">Preferred hours: {payload.preferenceEvidence.start_hour}:00–{payload.preferenceEvidence.end_hour}:00. Verified source: {payload.preferenceEvidence.memory_value}</p>}
+        {payload.preferenceEvidence && (
+          <p className="text-sm text-muted-foreground">
+            Preferred hours: {payload.preferenceEvidence.start_hour}:00–
+            {payload.preferenceEvidence.end_hour}:00. Verified source:{' '}
+            {payload.preferenceEvidence.memory_value}
+          </p>
+        )}
         {payload.coverage?.map((item) => {
           const task = state.tasks.find((task) => task.id === item.taskId),
             offer = state.offers.find(
@@ -1300,6 +1588,20 @@ function ProposalCard({
             <p className="mt-1 text-xs">{when(draft.dueAt, zone)}</p>
             <blockquote className="mt-2 text-xs text-muted-foreground">
               Source: {draft.source}
+            </blockquote>
+          </div>
+        ))}
+        {payload.facts?.map((fact, index) => (
+          <div key={`fact-${index}`} className="rounded-xl bg-muted/50 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium">
+                Unverified fact: {fact.kind}
+              </p>
+              <Badge variant="outline">{fact.confidence}</Badge>
+            </div>
+            <p className="mt-1 text-sm">{fact.value}</p>
+            <blockquote className="mt-2 text-xs text-muted-foreground">
+              Source: {fact.source}
             </blockquote>
           </div>
         ))}
@@ -1358,7 +1660,10 @@ export function SinceAway(props: Props) {
   const { state, act, busy, error, message } = usePlanning(props);
   if (!state) return null;
   return (
-    <section data-care-tone="sky" className="min-w-0 rounded-2xl border border-primary/30 p-4 sm:p-5">
+    <section
+      data-care-tone="sky"
+      className="min-w-0 rounded-2xl border border-primary/30 p-4 sm:p-5"
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-primary">
@@ -1377,7 +1682,11 @@ export function SinceAway(props: Props) {
         </div>
         <Button
           className="h-auto min-h-11 max-w-full whitespace-normal text-left"
-          disabled={busy || handoverFiltered || props.dashboard.consent.status !== 'active'}
+          disabled={
+            busy ||
+            handoverFiltered ||
+            props.dashboard.consent.status !== 'active'
+          }
           onClick={() =>
             act('acknowledge', {
               snapshot: JSON.stringify(state.handover.snapshot),
@@ -1388,34 +1697,64 @@ export function SinceAway(props: Props) {
           reviewed this handover
         </Button>
       </div>
-      {handoverFiltered && <output className="mt-3 block text-sm text-muted-foreground">Clear handover filters and review all changes before acknowledging the full handover.</output>}
+      {handoverFiltered && (
+        <output className="mt-3 block text-sm text-muted-foreground">
+          Clear handover filters and review all changes before acknowledging the
+          full handover.
+        </output>
+      )}
       <Notice error={error} message={message} />
       <div className="mt-4 space-y-3">
-        <PaginatedList label="Handover changes" filterFields={[["kind", "Information type"], ["change_type", "Change type"]]} hideSingleValueFilters onFilterActiveChange={setHandoverFiltered} resetKey={props.dashboard.selectedRecipient.id} pageSize={3} collapsibleFilters records={state.handover.changes.map(change => ({ ...change, change_type: change.before === null ? "added" : change.after === null ? "removed" : "changed" }))}>{state.handover.changes.map((change) => (
-          <article key={change.id} className="rounded-xl bg-muted/60 p-4">
-            <p className="text-xs font-medium text-primary">
-              {change.kind} ·{' '}
-              {change.before === null
-                ? 'Added'
+        <PaginatedList
+          label="Handover changes"
+          filterFields={[
+            ['kind', 'Information type'],
+            ['change_type', 'Change type'],
+          ]}
+          hideSingleValueFilters
+          onFilterActiveChange={setHandoverFiltered}
+          resetKey={props.dashboard.selectedRecipient.id}
+          pageSize={3}
+          collapsibleFilters
+          records={state.handover.changes.map((change) => ({
+            ...change,
+            change_type:
+              change.before === null
+                ? 'added'
                 : change.after === null
-                  ? 'Removed'
-                  : 'Changed'}
-            </p>
-            <h3 className="mt-1 text-sm font-semibold">{change.label}</h3>
-            <details className="mt-2"><summary className="cursor-pointer text-sm text-primary">View change details</summary>
-            {change.before && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                <strong>Before:</strong> {change.before}
+                  ? 'removed'
+                  : 'changed',
+          }))}
+        >
+          {state.handover.changes.map((change) => (
+            <article key={change.id} className="rounded-xl bg-muted/60 p-4">
+              <p className="text-xs font-medium text-primary">
+                {change.kind} ·{' '}
+                {change.before === null
+                  ? 'Added'
+                  : change.after === null
+                    ? 'Removed'
+                    : 'Changed'}
               </p>
-            )}
-            {change.after && (
-              <p className="mt-1 text-sm">
-                <strong>Now:</strong> {change.after}
-              </p>
-            )}
-            </details>
-          </article>
-        ))}</PaginatedList>
+              <h3 className="mt-1 text-sm font-semibold">{change.label}</h3>
+              <details className="mt-2">
+                <summary className="cursor-pointer text-sm text-primary">
+                  View change details
+                </summary>
+                {change.before && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    <strong>Before:</strong> {change.before}
+                  </p>
+                )}
+                {change.after && (
+                  <p className="mt-1 text-sm">
+                    <strong>Now:</strong> {change.after}
+                  </p>
+                )}
+              </details>
+            </article>
+          ))}
+        </PaginatedList>
       </div>
     </section>
   );
@@ -1439,70 +1778,72 @@ export function MemoryConflicts(props: Props) {
       </p>
       <Notice error={error} message={message} />
       <div className="mt-4 space-y-4">
-        <PaginatedList label="Conflicting facts" records={state.conflicts}>{state.conflicts.map((conflict) => (
-          <form
-            className="rounded-xl border border-destructive/40 p-4"
-            key={conflict.key}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              void act('resolve_conflict', {
-                key: conflict.key,
-                memoryId: data.get('memoryId'),
-                source: data.get('source'),
-              });
-            }}
-          >
-            <h3 className="font-semibold">
-              {conflict.subject} · {conflict.attribute}
-            </h3>
-            <fieldset className="mt-3 space-y-3">
-              <legend className="mb-2 text-sm">
-                Which value have you verified?
-              </legend>
-              {conflict.records.map((memory) => (
-                <label
-                  key={memory.id}
-                  className="flex items-start gap-3 text-sm"
-                >
-                  <input
-                    className="mt-1"
-                    type="radio"
-                    name="memoryId"
-                    value={memory.id}
-                    required
-                  />
-                  <span>
-                    {memory.value}
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {memory.source} · {when(memory.updated_at, zone)}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-            <label
-              htmlFor={`verify-${conflict.key}`}
-              className={`${field} mt-4`}
+        <PaginatedList label="Conflicting facts" records={state.conflicts}>
+          {state.conflicts.map((conflict) => (
+            <form
+              className="rounded-xl border border-destructive/40 p-4"
+              key={conflict.key}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const data = new FormData(event.currentTarget);
+                void act('resolve_conflict', {
+                  key: conflict.key,
+                  memoryId: data.get('memoryId'),
+                  source: data.get('source'),
+                });
+              }}
             >
-              How did you verify it?
-              <Input
-                id={`verify-${conflict.key}`}
-                name="source"
-                placeholder="e.g. Confirmed by phone with pharmacy today"
-                maxLength={200}
-                required
-              />
-            </label>
-            <p className="mt-3 text-xs text-muted-foreground">
-              The selected fact becomes verified. Other conflicting values are
-              archived and linked to their replacement.
-            </p>
-            <Button className="mt-3" disabled={!writable || busy}>
-              Confirm verified value
-            </Button>
-          </form>
-        ))}</PaginatedList>
+              <h3 className="font-semibold">
+                {conflict.subject} · {conflict.attribute}
+              </h3>
+              <fieldset className="mt-3 space-y-3">
+                <legend className="mb-2 text-sm">
+                  Which value have you verified?
+                </legend>
+                {conflict.records.map((memory) => (
+                  <label
+                    key={memory.id}
+                    className="flex items-start gap-3 text-sm"
+                  >
+                    <input
+                      className="mt-1"
+                      type="radio"
+                      name="memoryId"
+                      value={memory.id}
+                      required
+                    />
+                    <span>
+                      {memory.value}
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {memory.source} · {when(memory.updated_at, zone)}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <label
+                htmlFor={`verify-${conflict.key}`}
+                className={`${field} mt-4`}
+              >
+                How did you verify it?
+                <Input
+                  id={`verify-${conflict.key}`}
+                  name="source"
+                  placeholder="e.g. Confirmed by phone with pharmacy today"
+                  maxLength={200}
+                  required
+                />
+              </label>
+              <p className="mt-3 text-xs text-muted-foreground">
+                The selected fact becomes verified. Other conflicting values are
+                archived and linked to their replacement.
+              </p>
+              <Button className="mt-3" disabled={!writable || busy}>
+                Confirm verified value
+              </Button>
+            </form>
+          ))}
+        </PaginatedList>
         {!state.conflicts.length && (
           <p className="text-sm text-primary">
             No conflicts found among the structured, current facts.
@@ -1514,78 +1855,80 @@ export function MemoryConflicts(props: Props) {
           Describe facts and review expiry dates
         </summary>
         <div className="mt-4 space-y-4">
-          <PaginatedList label="Fact details" records={state.memories}>{state.memories.map((memory) => (
-            <form
-              key={memory.id}
-              className="rounded-xl border p-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const data = new FormData(event.currentTarget);
-                try {
-                  void act('describe_fact', {
-                    memoryId: memory.id,
-                    subject: data.get('subject'),
-                    attribute: data.get('attribute'),
-                    validUntil: data.get('validUntil')
-                      ? localToInstant(formText(data, 'validUntil'), zone)
-                      : '',
-                  });
-                } catch (reason) {
-                  setError((reason as Error).message);
-                }
-              }}
-            >
-              <p className="text-sm font-medium">{memory.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Source: {memory.source}
-                {memory.fact?.valid_until &&
-                Date.parse(memory.fact.valid_until) <= renderTime
-                  ? ' · Expired — verify before using'
-                  : ''}
-              </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <label htmlFor={`subject-${memory.id}`} className={field}>
-                  Subject
-                  <Input
-                    id={`subject-${memory.id}`}
-                    name="subject"
-                    defaultValue={memory.fact?.subject}
-                    required
-                    maxLength={100}
-                  />
-                </label>
-                <label htmlFor={`attribute-${memory.id}`} className={field}>
-                  Attribute
-                  <Input
-                    id={`attribute-${memory.id}`}
-                    name="attribute"
-                    defaultValue={memory.fact?.attribute}
-                    required
-                    maxLength={100}
-                  />
-                </label>
-                <label className={field}>
-                  Valid until ({zone})
-                  <Input
-                    name="validUntil"
-                    type="datetime-local"
-                    defaultValue={
-                      memory.fact?.valid_until
-                        ? localInput(memory.fact.valid_until, zone)
-                        : ''
-                    }
-                  />
-                </label>
-              </div>
-              <Button
-                className="mt-3"
-                variant="outline"
-                disabled={!writable || busy}
+          <PaginatedList label="Fact details" records={state.memories}>
+            {state.memories.map((memory) => (
+              <form
+                key={memory.id}
+                className="rounded-xl border p-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const data = new FormData(event.currentTarget);
+                  try {
+                    void act('describe_fact', {
+                      memoryId: memory.id,
+                      subject: data.get('subject'),
+                      attribute: data.get('attribute'),
+                      validUntil: data.get('validUntil')
+                        ? localToInstant(formText(data, 'validUntil'), zone)
+                        : '',
+                    });
+                  } catch (reason) {
+                    setError((reason as Error).message);
+                  }
+                }}
               >
-                Save fact context
-              </Button>
-            </form>
-          ))}</PaginatedList>
+                <p className="text-sm font-medium">{memory.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Source: {memory.source}
+                  {memory.fact?.valid_until &&
+                  Date.parse(memory.fact.valid_until) <= renderTime
+                    ? ' · Expired — verify before using'
+                    : ''}
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <label htmlFor={`subject-${memory.id}`} className={field}>
+                    Subject
+                    <Input
+                      id={`subject-${memory.id}`}
+                      name="subject"
+                      defaultValue={memory.fact?.subject}
+                      required
+                      maxLength={100}
+                    />
+                  </label>
+                  <label htmlFor={`attribute-${memory.id}`} className={field}>
+                    Attribute
+                    <Input
+                      id={`attribute-${memory.id}`}
+                      name="attribute"
+                      defaultValue={memory.fact?.attribute}
+                      required
+                      maxLength={100}
+                    />
+                  </label>
+                  <label className={field}>
+                    Valid until ({zone})
+                    <Input
+                      name="validUntil"
+                      type="datetime-local"
+                      defaultValue={
+                        memory.fact?.valid_until
+                          ? localInput(memory.fact.valid_until, zone)
+                          : ''
+                      }
+                    />
+                  </label>
+                </div>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  disabled={!writable || busy}
+                >
+                  Save fact context
+                </Button>
+              </form>
+            ))}
+          </PaginatedList>
         </div>
       </details>
     </section>
