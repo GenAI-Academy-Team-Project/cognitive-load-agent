@@ -72,6 +72,7 @@ export type DraftItem = {
   category: string;
   source: string;
   question: string;
+  confidence?: 'high' | 'medium' | 'low';
 };
 export type PlanChange = {
   taskId: string;
@@ -98,6 +99,7 @@ export type ProposalPayload = {
   drafts?: DraftItem[];
   baseline: PlannedTask[];
   handover?: SnapshotEntry[];
+  sourceMode?: 'model' | 'deterministic';
 };
 export type PlanningProposal = {
   id: string;

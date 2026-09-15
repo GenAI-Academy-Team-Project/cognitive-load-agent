@@ -16,16 +16,12 @@ Caregiving is not one task—it is the ongoing work of remembering what changed,
 | --- | --- |
 | **Care recipient and profile** | An isolated profile for each person, including care context, preferences, access notes, key contacts, and support systems. |
 | **Care plan and templates** | Reusable, versioned plans that can be personalized, safely cloned, and applied to another person without copying private history. |
-| **Care Circle and handover** | Recipient-specific roles plus a concise live handover of current state, risks, priorities, responsibilities, and contacts. |
-| **Responsibilities, calendar, and timeline** | Owned tasks, due dates, appointments, conflicts, notifications, approvals, actions, and outcomes in chronological context. |
-| **Grounded chat and voice** | Recipient-specific questions answered from stored evidence, with microphone input and spoken replies where the browser supports them. Raw audio is not stored. |
+| **Care Circle and intelligent handover** | Recipient-specific roles plus a live handover and an on-demand AI brief of current state, risks, priorities, changes, and supporting evidence. |
+| **Care Organizer, calendar, and timeline** | Plans breaks and recurring care, organizes free-form updates into reviewable tasks, connects appointments to Google Calendar, and preserves actions and outcomes in chronological context. |
+| **Grounded chat and voice** | A model-backed copilot answers recipient-specific questions from visible evidence, with microphone input and spoken replies where the browser supports them. Raw audio is not stored. |
 | **Approval-aware actions** | Chat can prepare rescheduling, assignment, task, notification, and care-check actions. Authorized caregivers review the exact proposal before it executes. |
 | **Risk checks and memory** | Explainable coordination-risk rules and durable, source-linked facts with verification and review status. |
 | **Privacy and evaluation** | Consent, recipient access, retention, export, deletion, audit history, rate limiting, accessibility checks, and trajectory-level evaluation. |
-
-### Incoming collaborator features
-
-The following work has been described but is not yet present in this branch: Care Organizer planning for breaks and activities, the Google Calendar connector, an Integrations tab, and direct sign-up/sign-in/sign-out screens. The current application supports in-app appointment scheduling and approval; the external Google Calendar write path should be documented as available only after that code is merged and verified.
 
 ## Product walkthrough
 
@@ -57,7 +53,7 @@ Caregivers can choose a message template, select a receiving care-circle member,
 
 ## How the agent works
 
-Carestead currently uses one deterministic care-state agent rather than a multi-agent system. This keeps the MVP predictable, testable, and auditable.
+Carestead uses one hybrid care-state agent rather than a group of unconstrained agents. The model handles language understanding and grounded synthesis; deterministic code owns authorization, validation, risk rules, approvals, tool execution, and fallback behavior.
 
 1. **Observe:** receive a question, risk signal, or requested action for the selected recipient.
 2. **Retrieve:** load only that recipient’s relevant profile, tasks, events, trusted facts, risks, contacts, approvals, and recent traces.
@@ -80,7 +76,7 @@ The caregiver experience calls authenticated server routes that enforce identity
 | --- | --- |
 | **Caregiver experience** | Dashboard, recipient switcher, plans, responsibilities, timeline, handover, Care Circle, notifications, privacy controls, chat, and voice. |
 | **Authenticated API boundary** | Authentication, recipient authorization, consent, input validation, throttling, and privacy-safe errors. |
-| **Agent orchestrator** | Coordinates retrieval, evidence checks, deterministic risk evaluation, action selection, approval policy, and trace recording. |
+| **Agent orchestrator** | Coordinates model-backed language tasks, retrieval, evidence validation, deterministic risk evaluation, action selection, approval policy, and trace recording. |
 | **Lightweight RAG** | Retrieves exact structured records by authorized `recipient_id` and returns those records as visible evidence. |
 | **Policy and approval gate** | Prevents prohibited, unauthorized, or unapproved consequential actions. |
 | **Care tools** | Manage responsibilities, scheduling, assignments, notifications, trusted facts, profiles, handovers, and care checks. |
@@ -88,7 +84,7 @@ The caregiver experience calls authenticated server routes that enforce identity
 
 ### Why lightweight RAG
 
-The important MVP information is already structured, attributable, and time-sensitive. Carestead therefore retrieves exact rows from D1 instead of relying on a separate vector index. Every query is filtered by an authorized recipient identifier, which makes evidence recall, freshness, and cross-recipient isolation straightforward to test. An LLM adapter can be added later behind the same retrieval, policy, and approval controls.
+The important MVP information is already structured, attributable, and time-sensitive. Carestead therefore retrieves exact rows from D1 instead of relying on a separate vector index. Every query is filtered by an authorized recipient identifier. The model receives compact records with stable evidence IDs, and its citations are rejected if they do not map back to those records.
 
 ## Tech stack
 
@@ -97,12 +93,14 @@ The important MVP information is already structured, attributable, and time-sens
 | **Frontend** | TypeScript, React 19, Vinext, Tailwind CSS |
 | **Backend** | Vinext server routes on Cloudflare Workers |
 | **Database** | Cloudflare D1 with Drizzle ORM |
-| **Agent** | Deterministic TypeScript care-state orchestrator with constrained tools |
+| **Agent** | OpenAI Responses API with strict JSON Schema outputs, plus a deterministic TypeScript orchestrator and fallback |
 | **Retrieval** | Recipient-scoped structured retrieval from D1 |
 | **Voice** | Browser speech recognition and speech synthesis; transcript-only retention |
 | **Authentication** | OpenAI Sites authenticated-user headers plus server-enforced recipient roles |
 | **Testing** | Playwright, axe-core, synthetic benchmark runner, GitHub Actions |
 | **Hosting** | OpenAI Sites and Cloudflare infrastructure |
+
+Set `OPENAI_API_KEY` in `web/.dev.vars` for model-backed chat, care-update extraction, and handover briefs. `OPENAI_MODEL` defaults to `gpt-5.6-terra`, and `OPENAI_REASONING_EFFORT` defaults to `low`. Model requests use `store: false`; when the key or service is unavailable, the product continues with its deterministic local behavior.
 
 ## Memory, access, and safety
 

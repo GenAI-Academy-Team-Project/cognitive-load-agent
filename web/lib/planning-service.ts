@@ -1,4 +1,5 @@
 import { AppError } from './guardrails';
+import { extractCareUpdate, type LlmConfig } from './llm-agent';
 import { loadAnticipation } from './anticipation-service';
 import { coverageSuggestion, nextLocalDate, preferredMove, preparationDrafts, preparationKey, routineKey } from './anticipation-engine';
 import type { CareMembership } from './auth';
@@ -376,6 +377,7 @@ export async function planningAction(
   member: CareMembership,
   recipientId: string,
   body: Record<string, unknown>,
+  modelConfig: LlmConfig = {},
 ) {
   const state = await loadPlanning(db, recipientId, member.memberId);
   const now = new Date().toISOString();
@@ -725,14 +727,15 @@ export async function planningAction(
         ),
       });
     }
-    case 'extract':
+    case 'extract': {
+      const message = text(body.message, 'update', 4000);
+      const generated = await extractCareUpdate(modelConfig, message, state.tasks, recipient.timezone);
       return {
-        drafts: extractDrafts(
-          text(body.message, 'update', 4000),
-          state.tasks,
-          recipient.timezone,
-        ),
+        drafts: generated?.value ?? extractDrafts(message, state.tasks, recipient.timezone),
+        agentMode: generated ? 'model' : 'deterministic',
+        model: generated?.model,
       };
+    }
     case 'propose_dump': {
       if (
         !Array.isArray(body.drafts) ||
@@ -796,6 +799,7 @@ export async function planningAction(
         title: `Review ${drafts.length} items from your update`,
         drafts,
         baseline: state.tasks.filter((task) => ids.includes(task.id)),
+        sourceMode: body.sourceMode === 'model' ? 'model' : 'deterministic',
       });
     }
     case 'reject_proposal': {

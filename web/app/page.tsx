@@ -32,7 +32,7 @@ import { handoverTaskFilters } from '@/lib/handover-filters';
 import { IntegrationSettings } from '@/components/integration-settings';
 import { AccountMenus } from '@/components/account-menus';
 import { CareCalendar } from '@/components/care-calendar';
-import type { CareTask, DashboardState, MemoryRecord, Risk, SupportContact } from '@/lib/types';
+import type { CareTask, DashboardState, HandoverBrief, MemoryRecord, Risk, SupportContact } from '@/lib/types';
 
 type View = 'Integrations' | 'Care Organizer' | 'Overview' | 'Handover' | 'Notifications' | 'Care plan' | 'Responsibilities' | 'Calendar' | 'Timeline' | 'Memory' | 'Care circle' | 'Privacy & data' | 'Evaluations';
 
@@ -315,7 +315,20 @@ function Overview({ state, openTasks, coverage, resolvedRisks, onAdd, onApprove,
 
 function HandoverView({ state, onChanged, onEditProfile, onAddContact, onEditContact, onArchiveContact, onCopy, busy }: { state: DashboardState; onChanged: () => void; onEditProfile: () => void; onAddContact: () => void; onEditContact: (contact: SupportContact) => void; onArchiveContact: (id: string) => void; onCopy: () => void; busy: string | null }) {
   const [now, setNow] = useState(() => Date.now());
+  const [brief, setBrief] = useState<HandoverBrief | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [briefError, setBriefError] = useState('');
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
+  async function generateBrief() {
+    setGenerating(true); setBriefError('');
+    try {
+      const response = await fetch('/api/handover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId: state.selectedRecipient.id }) });
+      const result = await response.json() as { brief?: HandoverBrief; error?: string };
+      if (!response.ok || !result.brief) throw new Error(result.error || 'Unable to generate the handover brief.');
+      setBrief(result.brief);
+    } catch (reason) { setBriefError(reason instanceof Error ? reason.message : 'Unable to generate the handover brief.'); }
+    finally { setGenerating(false); }
+  }
   const writeAllowed = state.currentUser.role !== 'viewer';
   const openRisks = state.risks.filter((risk) => risk.status !== 'resolved');
   const pendingApprovals = state.approvals.filter((approval) => approval.status === 'pending');
@@ -323,7 +336,9 @@ function HandoverView({ state, onChanged, onEditProfile, onAddContact, onEditCon
   const openTasks = state.tasks.filter(task => !['complete','archived'].includes(task.status)).sort((a,b) => Date.parse(a.due_at)-Date.parse(b.due_at));
   const reviewCount = openRisks.length + pendingApprovals.length + factsToReview.length;
   const profileName = state.profile.preferred_name || state.selectedRecipient.display_name;
-  return <><PageHeading eyebrow="Caregiver handover" title={`${profileName}, at a glance`} description="What changed, what needs attention, and who can help." action={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={onCopy}><Copy /> Copy brief</Button><Button onClick={onEditProfile} disabled={!writeAllowed}><Pencil /> Edit profile</Button></div>} />
+  return <><PageHeading eyebrow="Caregiver handover" title={`${profileName}, at a glance`} description="What changed, what needs attention, and who can help." action={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={generateBrief} disabled={generating}>{generating ? <LoaderCircle className="animate-spin" /> : <Sparkles />} Generate AI brief</Button><Button variant="outline" onClick={onCopy}><Copy /> Copy brief</Button><Button onClick={onEditProfile} disabled={!writeAllowed}><Pencil /> Edit profile</Button></div>} />
+    {briefError && <p role="alert" className="mt-4 rounded-xl border border-destructive p-3 text-sm text-destructive">{briefError}</p>}
+    {brief && <section data-care-tone="plum" className="mt-5 rounded-2xl border p-5 md:p-6" aria-label="Generated handover brief"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Generated handover</p><h2 className="mt-1 font-heading text-xl font-semibold">{brief.headline}</h2></div><Badge variant="outline">{brief.generatedBy === 'model' ? `AI grounded${brief.model ? ` · ${brief.model}` : ''}` : 'Local fallback'}</Badge></div><p className="mt-4 text-sm leading-6">{brief.summary}</p><div className="mt-5 grid gap-4 md:grid-cols-3"><BriefList title="Priorities" items={brief.priorities} /><BriefList title="Recent changes" items={brief.changes} /><BriefList title="Watch and verify" items={brief.watchItems} /></div>{brief.evidence.length > 0 && <details className="mt-5 rounded-xl border bg-card p-4"><summary className="cursor-pointer text-sm font-medium text-primary">Evidence used · {brief.evidence.length}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{brief.evidence.map((item, index) => <div key={`${item.label}-${index}`} className="border-l-2 pl-3"><p className="text-xs font-semibold">{item.label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p></div>)}</div></details>}<p className="mt-4 text-xs text-muted-foreground">Operational coordination only—not medical advice. Review source records before taking action.</p></section>}
     <div className="mt-5 grid items-start gap-4 lg:grid-cols-2">
         <article className="min-w-0 rounded-2xl border bg-card p-4 sm:p-5">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div className="flex items-center gap-4"><span className="grid size-14 place-items-center rounded-2xl bg-[var(--care-success)] font-heading text-lg font-semibold text-[var(--care-success-ink)]">{profileName.slice(0, 2).toUpperCase()}</span><div><h2 className="font-heading text-xl font-semibold">{profileName}</h2><p className="mt-1 text-sm text-muted-foreground">{state.profile.pronouns || 'Pronouns not recorded'} · {state.profile.home_base || state.selectedRecipient.timezone}</p></div></div><Badge variant="outline" className="w-fit bg-[var(--care-success)] text-primary">{state.currentPlan.name}</Badge></div>
@@ -346,6 +361,8 @@ function HandoverView({ state, onChanged, onEditProfile, onAddContact, onEditCon
     <p className="mt-5 text-xs leading-5 text-muted-foreground">This operational handover summarizes caregiver-entered information. It is not a medical record or substitute for emergency or clinical guidance.</p>
   </>;
 }
+
+function BriefList({ title, items }: { title: string; items: string[] }) { return <div><h3 className="text-sm font-semibold">{title}</h3>{items.length ? <ul className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">{items.map((item, index) => <li key={`${title}-${index}`} className="flex gap-2"><span aria-hidden="true" className="text-primary">•</span><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">No items identified.</p>}</div>; }
 
 function ProfileNote({ label, text }: { label: string; text: string }) { return <div className="rounded-xl border bg-card p-4"><p className="text-xs font-semibold text-foreground">{label}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{text || 'Not yet recorded'}</p></div>; }
 function ReviewColumn({ title, items, empty, tone, icon: Icon, total, filterFields }: { title: string; items: { id: string; title: string; note: string; due_window?: string; assignment?: string }[]; filterFields?: readonly (readonly [string, string])[]; empty: string; tone: "rose" | "sky" | "plum"; icon: typeof Activity; total: number }) {

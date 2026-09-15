@@ -71,7 +71,7 @@ async function handle(request: Request) {
       await enforceRateLimit(env.DB, auth.member.id, `planning_${action}`);
       const release = await recipientLease(env.DB, recipientId);
       try {
-        result = await planningAction(env.DB, auth.member, recipientId, body);
+        result = await planningAction(env.DB, auth.member, recipientId, body, env);
       } finally {
         await release();
       }

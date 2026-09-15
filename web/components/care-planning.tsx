@@ -37,6 +37,8 @@ type Result = {
   state: PlanningState;
   simulation?: Simulation;
   drafts?: DraftItem[];
+  agentMode?: 'model' | 'deterministic';
+  model?: string;
 };
 type Action = (
   action: string,
@@ -957,6 +959,7 @@ function BrainDump({
 }) {
   const [message, setMessage] = useState(''),
     [drafts, setDrafts] = useState<DraftItem[]>([]),
+    [extractionMode, setExtractionMode] = useState<'model' | 'deterministic' | null>(null),
     [listening, setListening] = useState(false);
   const recognition = useRef<Recognition | null>(null);
   useEffect(
@@ -997,6 +1000,7 @@ function BrainDump({
           `${current}${current ? '\n' : ''}${event.results[0][0].transcript}`,
       );
       setDrafts([]);
+      setExtractionMode(null);
     };
     instance.onend = () => setListening(false);
     instance.onerror = () => {
@@ -1037,6 +1041,7 @@ function BrainDump({
           onChange={(e) => {
             setMessage(e.target.value);
             setDrafts([]);
+            setExtractionMode(null);
           }}
           placeholder="The physiotherapy appointment moved to Friday at 3 PM; Alex can’t drive; confirm pharmacy pickup tomorrow at 10 AM."
         />
@@ -1046,7 +1051,10 @@ function BrainDump({
           disabled={disabled || !message.trim()}
           onClick={async () => {
             const result = await act('extract', { message });
-            if (result?.drafts) setDrafts(result.drafts);
+            if (result?.drafts) {
+              setDrafts(result.drafts);
+              setExtractionMode(result.agentMode ?? 'deterministic');
+            }
           }}
         >
           Organize my update
@@ -1057,8 +1065,8 @@ function BrainDump({
         </Button>
       </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        Drafts are extracted locally by rules. No raw audio is stored. Your
-        browser’s speech service may process audio when voice input is used.
+        {extractionMode === 'model' ? 'Carestead AI organized this update into reviewable drafts. ' : extractionMode === 'deterministic' ? 'Local rules organized this update because the model was unavailable. ' : 'Carestead AI organizes the update when configured, with local rules as a fallback. '}
+        No raw audio is stored. Your browser’s speech service may process audio when voice input is used.
       </p>
       {!!drafts.length && (
         <div className="mt-6 space-y-4">
@@ -1079,6 +1087,7 @@ function BrainDump({
                   <X />
                 </Button>
               </div>
+              {draft.confidence && <Badge variant="outline" className="capitalize">{draft.confidence} confidence</Badge>}
               {draft.question && (
                 <p className="text-sm font-medium text-primary">
                   {draft.question}
@@ -1191,10 +1200,11 @@ function BrainDump({
               )
             }
             onClick={async () => {
-              const result = await act('propose_dump', { drafts });
+              const result = await act('propose_dump', { drafts, sourceMode: extractionMode ?? 'deterministic' });
               if (result) {
                 setDrafts([]);
                 setMessage('');
+                setExtractionMode(null);
               }
             }}
           >

@@ -175,6 +175,17 @@ export type CareNotification = {
 
 export type ChatEvidence = { label: string; detail: string };
 
+export type HandoverBrief = {
+  headline: string;
+  summary: string;
+  priorities: string[];
+  changes: string[];
+  watchItems: string[];
+  evidence: ChatEvidence[];
+  generatedBy: 'model' | 'deterministic';
+  model?: string;
+};
+
 export type ChatActionRequest = {
   id: string;
   action_type: 'reschedule_task' | 'send_notification' | 'assign_task' | 'create_task' | 'run_care_check' | 'save_memory';
@@ -199,6 +210,8 @@ export type ChatState = {
   messages: ChatMessage[];
   quickPrompts: string[];
   tools?: unknown[];
+  agentMode?: 'model' | 'deterministic';
+  model?: string;
   notificationChannels?: string[];
   capabilities: { voiceInput: boolean; spokenReplies: boolean; externalDelivery: boolean };
 };
@@ -236,5 +249,5 @@ export type DashboardState = {
   monitoring: { recentErrors: number; lastErrorAt: string | null };
   currentUser: CurrentUser;
   benchmark: BenchmarkSummary;
-  agentMode: "deterministic";
+  agentMode: 'deterministic' | 'hybrid';
 };

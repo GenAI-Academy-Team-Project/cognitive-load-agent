@@ -343,6 +343,8 @@ export function extractDrafts(
         ]
           .filter(Boolean)
           .join(' '),
+        confidence:
+          dueAt && (!reschedule || match) ? ('high' as const) : ('low' as const),
       };
     });
 }

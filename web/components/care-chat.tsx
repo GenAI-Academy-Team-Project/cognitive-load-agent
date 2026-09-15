@@ -149,7 +149,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
           <SheetHeader className="border-b bg-card px-5 py-4 pr-14">
             <div className="flex items-center gap-3">
               <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>
-              <div><SheetTitle className="font-heading text-lg font-semibold">Ask about {recipientName}</SheetTitle><SheetDescription className="mt-0.5 text-xs">Voice and chat · actions require approval</SheetDescription></div>
+              <div><SheetTitle className="font-heading text-lg font-semibold">Ask about {recipientName}</SheetTitle><SheetDescription className="mt-0.5 text-xs">{chat?.agentMode === 'model' ? `AI-grounded answers${chat.model ? ` · ${chat.model}` : ''}` : 'Grounded local answers'} · actions require approval</SheetDescription></div>
             </div>
           </SheetHeader>
 

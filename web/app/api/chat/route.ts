@@ -1,17 +1,18 @@
 import { effectiveIntegrations } from '@/lib/integration-settings';
 import { editNotification, executeNotification, parseNotificationRequest, prepareNotification, prepareNotifications } from '@/lib/notification-service';
 import { configuredChannels, sendNotificationTool } from '@/lib/notification-types';
-import { currentMemories } from '@/lib/current-memories';
 import { evaluateCareState } from '@/lib/risk-engine';
 import { memoryCandidate, recallMemory } from '@/lib/care-memory';
 import { recipientLease } from '@/lib/recipient-lease';
 import { localToInstant } from '@/lib/calendar-time';
+import { careAgentRecords, loadCareSnapshot, type CareSnapshot } from '@/lib/care-context';
+import { generateGroundedAnswer, modelEnabled } from '@/lib/llm-agent';
 import { env } from 'cloudflare:workers';
 
 import { ensureDatabase } from '@/db/bootstrap';
 import { canWrite, isOwner, requireMembership, type CareMembership, type CareRole } from '@/lib/auth';
 import { AppError, enforceRateLimit, errorResponse, recordError } from '@/lib/guardrails';
-import type { CareEvent, CareTask, ChatActionRequest, ChatEvidence, ChatMessage, ChatState, MemoryRecord, RecipientProfile, Risk, SupportContact, Trace } from '@/lib/types';
+import type { CareTask, ChatActionRequest, ChatEvidence, ChatMessage, ChatState } from '@/lib/types';
 
 export const runtime = 'edge';
 
@@ -25,15 +26,6 @@ type MessageRow = Omit<ChatMessage, 'evidence' | 'action'> & {
   action_status: ChatActionRequest['status'] | null;
   action_requires_approval: 'true' | null;
   action_payload_json: string | null;
-};
-type Snapshot = {
-  profile: RecipientProfile;
-  risks: Risk[];
-  tasks: CareTask[];
-  events: CareEvent[];
-  memories: MemoryRecord[];
-  contacts: SupportContact[];
-  traces: Trace[];
 };
 type ProposedAction = {
   type: ChatActionRequest['action_type'];
@@ -118,23 +110,11 @@ async function chatState(db: D1Database, access: Access, threadId: string, notif
     })) : await messagesFor(db, threadId),
     quickPrompts,
     tools: [sendNotificationTool],
+    agentMode: modelEnabled(env) ? 'model' : 'deterministic',
+    model: modelEnabled(env) ? (env.OPENAI_MODEL || 'gpt-5.6-terra') : undefined,
     notificationChannels: configuredChannels(await effectiveIntegrations(db, env)),
     capabilities: { voiceInput: true, spokenReplies: true, externalDelivery: configuredChannels(await effectiveIntegrations(db, env)).length > 1 },
   };
-}
-
-async function snapshotFor(db: D1Database, recipientId: string): Promise<Snapshot> {
-  const scoped = (table: string, type: string, order: string, extra = '') => `SELECT x.* FROM ${table} x JOIN record_scopes s ON s.entity_type='${type}' AND s.entity_id=x.id WHERE s.recipient_id=? ${extra} ORDER BY ${order}`;
-  const profile = await db.prepare('SELECT * FROM recipient_profiles WHERE recipient_id=?').bind(recipientId).first<RecipientProfile>();
-  const [risks, tasks, events, memories, contacts, traces] = await Promise.all([
-    rows<Risk>(db, scoped('risks', 'risk', "CASE x.severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,x.updated_at DESC"), [recipientId]),
-    rows<CareTask>(db, scoped('tasks', 'task', 'x.due_at', "AND x.status!='archived'"), [recipientId]),
-    rows<CareEvent>(db, scoped('events', 'event', 'x.occurred_at DESC'), [recipientId]),
-    currentMemories(db, recipientId),
-    rows<SupportContact>(db, "SELECT * FROM support_contacts WHERE recipient_id=? AND status='active' ORDER BY CASE priority WHEN 'primary' THEN 1 WHEN 'important' THEN 2 ELSE 3 END,name", [recipientId]),
-    rows<Trace>(db, scoped('traces', 'trace', 'x.created_at DESC'), [recipientId]),
-  ]);
-  return { profile: profile ?? { recipient_id: recipientId, preferred_name: '', pronouns: '', care_context: '', communication_notes: '', mobility_notes: '', home_base: '', emergency_plan: '', updated_at: '' }, risks, tasks, events, memories, contacts, traces };
 }
 
 const compact = (value: string, max = 180) => value.replace(/\s+/g, ' ').trim().slice(0, max);
@@ -169,7 +149,7 @@ function bestTask(message: string, tasks: CareTask[]) {
   return [...tasks].sort((a, b) => words.filter((word) => b.title.toLowerCase().includes(word)).length - words.filter((word) => a.title.toLowerCase().includes(word)).length)[0];
 }
 
-function propose(message: string, snapshot: Snapshot, now: Date): ProposedAction | null {
+function propose(message: string, snapshot: CareSnapshot, now: Date): ProposedAction | null {
   const lower = message.toLowerCase();
   if (lower.includes('reschedule') || /\bmove\b/.test(lower)) {
     const task = bestTask(message, snapshot.tasks.filter((item) => item.category === 'appointment'));
@@ -190,7 +170,7 @@ function propose(message: string, snapshot: Snapshot, now: Date): ProposedAction
   return null;
 }
 
-function answer(message: string, snapshot: Snapshot): { content: string; evidence: ChatEvidence[] } {
+function answer(message: string, snapshot: CareSnapshot): { content: string; evidence: ChatEvidence[] } {
   const lower = message.toLowerCase();
   if (/\bassign\b/.test(lower)) return { content: 'Open Care planning → Task planning to choose a caregiver by identity. They can accept once their availability matches. Use “I need a break” to request replacement coverage.', evidence: [] };
   const openRisks = snapshot.risks.filter((risk) => risk.status !== 'resolved');
@@ -313,7 +293,7 @@ async function executeActionImpl(db: D1Database, member: CareMembership, access:
     await db.batch([db.prepare('INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)').bind(taskId, compact(payload.title || 'Care follow-up', 180), compact(payload.owner || 'Unassigned', 100), payload.dueAt || new Date(Date.now() + 86400000).toISOString(), 'open', compact(payload.category || 'general', 80), null), scope('task', taskId)]);
     outcome = `“${payload.title || 'Care follow-up'}” was added to responsibilities.`;
   } else if (action.action_type === 'run_care_check') {
-    const snapshot = await snapshotFor(db, access.recipientId);
+    const snapshot = await loadCareSnapshot(db, access.recipientId);
     const decision = evaluateCareState(snapshot.tasks, snapshot.events, snapshot.memories);
     outcome = `Care check completed. ${decision.title}. ${decision.recommendation}`;
   } else throw new AppError('unsupported_chat_action', 400, 'This action is not supported');
@@ -390,7 +370,7 @@ export async function POST(request: Request) {
       const message = compact(preview.message, 1200);
       if (!message) throw new AppError('message_required', 400, 'Enter a message');
       const sourceMessageId = await saveMessage(db, threadId, 'user', message, [], null, now);
-      const snapshot = await snapshotFor(db, access.recipientId);
+      const snapshot = await loadCareSnapshot(db, access.recipientId);
       const candidate = memoryCandidate(message);
       let proposal: ProposedAction | null = candidate ? {
         type: 'save_memory', summary: `Save as a verified fact for ${access.recipientName}’s care circle: “${candidate}”`,
@@ -407,6 +387,7 @@ export async function POST(request: Request) {
       }
       let actionId: string | null = null;
       let response: { content: string; evidence: ChatEvidence[] };
+      let answerSource = 'deterministic fallback';
       if (proposal && canWrite(access.accessRole)) {
         actionId = await proposeAction(db, threadId, access.recipientId, member, proposal, now);
         response = { content: proposal.type === 'save_memory' ? 'Review this suggested fact. Saving confirms it is accurate and shares it with this recipient’s care circle. You can correct or archive it in Trusted facts.' : 'I prepared this action but have not changed anything yet. Review the details and approve it if they are correct.', evidence: [evidence('Proposed tool', proposal.type.replaceAll('_', ' ')), evidence('Safety policy', 'Explicit caregiver approval is required before any chat-initiated write.')] };
@@ -415,18 +396,24 @@ export async function POST(request: Request) {
       } else if ((message.toLowerCase().includes('reschedule') || /\bmove\b/i.test(message)) && !requestedDate(message, new Date())) {
         response = { content: 'I found the rescheduling request, but I need a date and time—for example, “tomorrow at 3:30 PM.” Nothing has been changed.', evidence: [] };
       } else {
-        const recalled = await recallMemory(db, access.recipientId, message);
-        response = answer(message, snapshot);
-        if (recalled.memories.length) {
-          const operational = /summary|handover|review today|conflict|calendar|schedule|upcoming|contact|support|phone|call|medication|medicine|pharmacy|refill|decision|trace/.test(message.toLowerCase());
-          response = {
-            content: `Relevant verified facts: ${recalled.memories.map((memory) => memory.value).join(' ')}${operational ? ` ${response.content}` : ''}`,
-            evidence: [...recalled.memories.map((memory) => evidence('Verified fact', `${memory.value} · ${memory.source}`)), ...(operational ? response.evidence : [])],
-          };
+        const grounded = await generateGroundedAnswer(env, message, access.recipientName, careAgentRecords(snapshot));
+        if (grounded) {
+          response = grounded.value;
+          answerSource = grounded.model;
+        } else {
+          const recalled = await recallMemory(db, access.recipientId, message);
+          response = answer(message, snapshot);
+          if (recalled.memories.length) {
+            const operational = /summary|handover|review today|conflict|calendar|schedule|upcoming|contact|support|phone|call|medication|medicine|pharmacy|refill|decision|trace/.test(message.toLowerCase());
+            response = {
+              content: `Relevant verified facts: ${recalled.memories.map((memory) => memory.value).join(' ')}${operational ? ` ${response.content}` : ''}`,
+              evidence: [...recalled.memories.map((memory) => evidence('Verified fact', `${memory.value} · ${memory.source}`)), ...(operational ? response.evidence : [])],
+            };
+          }
         }
       }
       await saveMessage(db, threadId, 'assistant', response.content, response.evidence, actionId, new Date(Date.now() + 1).toISOString());
-      await audit(db, member, proposal ? 'propose' : 'answer', 'chat', threadId, proposal?.summary || `Answered using ${response.evidence.length} scoped records`);
+      await audit(db, member, proposal ? 'propose' : 'answer', 'chat', threadId, proposal?.summary || `Answered with ${answerSource} using ${response.evidence.length} scoped records`);
     } else {
       await enforceRateLimit(db, member.id, 'chat_action');
       if (!canWrite(access.accessRole)) return Response.json({ error: 'Your role cannot approve care-plan changes' }, { status: 403 });
