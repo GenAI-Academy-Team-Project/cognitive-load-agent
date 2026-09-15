@@ -1,0 +1,11 @@
+.env.local
+dist/
+node_modules/
+test-results/
+playwright-report/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/**/xcuserdata/
+ios/**/DerivedData/
+.preservation.json
