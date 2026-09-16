@@ -9,3 +9,4 @@ ios/App/App/config.xml
 ios/**/xcuserdata/
 ios/**/DerivedData/
 .preservation.json
+mobile/.env.local
