@@ -70,5 +70,7 @@
 	<string>Use your microphone when you choose voice input in Carestead chat.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Turn your spoken care question into text when you choose voice input.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of a care document when you choose Take a photo.</string>
 </dict>
 </plist>

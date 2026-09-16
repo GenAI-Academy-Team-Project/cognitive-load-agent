@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { FileSearch, LoaderCircle, Sparkles, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Camera, FileSearch, LoaderCircle, Sparkles, Trash2 } from 'lucide-react';
 
 import type { PlanningAction } from './care-planning';
 import { Button } from './ui/button';
@@ -309,6 +309,22 @@ export function DocumentIntakePanel({
     [busy, setBusy] = useState(false);
   const [intake, setIntake] = useState<DocumentIntake | null>(null),
     [model, setModel] = useState('');
+  const cameraInput = useRef<HTMLInputElement>(null);
+  function selectFile(selected: File | undefined) {
+    // Cancelling either picker preserves the file already chosen.
+    if (!selected) return;
+    setIntake(null);
+    if (!documentTypes.has(selected.type)) {
+      onError('Use PDF, TXT, PNG, JPG, or WebP.');
+      setFile(null);
+    } else if (selected.size > maxDocumentBytes) {
+      onError('Choose a file no larger than 5 MB.');
+      setFile(null);
+    } else {
+      onError('');
+      setFile(selected);
+    }
+  }
   const zone = dashboard.selectedRecipient.timezone;
   async function review() {
     if (!file) return;
@@ -384,26 +400,36 @@ export function DocumentIntakePanel({
           accept="application/pdf,text/plain,image/png,image/jpeg,image/webp"
           disabled={disabled || busy}
           onChange={(event) => {
-            const selected = event.target.files?.[0] ?? null;
-            if (selected && !documentTypes.has(selected.type)) {
-              onError('Use PDF, TXT, PNG, JPG, or WebP.');
-              event.currentTarget.value = '';
-              setFile(null);
-            } else if (selected && selected.size > maxDocumentBytes) {
-              onError('Choose a file no larger than 5 MB.');
-              event.currentTarget.value = '';
-              setFile(null);
-            } else {
-              onError('');
-              setFile(selected);
-            }
-            setIntake(null);
+            selectFile(event.target.files?.[0]);
+            event.currentTarget.value = '';
           }}
         />
         <span className="text-xs font-normal text-muted-foreground">
           PDF, TXT, PNG, JPG, or WebP · 5 MB maximum
         </span>
       </label>
+      <input
+        ref={cameraInput}
+        id="care-document-camera"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        aria-label="Take a photo"
+        hidden
+        disabled={disabled || busy}
+        onChange={(event) => {
+          selectFile(event.target.files?.[0]);
+          event.currentTarget.value = '';
+        }}
+      />
+      <Button type="button" variant="outline" className="mt-3"
+        disabled={disabled || busy} onClick={() => cameraInput.current?.click()}>
+        <Camera /> Take a photo
+      </Button>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Take a picture with your camera, or choose an existing image or document above.
+      </p>
+      {file && <output className="mt-3 block break-all text-sm">Selected file: {file.name}</output>}
       <label className="mt-4 flex items-start gap-3 text-sm">
         <input
           className="mt-1"

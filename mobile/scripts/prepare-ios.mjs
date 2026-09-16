@@ -31,6 +31,7 @@ if (existsSync(scenePath)) {
 const plistPath = 'ios/App/App/Info.plist';
 let plist = readFileSync(plistPath, 'utf8');
 for (const [key, description] of [
+  ['NSCameraUsageDescription', 'Take a photo of a care document when you choose Take a photo.'],
   ['NSMicrophoneUsageDescription', 'Use your microphone when you choose voice input in Carestead chat.'],
   ['NSSpeechRecognitionUsageDescription', 'Turn your spoken care question into text when you choose voice input.'],
 ]) {
