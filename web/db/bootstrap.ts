@@ -140,12 +140,36 @@ const seedStatements = [
     ["household-demo", "Alex's care circle", "2026-09-10T13:10:00-04:00"],
   ],
   [
+    `INSERT OR IGNORE INTO care_circle_members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['member-alex', 'household-demo', 'user-alex', 'alex@example.test', 'Alex', 'owner', 'active', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO care_circle_members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['member-maya', 'household-demo', 'user-maya', 'maya@example.test', 'Maya', 'caregiver', 'active', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO care_circle_members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['member-sam', 'household-demo', 'user-sam', 'sam@example.test', 'Sam', 'caregiver', 'active', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
     `INSERT OR IGNORE INTO care_recipients VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['recipient-alex', 'household-demo', 'Alex', 'America/Toronto', 'active', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00'],
   ],
   [
     `INSERT OR IGNORE INTO care_plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['plan-alex', 'recipient-alex', 'medication-support', '1', "Alex's Medication Support", 'active', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO recipient_members VALUES (?, ?, ?, ?, ?)`,
+    ['recipient-member-alex', 'recipient-alex', 'member-alex', 'owner', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO recipient_members VALUES (?, ?, ?, ?, ?)`,
+    ['recipient-member-maya', 'recipient-alex', 'member-maya', 'caregiver', '2026-09-10T13:10:00-04:00'],
+  ],
+  [
+    `INSERT OR IGNORE INTO recipient_members VALUES (?, ?, ?, ?, ?)`,
+    ['recipient-member-sam', 'recipient-alex', 'member-sam', 'caregiver', '2026-09-10T13:10:00-04:00'],
   ],
   ...[
     ['tpl-aging-v1', 'aging-at-home', '1', 'Aging at Home', 'A balanced weekly plan for safety, nutrition, appointments, and social connection.', 'whole-person'],
