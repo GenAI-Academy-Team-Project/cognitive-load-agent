@@ -250,6 +250,19 @@ export function CarePlanning(props: Props) {
     (!selectedTask.planning.owner_member_id ||
       selectedTask.planning.owner_member_id === state?.memberId),
   );
+  const selectedOptionPending = Boolean(
+    selectedOptionDueAt &&
+    state?.proposals.some(
+      (proposal) =>
+        proposal.status === 'pending' &&
+        proposal.kind === 'simulation' &&
+        proposal.payload.rootTaskId === taskId &&
+        proposal.payload.changes?.some(
+          (change) =>
+            change.taskId === taskId && change.dueAt === selectedOptionDueAt,
+        ),
+    ),
+  );
   const tabs = [
     { id: 'week', title: 'Your week ahead', icon: Clock3 },
     { id: 'routines', title: 'Recurring care', icon: Check },
@@ -774,12 +787,15 @@ export function CarePlanning(props: Props) {
                         busy ||
                         !writable ||
                         !selectedOptionDueAt ||
+                        selectedOptionPending ||
                         !simulation ||
                         simulation.conflicts.length > 0
                       }
                       onClick={() => move(true)}
                     >
-                      Prepare selected option for approval
+                      {selectedOptionPending
+                        ? 'Already awaiting approval'
+                        : 'Prepare selected option for approval'}
                     </Button>
                   </div>
                   {selectedOptionDueAt && !simulation && (
@@ -834,11 +850,16 @@ export function CarePlanning(props: Props) {
                   )}
                   <Button
                     disabled={
-                      busy || !writable || !!simulation.conflicts.length
+                      busy ||
+                      !writable ||
+                      selectedOptionPending ||
+                      !!simulation.conflicts.length
                     }
                     onClick={() => move(true)}
                   >
-                    Prepare changes for approval
+                    {selectedOptionPending
+                      ? 'Already awaiting approval'
+                      : 'Prepare changes for approval'}
                   </Button>
                 </div>
               )}

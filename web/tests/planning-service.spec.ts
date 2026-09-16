@@ -574,12 +574,56 @@ test('simulation cascades dependency offsets and remains read-only until approva
     taskId: 'task-physio',
     dueAt,
   })) as { proposalId: string };
-  await act('apply_proposal', { id: proposal.proposalId });
+  const duplicate = (await act('propose_simulation', {
+    taskId: 'task-physio',
+    dueAt,
+  })) as { proposalId: string; reused?: boolean };
+  expect(duplicate).toEqual({ proposalId: proposal.proposalId, reused: true });
+  expect(
+    (await state()).proposals.filter(
+      (item) => item.kind === 'simulation' && item.status === 'pending',
+    ),
+  ).toHaveLength(1);
+  const saved = sqlite
+    .prepare('SELECT payload_json FROM planning_proposals WHERE id=?')
+    .get(proposal.proposalId) as { payload_json: string };
+  const newestId = 'legacy-duplicate-newest';
+  sqlite
+    .prepare('INSERT INTO planning_proposals VALUES (?,?,?,?,?,?,?)')
+    .run(
+      newestId,
+      'recipient-alex',
+      owner.memberId,
+      'simulation',
+      'pending',
+      saved.payload_json,
+      '9999-01-01T00:00:00.000Z',
+    );
+  const reconciled = await state();
+  expect(
+    reconciled.proposals.find((item) => item.id === newestId)?.status,
+  ).toBe('pending');
+  expect(
+    reconciled.proposals.find((item) => item.id === proposal.proposalId)
+      ?.status,
+  ).toBe('rejected');
+  const alternative = (await act('propose_simulation', {
+    taskId: 'task-physio',
+    dueAt: later(dueAt, 30),
+  })) as { proposalId: string };
+  await act('apply_proposal', { id: newestId });
   expect(
     (await state()).tasks.find((task) => task.id === 'task-physio')?.due_at,
   ).toBe(dueAt);
+  await expect(act('apply_proposal', { id: newestId })).rejects.toThrow(
+    /no longer pending/,
+  );
+  expect(
+    (await state()).proposals.find((item) => item.id === alternative.proposalId)
+      ?.status,
+  ).toBe('rejected');
   await expect(
-    act('apply_proposal', { id: proposal.proposalId }),
+    act('apply_proposal', { id: alternative.proposalId }),
   ).rejects.toThrow(/no longer pending/);
 });
 

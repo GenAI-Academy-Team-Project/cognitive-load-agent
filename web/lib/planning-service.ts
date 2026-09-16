@@ -273,6 +273,44 @@ export async function loadPlanning(
   }));
   for (const task of tasks)
     if (taskFactIssues(task, memories).length) task.accepted = false;
+  const liveProposals: PlanningProposal[] = proposals.map((item) => ({
+    ...item,
+    payload: JSON.parse(item.payload_json),
+  }));
+  const seenSimulationSignatures = new Set<string>();
+  const retiredProposalIds: string[] = [];
+  // Proposals are loaded newest-first. Keep the newest actionable copy so the
+  // first approval card a caregiver sees remains the one they can apply.
+  for (const proposal of liveProposals) {
+    if (proposal.status !== 'pending' || proposal.kind !== 'simulation')
+      continue;
+    const stale = proposal.payload.baseline.some((before) => {
+      const current = tasks.find((task) => task.id === before.id);
+      return (
+        !current ||
+        current.status !== before.status ||
+        taskSignature(current) !== taskSignature(before)
+      );
+    });
+    const signature = JSON.stringify([
+      proposal.payload.rootTaskId,
+      proposal.payload.changes ?? [],
+    ]);
+    if (stale || seenSimulationSignatures.has(signature)) {
+      proposal.status = 'rejected';
+      retiredProposalIds.push(proposal.id);
+    } else seenSimulationSignatures.add(signature);
+  }
+  if (retiredProposalIds.length)
+    await db.batch(
+      retiredProposalIds.map((id) =>
+        db
+          .prepare(
+            "UPDATE planning_proposals SET status='rejected' WHERE id=? AND recipient_id=? AND status='pending'",
+          )
+          .bind(id, recipientId),
+      ),
+    );
   const liveOffers: CoverageOffer[] = offers.map((offer) => {
     const task = tasks.find((t) => t.id === offer.task_id);
     return {
@@ -346,10 +384,7 @@ export async function loadPlanning(
       capabilities: JSON.parse(item.capabilities_json),
     })),
     conflicts: memoryConflicts(memories),
-    proposals: proposals.map((item) => ({
-      ...item,
-      payload: JSON.parse(item.payload_json),
-    })),
+    proposals: liveProposals,
     offers: liveOffers,
     handover: {
       acknowledgedAt: checkpoint?.acknowledged_at ?? null,
@@ -1075,14 +1110,25 @@ export async function planningAction(
           409,
           'Resolve the conflicts before preparing this change. Connected appointments must be changed in Calendar.',
         );
-      return propose('simulation', {
+      const payload: ProposalPayload = {
         rootTaskId: task.id,
         title: `Move ${task.title}`,
         changes: simulation.changes,
         baseline: state.tasks.filter((task) =>
           simulation.changes.some((change) => change.taskId === task.id),
         ),
-      });
+      };
+      const existing = state.proposals.find(
+        (proposal) =>
+          proposal.status === 'pending' &&
+          proposal.kind === 'simulation' &&
+          proposal.payload.rootTaskId === task.id &&
+          JSON.stringify(proposal.payload.changes) ===
+            JSON.stringify(payload.changes),
+      );
+      return existing
+        ? { proposalId: existing.id, reused: true }
+        : propose('simulation', payload);
     }
     case 'extract': {
       const message = text(body.message, 'update', 4000);
@@ -1442,9 +1488,31 @@ export async function planningAction(
           );
         }
       }
+      const appliedTaskIds = new Set(
+        proposal.payload.changes?.map((change) => change.taskId) ?? [],
+      );
+      const superseded =
+        proposal.kind === 'simulation'
+          ? state.proposals.filter(
+              (other) =>
+                other.id !== proposal.id &&
+                other.status === 'pending' &&
+                other.kind === 'simulation' &&
+                other.payload.changes?.some((change) =>
+                  appliedTaskIds.has(change.taskId),
+                ),
+            )
+          : [];
       await commit(db, [
         ...guards,
         ...changes,
+        ...superseded.map((other) =>
+          db
+            .prepare(
+              "UPDATE planning_proposals SET status='rejected' WHERE id=? AND recipient_id=? AND status='pending'",
+            )
+            .bind(other.id, recipientId),
+        ),
         db
           .prepare("UPDATE planning_proposals SET status='applied' WHERE id=?")
           .bind(proposal.id),
