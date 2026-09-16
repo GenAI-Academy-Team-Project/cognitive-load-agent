@@ -1,0 +1,25 @@
+name: Agent evaluation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4.2.0
+      - uses: actions/setup-node@v4.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Run deterministic agent benchmark and hard safety gates
+        run: npm run benchmark
+      - name: Exercise agent, policy, planning, notification, and calendar services
+        run: npm run test:planning

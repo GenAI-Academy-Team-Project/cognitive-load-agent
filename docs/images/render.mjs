@@ -6,6 +6,7 @@ for (const name of [
   'carestead-core-features',
   'carestead-agentic-capabilities',
   'carestead-technical-architecture',
+  'carestead-evaluation-strategy',
   'carestead-user-journey',
   'carestead-decision-path',
 ]) {

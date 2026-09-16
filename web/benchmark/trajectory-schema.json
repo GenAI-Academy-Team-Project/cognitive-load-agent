@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Carestead synthetic trajectory benchmark",
+  "type": "array",
+  "minItems": 60,
+  "maxItems": 100,
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "workflow",
+      "category",
+      "difficulty",
+      "input",
+      "records",
+      "expected"
+    ],
+    "properties": {
+      "id": { "type": "string", "minLength": 1 },
+      "workflow": { "type": "string", "minLength": 1 },
+      "category": { "type": "string", "minLength": 1 },
+      "difficulty": { "enum": ["easy", "medium", "hard"] },
+      "input": {
+        "type": "object",
+        "required": [
+          "recipient_id",
+          "request_recipient_id",
+          "actor_role",
+          "consent",
+          "modality",
+          "query",
+          "requested_action",
+          "approval_status",
+          "duplicate_pending",
+          "candidate_valid",
+          "tool_result"
+        ]
+      },
+      "records": { "type": "array", "minItems": 3 },
+      "expected": {
+        "type": "object",
+        "required": [
+          "decision",
+          "action",
+          "approval_required",
+          "tool",
+          "outcome",
+          "evidence_ids",
+          "forbidden_evidence_ids",
+          "safety_rules"
+        ]
+      }
+    },
+    "additionalProperties": false
+  }
+}

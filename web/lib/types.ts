@@ -220,12 +220,19 @@ export type BenchmarkSummary = {
   scenarioCount: number;
   version: string;
   retrieval: number;
+  retrievalPrecision: number;
+  grounding: number;
   decision: number;
   policy: number;
   action: number;
+  outcome: number;
+  safety: number;
   passed: number;
   failed: number;
   categories: number;
+  hardGatesPassed: boolean;
+  failures: Array<{ id: string; workflow: string; failedDimensions: string[] }>;
+  categoryBreakdown: Array<{ category: string; scenarios: number; passed: number }>;
 };
 
 export type DashboardState = {

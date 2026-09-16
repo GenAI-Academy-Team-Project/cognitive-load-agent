@@ -13,6 +13,7 @@
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
     "benchmark": "node benchmark/report.mjs",
+    "benchmark:generate": "node benchmark/generate-synthetic.mjs",
     "test:accessibility": "playwright test",
     "test:planning": "playwright test --config playwright.unit.config.ts"
   },

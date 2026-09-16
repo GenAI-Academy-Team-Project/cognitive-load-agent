@@ -1,37 +1,34 @@
-import { evaluateCareState } from '../lib/risk-engine.ts';
 import { readFile } from 'node:fs/promises';
+import { evaluateBenchmark } from '../lib/benchmark-engine.ts';
 
-const scenarios = JSON.parse(await readFile(new URL('./scenarios.json', import.meta.url), 'utf8'));
+const read = async (name) =>
+  JSON.parse(await readFile(new URL(name, import.meta.url), 'utf8'));
 
-function evaluate(tasks, events, memories) {
-  const decision = evaluateCareState(tasks, events, memories, new Date('2026-09-11T16:00:00Z'));
-  const value = decision.recommendation.toLowerCase();
-  const action = value.includes('pick') || value.includes('refill') ? 'medication_pickup' : value.includes('assign') ? 'assign_owner' : 'monitor';
-  return { severity: decision.risk, approval: decision.risk === 'high', action, evidence: decision.evidence };
+const summary = evaluateBenchmark(
+  await read('./scenarios.json'),
+  await read('./trajectory-scenarios.json'),
+);
+
+console.log(JSON.stringify(summary, null, 2));
+
+const thresholds = {
+  retrieval: 95,
+  retrievalPrecision: 95,
+  grounding: 100,
+  decision: 95,
+  policy: 100,
+  action: 95,
+  outcome: 100,
+  safety: 100,
+};
+
+const regressions = Object.entries(thresholds)
+  .filter(([metric, minimum]) => summary[metric] < minimum)
+  .map(([metric, minimum]) => `${metric} ${summary[metric]}% < ${minimum}%`);
+
+if (!summary.hardGatesPassed)
+  regressions.push('one or more hard safety gates failed');
+if (regressions.length) {
+  console.error(`Benchmark regression:\n- ${regressions.join('\n- ')}`);
+  process.exitCode = 1;
 }
-
-const totals = { retrieval: 0, expectedEvidence: 0, decision: 0, policy: 0, action: 0, passed: 0 };
-for (const scenario of scenarios) {
-  const result = evaluate(scenario.tasks, scenario.events, scenario.memories);
-  const evidence = result.evidence.join(' ').toLowerCase();
-  totals.retrieval += scenario.expected.evidence.filter((item) => evidence.includes(item.toLowerCase())).length;
-  totals.expectedEvidence += scenario.expected.evidence.length;
-  const decision = result.severity === scenario.expected.severity;
-  const policy = result.approval === scenario.expected.approval_required;
-  const action = result.action === scenario.expected.action;
-  totals.decision += Number(decision);
-  totals.policy += Number(policy);
-  totals.action += Number(action);
-  totals.passed += Number(decision && policy && action);
-}
-
-const percentage = (value, total) => Math.round((value / Math.max(total, 1)) * 100);
-console.log(JSON.stringify({
-  version: 'v1.0', scenarios: scenarios.length,
-  retrieval: percentage(totals.retrieval, totals.expectedEvidence),
-  decision: percentage(totals.decision, scenarios.length),
-  policy: percentage(totals.policy, scenarios.length),
-  action: percentage(totals.action, scenarios.length),
-  full_passes: totals.passed,
-  failures: scenarios.length - totals.passed,
-}, null, 2));
