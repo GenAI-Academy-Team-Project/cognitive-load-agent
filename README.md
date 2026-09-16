@@ -14,15 +14,31 @@ Caregiving is not one task—it is the ongoing work of remembering what changed,
 
 | Product area | What it provides |
 | --- | --- |
-| **Care recipient and profile** | An isolated profile for each person, including care context, preferences, access notes, key contacts, and support systems. |
+| **Accounts and access** | Sign-up, sign-in, sign-out, password recovery, recipient switching, and recipient-specific owner, caregiver, and viewer permissions. |
+| **Care recipient and profile** | An isolated profile for each person, including care context, preferences, access notes, key contacts, key people, and support systems. |
 | **Care plan and templates** | Reusable, versioned plans that can be personalized, safely cloned, and applied to another person without copying private history. An AI builder can propose responsibilities and clarification questions from the selected recipient’s profile. |
-| **Care Circle and intelligent handover** | Recipient-specific roles plus a live handover and an on-demand AI brief of current state, risks, priorities, changes, and supporting evidence. |
-| **Care Organizer, calendar, and timeline** | Plans breaks and recurring care, organizes free-form updates into reviewable tasks, proposes and deterministically validates conflict alternatives, connects appointments to Google Calendar, and preserves actions and outcomes in chronological context. |
+| **Responsibilities and Care Organizer** | Assignment, duration, dependencies, recurring care, visit preparation, workload forecasting, break coverage, shared availability, free-form update organization, and what-if planning. |
+| **Care Circle and intelligent handover** | Recipient-specific roles plus a concise live handover and an on-demand AI brief of current state, risks, priorities, changes, contacts, and supporting evidence. |
+| **Calendar, integrations, and timeline** | Google Calendar connection and approval-gated appointment changes, configurable delivery integrations, and a chronological record of actions and outcomes. |
 | **Grounded chat and voice** | A model-backed copilot answers recipient-specific questions from visible evidence, with microphone input and spoken replies where the browser supports them. Raw audio is not stored. |
-| **Approval-aware actions** | Chat can prepare rescheduling, assignment, task, notification, and care-check actions. Authorized caregivers review the exact proposal before it executes. |
+| **Approval-aware actions and notifications** | Chat and product workflows can prepare rescheduling, assignment, task, notification, and care-check actions. Authorized caregivers review the exact proposal before execution or external delivery. |
 | **Risk checks and memory** | Explainable coordination-risk rules and durable, source-linked facts with verification and review status. |
 | **Privacy and evaluation** | Consent, recipient access, retention, export, deletion, audit history, rate limiting, accessibility checks, and trajectory-level evaluation. |
 | **Document and image intake** | Transiently analyzes a consented PDF, image, or text file for explicit dates, contacts, follow-ups, task drafts, and source-linked facts. Extracted facts remain unverified until caregiver review. |
+
+## Agent capabilities
+
+Carestead uses language understanding where it helps while keeping authorization, scheduling feasibility, approvals, and writes deterministic.
+
+| Workflow | What the model contributes | Product control |
+| --- | --- | --- |
+| **Grounded care chat** | Answers questions from the selected recipient’s current profile, responsibilities, memories, contacts, risks, and recent activity, with evidence references. | Recipient-scoped retrieval and evidence-ID validation prevent unsupported or cross-recipient answers. |
+| **Care-update extraction** | Turns a spoken, typed, or pasted update into editable responsibility drafts. | The caregiver confirms missing details and prepares the selected drafts for approval. A deterministic extractor remains available as fallback. |
+| **Intelligent handover** | Produces a concise brief of current state, recent changes, priorities, risks, and supporting evidence. | The live structured handover remains the source of truth; the generated brief does not change care data. |
+| **Conflict resolution** | Ranks and explains workable scheduling choices. | Candidate times are generated and revalidated by the deterministic scheduler. The user selects and previews an option before preparing it for approval. |
+| **Adaptive care-plan builder** | Proposes a reusable set of responsibilities and clarification questions from the recipient profile and caregiver description. | Drafts are editable, another recipient’s private history is never copied, and nothing is applied without approval. |
+| **Communication composer** | Drafts recipient-grounded SMS, family, formal, calendar, or response-style messages. | The caregiver chooses the recipient and channel, edits the exact text, and approves delivery through existing notification controls. |
+| **Document and image intake** | Extracts explicit dates, follow-ups, contacts, task drafts, and facts from PDF, TXT, PNG, JPG, or WebP files. | Processing requires consent, the source file is not retained, uncertain details are surfaced, and extracted facts remain unverified. |
 
 ## Product walkthrough
 
@@ -46,11 +62,25 @@ An appointment request becomes a typed proposal. Carestead shows the intended ch
 
 ![Carestead appointment rescheduling approval](docs/screenshots/appointment-approval.png)
 
+### Validated conflict resolution and reviewable plans
+
+The **What if?** workflow checks a proposed move and its dependent responsibilities against the live care plan and shared availability. **Suggest workable options** starts with deterministically feasible times; AI ranks and explains those candidates when available, and a deterministic explanation keeps the workflow usable if the model does not return safe choices. A caregiver selects an option, previews the ripple effect, and prepares it for approval. The resulting **Reviewable plans** queue appears immediately below the active planning workflow.
+
+Preparing the same change repeatedly reuses its pending proposal instead of creating duplicate approvals. When one scheduling proposal is applied, overlapping pending alternatives are retired while their history remains available for audit.
+
 ### Multi-channel notifications
 
 Caregivers can choose a message template, select a receiving care-circle member, and prepare notifications for the Carestead inbox, mobile push, email, SMS, or browser push. Each selected channel gets its own approval draft; external delivery requires the channel to be configured and the receiving caregiver’s settings to allow it.
 
 ![Carestead notification composer with message templates and multiple delivery channels](docs/screenshots/multi-channel-notifications.png)
+
+### Document and image intake
+
+The intake workflow accepts PDF, TXT, PNG, JPG, and WebP files up to 5 MB. It extracts only explicit information, shows warnings and clarification questions, and lets the caregiver edit or remove every proposed responsibility and fact before preparing an approval.
+
+This synthetic appointment notice illustrates the kind of explicit dates, contact details, follow-ups, and uncertainty the intake workflow can identify for caregiver review.
+
+<img src="docs/samples/physiotherapy-appointment-intake.png" alt="Synthetic physiotherapy appointment notice for image-intake testing" width="480">
 
 ## How the agent works
 
@@ -75,8 +105,8 @@ The caregiver experience calls authenticated server routes that enforce identity
 
 | Component | Responsibility |
 | --- | --- |
-| **Caregiver experience** | Dashboard, recipient switcher, plans, responsibilities, timeline, handover, Care Circle, notifications, privacy controls, chat, and voice. |
-| **Authenticated API boundary** | Authentication, recipient authorization, consent, input validation, throttling, and privacy-safe errors. |
+| **Caregiver experience** | Account access, dashboard, recipient switcher, profile, plans, responsibilities, organizer, calendar, timeline, handover, Care Circle, integrations, notifications, privacy controls, chat, and voice. |
+| **Authenticated API boundary** | D1-backed sessions, password protection and recovery, recipient authorization, consent, origin checks, input validation, throttling, and privacy-safe errors. |
 | **Agent orchestrator** | Coordinates model-backed language tasks, retrieval, evidence validation, deterministic risk evaluation, action selection, approval policy, and trace recording. |
 | **Lightweight RAG** | Retrieves exact structured records by authorized `recipient_id` and returns those records as visible evidence. |
 | **Policy and approval gate** | Prevents prohibited, unauthorized, or unapproved consequential actions. |
@@ -89,10 +119,13 @@ The important MVP information is already structured, attributable, and time-sens
 
 ### Agent tool surface
 
-The model can propose through a narrow tool surface; direct write tools are deliberately unavailable. Each proposal passes through server-side authorization, consent, validation, and caregiver approval before an existing execution service may change data or contact anyone.
+The model works through narrow logical tool contracts; direct write tools are deliberately unavailable. Each proposal passes through server-side authorization, consent, validation, and caregiver approval before an existing execution service may change data or contact anyone.
 
 | Workflow | Read and proposal tools | Execution boundary |
 | --- | --- | --- |
+| **Grounded care chat** | `retrieve_care_context`, `answer_with_evidence`, `propose_care_action` | Answers must cite retrieved recipient records. Any requested write becomes a separate approval card. |
+| **Care-update extraction** | `extract_care_update`, `propose_responsibility_bundle`, `request_clarification` | Drafts remain editable and do not enter the care plan until approved. |
+| **Intelligent handover** | `get_recipient_profile`, `get_recent_changes`, `get_open_risks`, `compose_handover_brief` | The generated brief is read-only and links back to the live structured state. |
 | **Conflict resolution** | `get_calendar_conflicts`, `get_care_circle_availability`, `simulate_care_plan`, `propose_calendar_change` | The deterministic scheduler rejects infeasible options; an approved proposal uses the existing calendar/planning service. |
 | **Adaptive care plan** | `get_recipient_profile`, `get_plan_template`, `propose_template_adaptation`, `request_clarification` | Responsibilities become a reviewable bundle; another person’s history is never copied. |
 | **Communication composer** | `get_verified_outcome`, `get_care_circle_member`, `draft_notification` | AI fills a draft only. Existing channel-specific approval and delivery controls send it. |
@@ -108,11 +141,13 @@ The model can propose through a narrow tool surface; direct write tools are deli
 | **Agent** | OpenAI Responses API with strict JSON Schema outputs, plus a deterministic TypeScript orchestrator and fallback |
 | **Retrieval** | Recipient-scoped structured retrieval from D1 |
 | **Voice** | Browser speech recognition and speech synthesis; transcript-only retention |
-| **Authentication** | OpenAI Sites authenticated-user headers plus server-enforced recipient roles |
+| **Authentication** | D1-backed accounts and hashed sessions, scrypt password hashing, password recovery, origin checks, and server-enforced recipient roles |
 | **Testing** | Playwright, axe-core, synthetic benchmark runner, GitHub Actions |
 | **Hosting** | OpenAI Sites and Cloudflare infrastructure |
 
 Set `OPENAI_API_KEY` in `web/.dev.vars` for model-backed chat, care-update extraction, handover briefs, conflict alternatives, adaptive care plans, communication drafts, and document intake. `OPENAI_MODEL` defaults to `gpt-5.6-terra`, and `OPENAI_REASONING_EFFORT` defaults to `low`. Model requests use `store: false`. Existing risk checks, simulations, and fallback summaries remain deterministic; explicitly generative workflows report model unavailability instead of pretending a model result was produced.
+
+For conflict resolution, the model never invents executable times: it receives a bounded list from the scheduling engine, and each returned option is simulated again before display. If the model response is unavailable or unusable, Carestead presents validated deterministic options instead.
 
 ## Memory, access, and safety
 
@@ -162,6 +197,15 @@ npm run dev
 ```
 
 The development application creates and seeds its D1 tables on first use. After schema changes, generate a checked-in migration with `npm run db:generate`.
+
+To enable model-backed capabilities locally, copy the example runtime configuration and add a development key:
+
+```bash
+cd web
+cp .dev.vars.example .dev.vars
+# Set OPENAI_API_KEY in .dev.vars; do not commit that file.
+npm run dev
+```
 
 ## Current scope
 
