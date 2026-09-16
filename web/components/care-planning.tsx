@@ -741,8 +741,9 @@ export function CarePlanning(props: Props) {
                     </button>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    AI proposes; the scheduling engine validates. Selecting an
-                    option does not change the plan.
+                    The scheduling engine prevalidates every option; AI ranks
+                    and explains them when available. Selecting an option does
+                    not change the plan.
                   </p>
                 </div>
               )}

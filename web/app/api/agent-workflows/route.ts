@@ -154,13 +154,7 @@ export async function POST(request: Request) {
         planning.availability,
         candidateTimes,
       );
-      if (!generated)
-        throw new AppError(
-          'model_failed',
-          502,
-          'No safe scheduling options were generated.',
-        );
-      const options = generated.value.flatMap((option) => {
+      const explained = (generated?.value ?? []).flatMap((option) => {
         const check = simulateMove(
           planning.tasks,
           planning.availability,
@@ -177,13 +171,39 @@ export async function POST(request: Request) {
               },
             ];
       });
-      if (!options.length)
-        throw new AppError(
-          'no_feasible_options',
-          409,
-          'The suggested times conflicted with the live care plan. Adjust availability and try again.',
+      const options = [...explained];
+      for (const dueAt of candidateTimes) {
+        if (options.some((option) => option.dueAt === dueAt)) continue;
+        const check = simulateMove(
+          planning.tasks,
+          planning.availability,
+          task.id,
+          dueAt,
+          access.timezone,
+          false,
         );
-      result = { options, model: generated.model };
+        if (check.conflicts.length) continue;
+        options.push({
+          label: new Intl.DateTimeFormat('en-CA', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: access.timezone,
+          }).format(new Date(dueAt)),
+          dueAt,
+          rationale:
+            'Fits the assigned caregiver’s shared availability and the current responsibility schedule.',
+          affected: check.changes.map((change) => change.title),
+          uncertainty:
+            'Caregiver confirmation and final approval are still required.',
+          evidenceIds: [`task:${task.id}`],
+        });
+        if (options.length === 3) break;
+      }
+      result = {
+        options: options.slice(0, 3),
+        model: generated?.model ?? 'deterministic scheduler',
+        agentMode: generated ? 'model' : 'deterministic',
+      };
     } else if (action === 'adapt_plan') {
       const description = text(
         body.description,
