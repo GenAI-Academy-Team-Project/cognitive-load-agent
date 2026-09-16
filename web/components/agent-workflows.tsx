@@ -21,6 +21,33 @@ import type { DashboardState } from '@/lib/types';
 const panel = 'care-organizer-panel min-w-0 rounded-2xl border p-5 md:p-6';
 const selectStyle =
   'min-h-10 w-full rounded-lg border bg-background px-3 text-sm';
+const maxDocumentBytes = 5 * 1024 * 1024;
+const documentTypes = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'text/plain',
+]);
+
+function documentUploadError(reason: unknown) {
+  if (
+    reason instanceof DOMException &&
+    (reason.name === 'SyntaxError' ||
+      reason.message.includes('expected pattern'))
+  )
+    return 'The browser could not read the selected file. Choose the file again and retry without leaving this tab.';
+  return reason instanceof Error
+    ? reason.message
+    : 'Unable to review this file.';
+}
+
+function documentBase64(bytes: Uint8Array) {
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
 
 function DraftEditor({
   drafts,
@@ -288,30 +315,49 @@ export function DocumentIntakePanel({
     setBusy(true);
     onError('');
     try {
-      const form = new FormData();
-      form.set('action', 'intake');
-      form.set('recipientId', dashboard.selectedRecipient.id);
-      form.set('processingConsent', String(consent));
-      form.set('file', file);
+      if (!documentTypes.has(file.type))
+        throw new Error('Use PDF, TXT, PNG, JPG, or WebP.');
+      if (file.size > maxDocumentBytes)
+        throw new Error('Choose a file no larger than 5 MB.');
+      const bytes = new Uint8Array(await file.arrayBuffer());
       const response = await fetch('/api/agent-workflows', {
         method: 'POST',
-        body: form,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'intake',
+          recipientId: dashboard.selectedRecipient.id,
+          processingConsent: String(consent),
+          file: {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataBase64: documentBase64(bytes),
+          },
+        }),
       });
-      const result = (await response.json()) as {
+      const responseText = await response.text();
+      if (response.status === 413)
+        throw new Error('Choose a file no larger than 5 MB.');
+      let result: {
         intake?: DocumentIntake;
         model?: string;
         error?: string;
       };
+      try {
+        result = JSON.parse(responseText) as typeof result;
+      } catch {
+        throw new Error(
+          response.ok
+            ? 'Carestead returned an unreadable response. Please retry.'
+            : 'The upload did not reach Carestead. Choose the file again and retry.',
+        );
+      }
       if (!response.ok || !result.intake)
         throw new Error(result.error || 'Unable to review this file.');
       setIntake(result.intake);
       setModel(result.model ?? 'configured model');
     } catch (reason) {
-      onError(
-        reason instanceof Error
-          ? reason.message
-          : 'Unable to review this file.',
-      );
+      onError(documentUploadError(reason));
     } finally {
       setBusy(false);
     }
@@ -338,7 +384,19 @@ export function DocumentIntakePanel({
           accept="application/pdf,text/plain,image/png,image/jpeg,image/webp"
           disabled={disabled || busy}
           onChange={(event) => {
-            setFile(event.target.files?.[0] ?? null);
+            const selected = event.target.files?.[0] ?? null;
+            if (selected && !documentTypes.has(selected.type)) {
+              onError('Use PDF, TXT, PNG, JPG, or WebP.');
+              event.currentTarget.value = '';
+              setFile(null);
+            } else if (selected && selected.size > maxDocumentBytes) {
+              onError('Choose a file no larger than 5 MB.');
+              event.currentTarget.value = '';
+              setFile(null);
+            } else {
+              onError('');
+              setFile(selected);
+            }
             setIntake(null);
           }}
         />

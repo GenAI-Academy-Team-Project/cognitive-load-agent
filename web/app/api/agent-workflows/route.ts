@@ -34,6 +34,19 @@ const bytesToBase64 = (bytes: Uint8Array) => {
   return btoa(binary);
 };
 
+const MAX_STANDARD_JSON_BYTES = 25_000;
+const MAX_INTAKE_JSON_BYTES = 7_200_000;
+
+const base64ToBytes = (value: string) => {
+  if (!value || value.length > 7_000_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value))
+    throw new AppError('invalid_file_data', 400, 'Choose the file again and retry.');
+  try {
+    return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+  } catch {
+    throw new AppError('invalid_file_data', 400, 'Choose the file again and retry.');
+  }
+};
+
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   let recipientId = '',
@@ -60,8 +73,11 @@ export async function POST(request: Request) {
       const candidate = form.get('file');
       upload = candidate instanceof File ? candidate : null;
     } else {
+      const contentLength = Number(request.headers.get('content-length') || 0);
+      if (Number.isFinite(contentLength) && contentLength > MAX_INTAKE_JSON_BYTES)
+        throw new AppError('too_large', 413, 'Choose a file no larger than 5 MB.');
       const raw = await request.text();
-      if (raw.length > 25_000)
+      if (raw.length > MAX_INTAKE_JSON_BYTES)
         throw new AppError('too_large', 413, 'This request is too large.');
       try {
         body = JSON.parse(raw) as Record<string, unknown>;
@@ -70,6 +86,8 @@ export async function POST(request: Request) {
       }
       action = text(body.action, 'workflow', 60);
       recipientId = text(body.recipientId, 'care recipient', 120);
+      if (action !== 'intake' && raw.length > MAX_STANDARD_JSON_BYTES)
+        throw new AppError('too_large', 413, 'This request is too large.');
     }
 
     const access = await env.DB.prepare(
@@ -263,9 +281,22 @@ export async function POST(request: Request) {
           400,
           'Confirm permission to process this file.',
         );
-      if (!upload)
+      const encoded =
+        body.file && typeof body.file === 'object'
+          ? (body.file as Record<string, unknown>)
+          : null;
+      const sourceName =
+        upload?.name ??
+        (typeof encoded?.name === 'string' ? encoded.name : '');
+      const sourceType =
+        upload?.type ??
+        (typeof encoded?.type === 'string' ? encoded.type : '');
+      const declaredSize =
+        upload?.size ??
+        (typeof encoded?.size === 'number' ? encoded.size : 0);
+      if (!upload && !encoded)
         throw new AppError('file_required', 400, 'Choose a file to review.');
-      if (upload.size > 5 * 1024 * 1024)
+      if (declaredSize > 5 * 1024 * 1024)
         throw new AppError(
           'file_too_large',
           413,
@@ -278,29 +309,41 @@ export async function POST(request: Request) {
         'image/webp',
         'text/plain',
       ]);
-      if (!allowed.has(upload.type))
+      if (!allowed.has(sourceType))
         throw new AppError(
           'file_type',
           415,
           'Use PDF, TXT, PNG, JPG, or WebP.',
         );
       const safeName =
-        upload.name.replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 160) ||
+        sourceName.replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 160) ||
         'care-document';
-      const bytes = new Uint8Array(await upload.arrayBuffer());
+      const bytes = upload
+        ? new Uint8Array(await upload.arrayBuffer())
+        : base64ToBytes(
+            typeof encoded?.dataBase64 === 'string'
+              ? encoded.dataBase64
+              : '',
+          );
+      if (bytes.length > 5 * 1024 * 1024 || bytes.length !== declaredSize)
+        throw new AppError(
+          'file_size_mismatch',
+          400,
+          'Choose the file again and retry.',
+        );
       const content =
-        upload.type === 'text/plain'
+        sourceType === 'text/plain'
           ? [
               {
                 type: 'input_text',
                 text: new TextDecoder().decode(bytes).slice(0, 100_000),
               },
             ]
-          : upload.type.startsWith('image/')
+          : sourceType.startsWith('image/')
             ? [
                 {
                   type: 'input_image',
-                  image_url: `data:${upload.type};base64,${bytesToBase64(bytes)}`,
+                  image_url: `data:${sourceType};base64,${bytesToBase64(bytes)}`,
                   detail: 'high',
                 },
               ]
@@ -308,7 +351,7 @@ export async function POST(request: Request) {
                 {
                   type: 'input_file',
                   filename: safeName,
-                  file_data: `data:${upload.type};base64,${bytesToBase64(bytes)}`,
+                  file_data: `data:${sourceType};base64,${bytesToBase64(bytes)}`,
                 },
               ];
       const generated = await analyzeCareDocument(
@@ -327,8 +370,8 @@ export async function POST(request: Request) {
         model: generated.model,
         file: {
           name: safeName,
-          type: upload.type,
-          size: upload.size,
+          type: sourceType,
+          size: bytes.length,
           retained: false,
         },
       };
@@ -340,6 +383,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const resultFile =
+      result.file && typeof result.file === 'object'
+        ? (result.file as Record<string, unknown>)
+        : null;
+    const resultFileType =
+      typeof resultFile?.type === 'string' ? resultFile.type : '';
+    const resultFileSize =
+      typeof resultFile?.size === 'number' ? resultFile.size : 0;
     await env.DB.prepare('INSERT INTO audit_entries VALUES (?,?,?,?,?,?,?,?)')
       .bind(
         crypto.randomUUID(),
@@ -349,7 +400,7 @@ export async function POST(request: Request) {
         'recipient',
         recipientId,
         action === 'intake'
-          ? `Transient document analysis completed; file retained: false; ${upload?.type ?? ''}; ${upload?.size ?? 0} bytes`
+          ? `Transient document analysis completed; file retained: false; ${resultFileType}; ${resultFileSize} bytes`
           : `Draft generated with ${typeof result.model === 'string' ? result.model : 'configured model'}; no action executed`,
         new Date().toISOString(),
       )
