@@ -11,7 +11,7 @@ import {
   modelEnabled,
 } from '@/lib/llm-agent';
 import { loadPlanning } from '@/lib/planning-service';
-import { isOpen, simulateMove } from '@/lib/planning-engine';
+import { feasibleMoveTimes, isOpen, simulateMove } from '@/lib/planning-engine';
 import {
   AppError,
   enforceRateLimit,
@@ -132,12 +132,27 @@ export async function POST(request: Request) {
           409,
           'Use Calendar to manage this connected appointment.',
         );
+      const candidateTimes = feasibleMoveTimes(
+        planning.tasks,
+        planning.availability,
+        task.id,
+        access.timezone,
+      );
+      if (!candidateTimes.length)
+        throw new AppError(
+          'no_feasible_options',
+          409,
+          task.planning.owner_member_id
+            ? 'No conflict-free times fit the assigned caregiver’s shared availability. Add or extend availability and try again.'
+            : 'Assign a caregiver and add their availability before requesting schedule options.',
+        );
       const generated = await generateConflictSuggestions(
         env,
         task,
         access.timezone,
         records,
         planning.availability,
+        candidateTimes,
       );
       if (!generated)
         throw new AppError(

@@ -3,7 +3,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { ensureDatabase } from '../db/bootstrap';
 import { loadPlanning, planningAction } from '../lib/planning-service';
 import { currentMemories } from '../lib/current-memories';
-import { extractDrafts, simulateMove } from '../lib/planning-engine';
+import {
+  extractDrafts,
+  feasibleMoveTimes,
+  simulateMove,
+} from '../lib/planning-engine';
 import { evaluateCareState } from '../lib/risk-engine';
 import {
   nextLocalDate,
@@ -577,6 +581,48 @@ test('simulation cascades dependency offsets and remains read-only until approva
   await expect(
     act('apply_proposal', { id: proposal.proposalId }),
   ).rejects.toThrow(/no longer pending/);
+});
+
+test('conflict suggestions start from deterministically feasible availability slots', async () => {
+  const base = (await state()).tasks.find((task) => task.id === 'task-physio')!;
+  const task = {
+    ...base,
+    due_at: '2030-01-02T09:00:00.000Z',
+    planning: {
+      ...base.planning,
+      owner_member_id: owner.memberId,
+      duration_minutes: 60,
+    },
+  };
+  const windows = [
+    {
+      id: 'window',
+      member_id: owner.memberId,
+      start_at: '2030-01-02T12:00:00.000Z',
+      end_at: '2030-01-02T15:00:00.000Z',
+      categories: ['appointment'],
+      capabilities: [],
+    },
+  ];
+  const slots = feasibleMoveTimes(
+    [task],
+    windows,
+    task.id,
+    'UTC',
+    Date.parse('2030-01-01T12:00:00.000Z'),
+  );
+  expect(slots.slice(0, 3)).toEqual([
+    '2030-01-02T12:00:00.000Z',
+    '2030-01-02T12:30:00.000Z',
+    '2030-01-02T13:00:00.000Z',
+  ]);
+  expect(
+    slots.every(
+      (dueAt) =>
+        !simulateMove([task], windows, task.id, dueAt, 'UTC', false).conflicts
+          .length,
+    ),
+  ).toBe(true);
 });
 
 test('dependency loops and cross-recipient references are rejected', async () => {

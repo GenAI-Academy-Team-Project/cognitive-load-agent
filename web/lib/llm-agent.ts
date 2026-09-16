@@ -190,24 +190,33 @@ export async function generateConflictSuggestions(
   timeZone: string,
   records: CareAgentRecord[],
   availability: unknown[],
+  candidateTimes: string[],
   fetcher?: Fetcher,
 ): Promise<ModelResult<ConflictOption[]> | null> {
   const result = await structuredResponse<{ options: unknown }>(
     config,
-    { task, time_zone: timeZone, records, availability },
-    `Propose up to three practical future times for this care responsibility. Use only supplied recipient-scoped records and shared availability. Do not claim a change was made. Do not change clinical instructions. Return exact evidence IDs for factual claims; identify uncertainty plainly. These are candidates only and will be checked by a deterministic scheduling engine and approved by a caregiver.`,
+    {
+      task,
+      time_zone: timeZone,
+      records,
+      availability,
+      allowed_candidate_times: candidateTimes,
+    },
+    `Choose and explain up to three practical times for this care responsibility. Each due_at must exactly match one value from allowed_candidate_times; never create a different time. Use only supplied recipient-scoped records and shared availability. Do not claim a change was made. Do not change clinical instructions. Return exact evidence IDs for factual claims; identify uncertainty plainly. The candidate slots were prevalidated by a deterministic scheduling engine and still require caregiver approval.`,
     'carestead_conflict_options',
     conflictSchema,
     fetcher,
   );
   if (!result || !Array.isArray(result.value.options)) return null;
   const ids = new Set(records.map((record) => record.id));
+  const allowed = new Set(candidateTimes);
   const options = result.value.options.flatMap((raw): ConflictOption[] => {
     if (!raw || typeof raw !== 'object') return [];
     const item = raw as Record<string, unknown>;
     if (
       typeof item.due_at !== 'string' ||
       !Number.isFinite(Date.parse(item.due_at)) ||
+      !allowed.has(item.due_at) ||
       Date.parse(item.due_at) <= Date.now()
     )
       return [];

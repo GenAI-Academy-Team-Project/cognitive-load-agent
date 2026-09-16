@@ -242,6 +242,7 @@ test('conflict suggestions reject unknown evidence and keep valid future options
     'America/Toronto',
     records,
     [],
+    ['2030-02-05T20:00:00.000Z'],
     jsonFetcher({
       options: [
         {

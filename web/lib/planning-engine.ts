@@ -196,6 +196,51 @@ export function simulateMove(
   return { changes, conflicts: [...new Set(conflicts)], alternatives: options };
 }
 
+export function feasibleMoveTimes(
+  tasks: PlannedTask[],
+  windows: Availability[],
+  taskId: string,
+  timeZone: string,
+  now = Date.now(),
+  limit = 12,
+) {
+  const root = tasks.find((task) => task.id === taskId && isOpen(task));
+  if (!root || root.calendarLinked || !root.planning.owner_member_id) return [];
+  const duration = root.planning.duration_minutes * 60000;
+  const candidates = new Set<string>();
+  for (const window of windows) {
+    if (
+      window.member_id !== root.planning.owner_member_id ||
+      !window.categories.includes(root.category) ||
+      !root.planning.requirements.every((requirement) =>
+        window.capabilities.includes(requirement),
+      )
+    )
+      continue;
+    const first =
+      Math.ceil(Math.max(Date.parse(window.start_at), now + 60000) / 900000) *
+      900000;
+    const last = Date.parse(window.end_at) - duration;
+    for (let candidate = first; candidate <= last; candidate += 30 * 60000) {
+      const dueAt = new Date(candidate).toISOString();
+      if (
+        dueAt !== root.due_at &&
+        !simulateMove(tasks, windows, taskId, dueAt, timeZone, false).conflicts
+          .length
+      )
+        candidates.add(dueAt);
+    }
+  }
+  return [...candidates]
+    .sort(
+      (a, b) =>
+        Math.abs(Date.parse(a) - Date.parse(root.due_at)) -
+          Math.abs(Date.parse(b) - Date.parse(root.due_at)) ||
+        a.localeCompare(b),
+    )
+    .slice(0, Math.max(1, Math.min(limit, 24)));
+}
+
 export function memoryConflicts(
   memories: PlanningMemory[],
   now = Date.now(),
@@ -344,16 +389,35 @@ export function extractDrafts(
           .filter(Boolean)
           .join(' '),
         confidence:
-          dueAt && (!reschedule || match) ? ('high' as const) : ('low' as const),
+          dueAt && (!reschedule || match)
+            ? ('high' as const)
+            : ('low' as const),
       };
     });
 }
 
-export function taskFactIssues(task: PlannedTask, memories: PlanningMemory[], now = Date.now()): string[] {
-  const disputed = new Set(memoryConflicts(memories, now).flatMap((conflict) => conflict.records.map((record) => record.id)));
+export function taskFactIssues(
+  task: PlannedTask,
+  memories: PlanningMemory[],
+  now = Date.now(),
+): string[] {
+  const disputed = new Set(
+    memoryConflicts(memories, now).flatMap((conflict) =>
+      conflict.records.map((record) => record.id),
+    ),
+  );
   return (task.planning.fact_ids ?? []).flatMap((id) => {
     const memory = memories.find((record) => record.id === id);
-    const invalid = !memory || memory.status !== 'verified' || memory.fact?.superseded_by || disputed.has(id) || (memory.fact?.valid_until && Date.parse(memory.fact.valid_until) <= now);
-    return invalid ? [`${task.title}: verify the required care fact “${memory?.value ?? 'archived or missing fact'}” before scheduling or accepting coverage.`] : [];
+    const invalid =
+      !memory ||
+      memory.status !== 'verified' ||
+      memory.fact?.superseded_by ||
+      disputed.has(id) ||
+      (memory.fact?.valid_until && Date.parse(memory.fact.valid_until) <= now);
+    return invalid
+      ? [
+          `${task.title}: verify the required care fact “${memory?.value ?? 'archived or missing fact'}” before scheduling or accepting coverage.`,
+        ]
+      : [];
   });
 }
