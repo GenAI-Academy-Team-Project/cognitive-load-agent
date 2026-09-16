@@ -68,8 +68,10 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
         CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareExport", returnType: CAPPluginReturnPromise)
     ]
-    private let audioEngine = AVAudioEngine()
+    // Playback changes the audio route/format. Never reuse its old input graph.
+    private var audioEngine: AVAudioEngine?
     private let synthesizer = AVSpeechSynthesizer()
+    private var spokenUtterance: AVSpeechUtterance?
     private var speechRecognizer: SFSpeechRecognizer?
     private var finishingSpeech = false
     private var speechTask: SFSpeechRecognitionTask?
@@ -92,11 +94,33 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     @objc private func pauseVoice() {
         DispatchQueue.main.async {
             self.finishSpeech("Listening interrupted.")
+            self.spokenUtterance = nil
             self.synthesizer.stopSpeaking(at: .immediate)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        guard spokenUtterance === utterance else { return }
+        spokenUtterance = nil
         if speechCall == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+    }
+
+    private func stopSpeechInput() {
+        audioEngine?.stop()
+        if tapInstalled { audioEngine?.inputNode.removeTap(onBus: 0); tapInstalled = false }
+        audioEngine = nil
+    }
+
+    private func speechFailureMessage(_ error: Error) -> String {
+        let nativeError = error as NSError
+        // Keep the underlying failure visible in Xcode without logging care speech.
+        NSLog("Carestead speech recognition failed: domain=%@ code=%ld locale=%@",
+              nativeError.domain, nativeError.code, speechRecognizer?.locale.identifier ?? "unknown")
+        #if targetEnvironment(simulator)
+        return "Speech recognition failed in the Xcode simulator. Test Talk on a physical iPhone, or choose Type instead to continue."
+        #else
+        return "Speech recognition interrupted. Please try again."
+        #endif
     }
 
     // Stop supplying audio first, then give Speech time to deliver its final result.
@@ -105,8 +129,7 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
         guard let call = speechCall, !finishingSpeech else { return }
         finishingSpeech = true
         speechTimer?.invalidate()
-        audioEngine.stop()
-        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
+        stopSpeechInput()
         speechRequest?.endAudio()
         speechTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
             if self.speechCall === call { self.finishSpeech() }
@@ -114,30 +137,30 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     }
 
     private func finishSpeech(_ error: String? = nil) {
-        let call = speechCall
+        guard let call = speechCall else { return }
         speechCall = nil
         speechTimer?.invalidate()
         speechTimer = nil
-        audioEngine.stop()
-        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
-        speechRequest?.endAudio()
-        speechTask?.cancel()
+        stopSpeechInput()
+        if !finishingSpeech { speechRequest?.endAudio() }
+        if speechTask?.state != .completed { speechTask?.cancel() }
         speechTask = nil
         speechRequest = nil
         speechRecognizer = nil
         finishingSpeech = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        if let error = error { call?.reject(error) }
-        else if speechText.isEmpty { call?.reject("No speech heard. Please try again.") }
-        else { call?.resolve(["text": speechText]) }
+        if let error = error { call.reject(error) }
+        else if speechText.isEmpty { call.reject("No speech heard. Please try again.") }
+        else { call.resolve(["text": speechText]) }
         speechText = ""
     }
 
     @objc func listen(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard self.speechCall == nil else { call.reject("Already listening."); return }
-            self.synthesizer.stopSpeaking(at: .immediate)
             self.speechCall = call
+            self.spokenUtterance = nil
+            self.synthesizer.stopSpeaking(at: .immediate)
             SFSpeechRecognizer.requestAuthorization { status in
                 AVAudioSession.sharedInstance().requestRecordPermission { granted in
                     DispatchQueue.main.async {
@@ -156,7 +179,9 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
                             let request = SFSpeechAudioBufferRecognitionRequest()
                             request.shouldReportPartialResults = true
                             self.speechRequest = request
-                            let input = self.audioEngine.inputNode
+                            let audioEngine = AVAudioEngine()
+                            self.audioEngine = audioEngine
+                            let input = audioEngine.inputNode
                             let format = input.outputFormat(forBus: 0)
                             guard format.sampleRate > 0 && format.channelCount > 0 else {
                                 self.finishSpeech("Microphone unavailable."); return
@@ -177,13 +202,14 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
                                             }
                                         }
                                     }
-                                    if error != nil {
-                                        self.finishSpeech(self.finishingSpeech && !self.speechText.isEmpty ? nil : "Speech recognition interrupted. Please try again.")
+                                    if let error = error {
+                                        let message = self.speechFailureMessage(error)
+                                        self.finishSpeech(self.finishingSpeech && !self.speechText.isEmpty ? nil : message)
                                     }
                                 }
                             }
-                            self.audioEngine.prepare()
-                            try self.audioEngine.start()
+                            audioEngine.prepare()
+                            try audioEngine.start()
                             self.speechTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
                                 if self.speechCall === call { self.endSpeechInput() }
                             }
@@ -202,12 +228,14 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     @objc func speak(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard self.speechCall == nil else { call.reject("Microphone is active."); return }
+            self.spokenUtterance = nil
             self.synthesizer.stopSpeaking(at: .immediate)
             do {
                 try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: .duckOthers)
                 try AVAudioSession.sharedInstance().setActive(true)
                 let utterance = AVSpeechUtterance(string: call.getString("text") ?? "")
                 utterance.voice = AVSpeechSynthesisVoice(language: "en-CA")
+                self.spokenUtterance = utterance
                 self.synthesizer.speak(utterance)
                 call.resolve()
             } catch { call.reject("Spoken reply unavailable.") }
@@ -215,6 +243,7 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     }
     @objc func silence(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.spokenUtterance = nil
             self.synthesizer.stopSpeaking(at: .immediate)
             if self.speechCall == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
             call.resolve()
