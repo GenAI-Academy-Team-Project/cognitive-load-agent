@@ -52,6 +52,7 @@ test('linked responsibility navigation offers reschedule and cancel, shows combi
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(accessibility.violations).toEqual([]);
   await page.getByRole('button', { name: 'Approve change and notify guests' }).click();
+  await expect(page.getByRole('button', { name: 'Prepare caregiver update' })).toBeVisible();
   await page.getByRole('button', { name: 'Prepare caregiver update' }).click();
   const composer = page.getByRole('region', { name: 'Compose notification' });
   await expect(composer.getByLabel('Notification title', { exact: true })).toHaveValue(/rescheduled/);

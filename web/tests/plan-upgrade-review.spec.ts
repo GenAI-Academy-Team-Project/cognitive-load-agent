@@ -12,13 +12,15 @@ test('template upgrade requires reviewing and confirming, and cancel does not ap
     return route.fulfill({ json: state });
   });
   await page.goto('/?view=Care%20plan');
-  await page.getByRole('button', { name: 'Review and apply' }).click();
+  const reviewButton = page.getByRole('button', { name: 'Review and apply' });
+  await expect(reviewButton).toBeVisible();
+  await reviewButton.click();
   const dialog = page.getByRole('dialog', { name: 'Review template upgrade' });
   await expect(dialog.getByText('Review weekly coverage')).toBeVisible();
   expect(applied).toBe(0);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(applied).toBe(0);
-  await page.getByRole('button', { name: 'Review and apply' }).click();
+  await reviewButton.click();
   await dialog.getByRole('button', { name: 'Apply reviewed changes' }).click();
   await expect(dialog).not.toBeVisible();
   expect(applied).toBe(1);

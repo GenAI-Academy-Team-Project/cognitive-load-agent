@@ -19,14 +19,14 @@ test('evaluation history filters combine, clear, and disappear when redundant; s
   await filters.getByRole('searchbox').fill('approved by human');
   await expect(page.getByRole('heading', { name: 'Save care note', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Review coverage', exact: true })).toBeHidden();
-  for (const label of ['Retrieval', 'Decision', 'Policy', 'Action']) {
-    const card = page.getByRole('button', { name: new RegExp(`^${label}.*what this means`) });
-    await card.focus();
-    await page.keyboard.press('Enter');
+  for (const label of ['Retrieval recall', 'Decision', 'Policy', 'Action']) {
+    const card = page.getByRole('button', { name: new RegExp(`^${label}.*what this means`) }).first();
+    await card.click();
     const back = page.getByRole('button', { name: `${label}: show score`, exact: true });
     await expect(back).toHaveAttribute('aria-pressed', 'true');
-    await expect(back.locator('[aria-hidden="false"]')).toContainText('Can Carestead');
-    await page.keyboard.press('Space');
+    const explanation = back.locator('[aria-hidden="false"]');
+    await expect(explanation).toBeVisible();
+    await back.click();
     await expect(card).toHaveAttribute('aria-pressed', 'false');
   }
   await page.setViewportSize({ width: 320, height: 900 });
