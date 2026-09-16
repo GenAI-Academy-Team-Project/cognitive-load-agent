@@ -78,7 +78,7 @@ export function IntegrationSettings({ onChanged, recipientId, recipientName }: {
             {expanded === item.id ? 'Hide settings' : 'Manage settings'}<ChevronDown aria-hidden="true" className={`size-4 transition-transform ${expanded === item.id ? 'rotate-180' : ''}`} />
           </button>
           <section id={`${item.id}-settings`} aria-labelledby={`${item.id}-manage`} hidden={expanded !== item.id}>
-          {item.id !== 'calendar' && <NotificationPreferences channel={item.id} />}
+          {item.id !== 'calendar' && item.id !== 'llm' && <NotificationPreferences channel={item.id} />}
           {!item.configured && <p className="mt-3 text-sm">An owner must add this service’s credentials before enabling it.</p>}
           <details className="mt-4 rounded-xl border bg-[var(--care-inset)] p-4 text-sm leading-6">
             <summary className="cursor-pointer font-medium">Setup help</summary>

@@ -5,11 +5,10 @@ the same responsive dashboard from `web/components/care-dashboard.tsx`, includin
 all workspace views, dialogs, and account controls. See
 [the parity audit](../docs/web-mobile-parity.md) for coverage and platform limits.
 
-This is a pilot project, not a signed App Store release. The client bundle and
-browser integration are tested. Compiling the Swift adapter, device session
-persistence, and real Google authorization must be verified in full Xcode/on a
-device before distributing the app. The development machine used to create this
-pilot had Apple Command Line Tools but no full Xcode installation.
+This is a pilot project, not a signed App Store release. Web/mobile builds,
+browser integration, and an unsigned iOS simulator build are checked. Device
+session persistence, native sharing, and real Google authorization still need
+verification on a signed device build before distribution.
 
 ## What is reused
 
@@ -151,7 +150,8 @@ do not establish Safari/WKWebView or native-device compatibility.
 The Swift adapter uses URLSession's native cookie storage and does not send
 cookies or response headers across its JavaScript bridge. It restricts requests
 to the configured HTTPS origin and an explicit API path list, refuses redirects,
-and does not automatically retry writes. Request cancellation suppresses late
+and does not automatically retry writes. Document intake sends binary multipart
+uploads through the same restricted bridge. Request cancellation suppresses late
 JavaScript results; it cannot undo a server-side mutation already submitted.
 The adapter must still be tested for sign-in, relaunch, expiry, and logout on iOS.
 
@@ -204,13 +204,9 @@ deletion, native push delivery acceptance testing, seamless OAuth/recovery retur
 separate follow-up work. Existing recipient deletion is not account deletion.
 [Apple account deletion requirements](https://developer.apple.com/support/offering-account-deletion-in-your-app)
 
-## OneSignal push
+## Notification platform support
 
-Native iOS push now has an optional OneSignal integration alongside existing
-browser push. See [OneSignal rollout](../docs/notification-setup.md#onesignal-rollout)
-for credentials, platform setup, opt-in, testing and rollback. No OneSignal
-private key belongs in mobile environment files: the app obtains its public
-App ID and private user alias from the authenticated backend on explicit opt-in.
-Select an Apple signing team for both the app and notification extension before
-building. Native delivery still requires an acceptance test on the configured
-OneSignal app and signed device build.
+The shared UI includes email, SMS, ntfy, and browser-push delivery preferences.
+Browser push requires a supported browser or Home Screen web app; the Capacitor
+WKWebView does not implement native APNs/OneSignal delivery. Native push requires
+separate implementation and device verification.

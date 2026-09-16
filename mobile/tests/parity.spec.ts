@@ -36,8 +36,10 @@ test('full workspace exposes planning, memory, templates, notifications, privacy
   state = await (await page.request.get('/api/state')).json();
   expect(state.tasks.some((task: { title: string }) => task.title.includes('Collect groceries'))).toBe(true);
   await page.goto('/?view=Notifications');
-  await expect(page.getByRole('button', { name: 'Save delivery preferences', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save delivery preferences', exact: true }).click();
+  await page.getByRole('link', { name: 'Account settings → Integrations' }).click();
+  await page.getByRole('button', { name: /Manage settings for Email/ }).click();
+  await page.getByRole('button', { name: 'Save email preferences', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Notification preferences saved.');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.getByRole('button', { name: /Profile settings for/ }).click();
   await page.getByRole('menuitem', { name: 'Update password' }).click();
@@ -47,4 +49,19 @@ test('full workspace exposes planning, memory, templates, notifications, privacy
   await page.getByRole('button', { name: 'Update password', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('Password updated');
   expect(errors).toEqual([]);
+});
+
+
+test('password recovery routes render the shared forms and consume reset fragments', async ({ page }) => {
+  await page.goto('/forgot-password');
+  await expect(page.getByRole('heading', { name: 'Forgot your password?' })).toBeVisible();
+  await page.getByLabel('Email address').fill('unknown@example.test');
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+  await expect(page.getByRole('status')).toContainText('If an account uses that email');
+  await page.goto('/reset-password');
+  await expect(page.getByRole('alert')).toContainText('missing or invalid');
+  await page.goto('/sign-in');
+  await page.goto(`/reset-password#token=${'a'.repeat(64)}`);
+  await expect(page.getByLabel('New password', { exact: true })).toBeEnabled();
+  expect(new URL(page.url()).hash).toBe('');
 });

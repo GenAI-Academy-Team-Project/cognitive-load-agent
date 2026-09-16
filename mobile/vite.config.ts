@@ -9,6 +9,7 @@ export default defineConfig(({ command, mode }) => {
   const origin = apiOrigin(env.VITE_CARESTEAD_API_ORIGIN, { allowLocal: command === 'serve' });
   const devOrigin = apiOrigin(env.CARESTEAD_DEV_API_ORIGIN || origin, { allowLocal: true });
   return {
+    publicDir: fileURLToPath(new URL('../web/public', import.meta.url)),
     plugins: [react(), {
       name: 'carestead-client-boundary',
       enforce: 'pre',
@@ -29,7 +30,7 @@ export default defineConfig(({ command, mode }) => {
       },
     }],
     resolve: {
-      alias: { '@/lib/calendar-time': fileURLToPath(new URL('./src/calendar-display.ts', import.meta.url)), '@': fileURLToPath(new URL('../web', import.meta.url)), 'next/link': fileURLToPath(new URL('./src/link.tsx', import.meta.url)) },
+      alias: { '@': fileURLToPath(new URL('../web', import.meta.url)), 'next/link': fileURLToPath(new URL('./src/link.tsx', import.meta.url)) },
       dedupe: ['react', 'react-dom', '@base-ui/react', 'lucide-react', 'class-variance-authority', 'clsx', 'tailwind-merge'],
     },
     css: { postcss: { plugins: [tailwindcss()] } },

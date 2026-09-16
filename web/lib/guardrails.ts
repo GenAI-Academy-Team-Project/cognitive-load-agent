@@ -1,6 +1,5 @@
-export class AppError extends Error {
-  constructor(public code: string, public status: number, message: string) { super(message); }
-}
+import { AppError } from './app-error';
+export { AppError } from './app-error';
 
 const limits: Record<string, number> = {
   value: 2000, careContext: 2000, communicationNotes: 1000, mobilityNotes: 1000,

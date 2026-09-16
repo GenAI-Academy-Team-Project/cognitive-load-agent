@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMobileFetch } from '../src/transport.mjs';
+import { readFileSync } from 'node:fs';
+import { apiPaths, createMobileFetch } from '../src/transport.mjs';
 import { apiOrigin } from '../src/config.mjs';
 
 function client(overrides = {}) {
@@ -54,4 +55,31 @@ test('release origin rejects missing, placeholder, insecure, credentialed, and p
   }
   assert.equal(apiOrigin('https://care.test/'), 'https://care.test');
   assert.equal(apiOrigin('http://127.0.0.1:3000', { allowLocal: true }), 'http://127.0.0.1:3000');
+});
+
+test('every workspace endpoint crosses the native bridge and matches the Swift allowlist', async () => {
+  const swift = readFileSync(new URL('../scripts/CaresteadAPI.swift', import.meta.url), 'utf8');
+  const allowed = swift.split('private let allowedPaths: Set<String> = [')[1].split(']')[0];
+  assert.deepEqual(new Set([...allowed.matchAll(/"([^"\n]+)"/g)].map(match => match[1])), apiPaths);
+  const fetch = client({ request: async ({ path }) => ({ status: 200, data: JSON.stringify({ path }) }) });
+  for (const path of apiPaths) assert.deepEqual(await (await fetch(path)).json(), { path });
+});
+
+test('document intake preserves binary multipart data without forwarding arbitrary headers', async () => {
+  let captured;
+  const fetch = client({ request: async options => { captured = options; return { status: 200, data: '{}' }; } });
+  const form = new FormData();
+  form.set('action', 'intake');
+  form.set('recipientId', 'r1');
+  form.set('processingConsent', 'true');
+  const bytes = new Uint8Array([0, 128, 255, 13, 10, 65]);
+  form.set('file', new Blob([bytes], { type: 'application/pdf' }), 'care.pdf');
+  await fetch('/api/agent-workflows', { method: 'POST', body: form, headers: { Cookie: 'secret' } });
+  assert.equal(captured.bodyEncoding, 'base64');
+  const parsed = await new Response(Buffer.from(captured.body, 'base64'), { headers: { 'Content-Type': captured.contentType } }).formData();
+  assert.equal(parsed.get('recipientId'), 'r1');
+  assert.equal(parsed.get('processingConsent'), 'true');
+  assert.deepEqual(new Uint8Array(await parsed.get('file').arrayBuffer()), bytes);
+  assert.equal(captured.headers, undefined);
+  await assert.rejects(fetch('/api/state', { method: 'POST', body: form }), /only supported for document intake/);
 });

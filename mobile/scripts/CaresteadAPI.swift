@@ -1,6 +1,8 @@
 // Appended to the generated AppDelegate.swift by prepare-ios.mjs so Xcode includes it.
 // CARESTEAD_NATIVE_ADAPTER_BEGIN
 import Capacitor
+import Speech
+import AVFoundation
 
 @objc(CaresteadViewController)
 class CaresteadViewController: CAPBridgeViewController {
@@ -10,16 +12,142 @@ class CaresteadViewController: CAPBridgeViewController {
 }
 
 @objc(CaresteadAPI)
-public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate {
+public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "CaresteadAPI"
     public let jsName = "CaresteadAPI"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "listen", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopListening", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "silence", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "request", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "shareExport", returnType: CAPPluginReturnPromise)
     ]
+    private let audioEngine = AVAudioEngine()
+    private let synthesizer = AVSpeechSynthesizer()
+    private var speechTask: SFSpeechRecognitionTask?
+    private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var speechCall: CAPPluginCall?
+    private var speechTimer: Timer?
+    private var speechText = ""
+    private var tapInstalled = false
+
+    public override func load() {
+        synthesizer.delegate = self
+        NotificationCenter.default.addObserver(self, selector: #selector(pauseVoice), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(pauseVoice), name: AVAudioSession.interruptionNotification, object: nil)
+    }
+    @objc private func pauseVoice() {
+        DispatchQueue.main.async {
+            self.finishSpeech("Listening interrupted.")
+            self.synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        if speechCall == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+    }
+
+    private func finishSpeech(_ error: String? = nil) {
+        let call = speechCall
+        speechCall = nil
+        speechTimer?.invalidate()
+        speechTimer = nil
+        audioEngine.stop()
+        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
+        speechRequest?.endAudio()
+        speechTask?.cancel()
+        speechTask = nil
+        speechRequest = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if let error = error { call?.reject(error) }
+        else if speechText.isEmpty { call?.reject("No speech heard. Please try again.") }
+        else { call?.resolve(["text": speechText]) }
+        speechText = ""
+    }
+
+    @objc func listen(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.speechCall == nil else { call.reject("Already listening."); return }
+            self.synthesizer.stopSpeaking(at: .immediate)
+            self.speechCall = call
+            SFSpeechRecognizer.requestAuthorization { status in
+                AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        guard self.speechCall === call else { return }
+                        guard status == .authorized && granted else {
+                            self.finishSpeech("Enable microphone and speech recognition for Carestead in Settings."); return
+                        }
+                        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-CA")), recognizer.isAvailable else {
+                            self.finishSpeech("Speech recognition is unavailable. Check your connection."); return
+                        }
+                        do {
+                            let session = AVAudioSession.sharedInstance()
+                            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+                            try session.setActive(true, options: .notifyOthersOnDeactivation)
+                            let request = SFSpeechAudioBufferRecognitionRequest()
+                            request.shouldReportPartialResults = true
+                            self.speechRequest = request
+                            let input = self.audioEngine.inputNode
+                            let format = input.outputFormat(forBus: 0)
+                            guard format.sampleRate > 0 && format.channelCount > 0 else {
+                                self.finishSpeech("Microphone unavailable."); return
+                            }
+                            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+                            self.tapInstalled = true
+                            self.speechTask = recognizer.recognitionTask(with: request) { result, error in
+                                DispatchQueue.main.async {
+                                    guard self.speechCall === call else { return }
+                                    if let result = result {
+                                        self.speechText = result.bestTranscription.formattedString
+                                        self.speechTimer?.invalidate()
+                                        self.speechTimer = Timer.scheduledTimer(withTimeInterval: 1.8, repeats: false) { _ in self.finishSpeech() }
+                                        if result.isFinal { self.finishSpeech(); return }
+                                    }
+                                    if error != nil { self.finishSpeech("Speech recognition interrupted. Please try again.") }
+                                }
+                            }
+                            self.audioEngine.prepare()
+                            try self.audioEngine.start()
+                            self.speechTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in self.finishSpeech() }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+                                if self.speechCall === call { self.finishSpeech() }
+                            }
+                        } catch { self.finishSpeech("Unable to start the microphone. Please try again.") }
+                    }
+                }
+            }
+        }
+    }
+    @objc func stopListening(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.finishSpeech("Listening stopped."); call.resolve() }
+    }
+    @objc func speak(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.speechCall == nil else { call.reject("Microphone is active."); return }
+            self.synthesizer.stopSpeaking(at: .immediate)
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: .duckOthers)
+                try AVAudioSession.sharedInstance().setActive(true)
+                let utterance = AVSpeechUtterance(string: call.getString("text") ?? "")
+                utterance.voice = AVSpeechSynthesisVoice(language: "en-CA")
+                self.synthesizer.speak(utterance)
+                call.resolve()
+            } catch { call.reject("Spoken reply unavailable.") }
+        }
+    }
+    @objc func silence(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.synthesizer.stopSpeaking(at: .immediate)
+            if self.speechCall == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+            call.resolve()
+        }
+    }
+
     private let allowedPaths: Set<String> = [
         "/api/auth/session", "/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/sign-out", "/api/auth/guest",
-        "/api/state", "/api/chat", "/api/calendar"
+        "/api/state", "/api/chat", "/api/calendar",
+        "/api/auth/update-profile", "/api/auth/update-password", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/planning", "/api/agent-workflows", "/api/handover", "/api/notifications", "/api/integrations", "/api/export"
     ]
     private lazy var session: URLSession = {
         let configuration = URLSessionConfiguration.default
@@ -58,14 +186,28 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate {
         // retain the existing API contract; cookies still determine identity and access.
         request.setValue(getConfig().getString("origin"), forHTTPHeaderField: "Origin")
         if method == "POST", let body = call.getString("body") {
-            guard let data = body.data(using: .utf8), data.count <= 262144,
-                  (try? JSONSerialization.jsonObject(with: data)) != nil || body.isEmpty else {
-                call.reject("Invalid request body.")
-                return
+            if call.getString("bodyEncoding") == "base64" {
+                guard url.path == "/api/agent-workflows",
+                      let contentType = call.getString("contentType"),
+                      contentType.hasPrefix("multipart/form-data; boundary="),
+                      !contentType.contains("\r"), !contentType.contains("\n"),
+                      let data = Data(base64Encoded: body), data.count <= 6 * 1024 * 1024 else {
+                    call.reject("Invalid document upload.")
+                    return
+                }
+                request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+                request.httpBody = data
+            } else {
+                guard let data = body.data(using: .utf8), data.count <= 262144,
+                      (try? JSONSerialization.jsonObject(with: data)) != nil || body.isEmpty else {
+                    call.reject("Invalid request body.")
+                    return
+                }
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = data
             }
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = data
         }
+
         session.dataTask(with: request) { data, response, error in
             guard error == nil, let response = response as? HTTPURLResponse else {
                 call.reject("Unable to reach Carestead. Refresh to check the outcome before retrying a change.")
@@ -83,6 +225,41 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate {
             // URLSession owns the cookie jar. Never return Set-Cookie or cookie values to JS.
             call.resolve(["status": response.statusCode, "data": text])
         }.resume()
+    }
+
+    @objc func shareExport(_ call: CAPPluginCall) {
+        guard let text = call.getString("data"), let data = text.data(using: .utf8),
+              (try? JSONSerialization.jsonObject(with: data)) != nil,
+              let filename = call.getString("filename"),
+              filename.range(of: "^[a-z0-9-]+-carestead-export\\.json$", options: .regularExpression) != nil else {
+            call.reject("Invalid care export.")
+            return
+        }
+        DispatchQueue.main.async {
+            guard let controller = self.bridge?.viewController, controller.presentedViewController == nil else {
+                call.reject("Close the current sheet and try exporting again.")
+                return
+            }
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let file = directory.appendingPathComponent(filename)
+                try data.write(to: file, options: [.atomic, .completeFileProtection])
+                let sheet = UIActivityViewController(activityItems: [file], applicationActivities: nil)
+                sheet.popoverPresentationController?.sourceView = controller.view
+                sheet.popoverPresentationController?.sourceRect = CGRect(x: controller.view.bounds.midX, y: controller.view.bounds.midY, width: 0, height: 0)
+                sheet.completionWithItemsHandler = { _, completed, _, error in
+                    try? FileManager.default.removeItem(at: directory)
+                    if let error = error { call.reject(error.localizedDescription) }
+                    else if completed { call.resolve() }
+                    else { call.reject("Export sharing cancelled.") }
+                }
+                controller.present(sheet, animated: true)
+            } catch {
+                try? FileManager.default.removeItem(at: directory)
+                call.reject("Unable to prepare the care export.")
+            }
+        }
     }
 
     @objc func openWeb(_ call: CAPPluginCall) {

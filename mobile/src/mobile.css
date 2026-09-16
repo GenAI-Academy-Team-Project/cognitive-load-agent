@@ -9,40 +9,8 @@ button, select, input, textarea { font: inherit; }
 input, select, textarea { font-size: 16px !important; }
 button, [data-slot='button'], select { min-height: 44px; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-.mobile-shell { max-width: 760px; margin: auto; }
-.mobile-header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 14px) 22px 14px; border-bottom: 1px solid var(--border); background: var(--background); }
-.mobile-brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 750; letter-spacing: -.6px; }
-.mobile-brand svg { color: var(--primary); }
-.mobile-content { padding: 24px 20px calc(170px + env(safe-area-inset-bottom)); }
-.mobile-recipient { display: grid; gap: 6px; font-size: 12px; color: var(--muted-foreground); }
-.mobile-recipient select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--foreground); font-weight: 600; }
-.mobile-heading { margin: 28px 0 24px; }
-.mobile-heading p, .mobile-eyebrow { font-size: 12px; color: var(--primary); font-weight: 600; }
-.mobile-heading h1 { font-size: clamp(27px, 7vw, 35px); line-height: 1.15; font-weight: 650; letter-spacing: -1px; margin-top: 8px; max-width: 340px; }
-.mobile-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 19px; margin: 12px 0; }
-.mobile-card h2, .mobile-section-title h2 { font-size: 18px; font-weight: 650; }
-.mobile-card h3 { font-weight: 600; line-height: 1.45; }
-.mobile-card p, .mobile-card dd { font-size: 14px; line-height: 1.65; margin-top: 6px; color: var(--muted-foreground); overflow-wrap: anywhere; }
-.mobile-card > button { margin-top: 16px; }
-.mobile-review { border-left: 4px solid var(--primary); }
-.mobile-section-title { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 12px; }
-.mobile-section-title span { font-size: 12px; color: var(--muted-foreground); }
-.mobile-task > button { margin-top: 14px; }
-.mobile-task .mobile-eyebrow { margin-top: 0; margin-bottom: 5px; }
-.mobile-update + .mobile-update { border-top: 1px solid var(--border); }
-.mobile-update { margin-top: 14px; padding-top: 12px; }
-.mobile-card dt { font-size: 13px; font-weight: 650; margin-top: 18px; }
-.mobile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-.mobile-notice, .mobile-error { border-radius: 12px; padding: 13px 15px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; background: var(--secondary); }
-.mobile-error { color: #7e3224; background: #fff1ec; border: 1px solid #e5c6bd; }
-.mobile-disclaimer { font-size: 11px; line-height: 1.6; color: var(--muted-foreground); margin-top: 30px; }
-.mobile-tabs { position: fixed; z-index: 30; bottom: 0; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(4, 1fr); width: min(100%, 760px); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--border); }
-.mobile-tabs button { display: grid; justify-items: center; align-content: center; gap: 5px; padding: 8px 0; color: var(--muted-foreground); font-size: 11px; border-radius: 10px; }
-.mobile-tabs svg { width: 21px; height: 21px; }
-.mobile-tabs [aria-current] { color: var(--primary); background: var(--secondary); font-weight: 650; }
-/* Shared chat remains above the mobile navigation; sheets respect the notch and home indicator. */
-.mobile-shell button.fixed { bottom: calc(96px + env(safe-area-inset-bottom)); }
+/* The shared dashboard supplies responsive layouts; native chrome supplies safe areas. */
+#root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 [data-slot='sheet-content'] { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-.mobile-calendar { overflow-wrap: anywhere; }
-body > #root > main { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+button.fixed { margin-bottom: env(safe-area-inset-bottom); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
