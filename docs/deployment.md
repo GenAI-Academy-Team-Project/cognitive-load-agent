@@ -354,13 +354,141 @@ docker compose -f compose.local.yaml logs web | tail -20
 
 ---
 
+## Cloud Deployment & Secrets Management
+
+### Overview
+
+Production deployment uses **Cloudflare Workers** with automated secrets management:
+- Secrets are stored in GitHub production environment
+- Automatically uploaded to Cloudflare on every deployment
+- Local secrets stay in sync via a sync script
+- Secrets persist across deployments
+
+### Workflow
+
+```
+Local Development:
+  1. Edit web/.secrets.cloudflare
+  2. Run: make github-secrets-sync
+  3. Commit and push
+
+GitHub Deployment (automatic):
+  1. Push to main
+  2. Build and deploy code to Cloudflare
+  3. Validate secrets
+  4. Automatically upload secrets to Worker
+  5. Done! ✓
+```
+
+### Managing Secrets Locally
+
+Secrets are stored in `web/.secrets.cloudflare` (git-ignored). Example:
+
+```env
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_secret
+OPENAI_API_KEY=your_api_key
+# ... more secrets
+```
+
+### Syncing Secrets to GitHub
+
+When you update local secrets, sync them to GitHub's production environment:
+
+```bash
+make github-secrets-sync
+```
+
+This script:
+- Reads `web/.secrets.cloudflare`
+- Safely uploads to GitHub production environment (requires `gh` CLI)
+- Shows which secrets will be created
+- Never prints secrets to console
+
+**Requirements**: `gh` CLI installed and authenticated (`gh auth login`)
+
+### Verifying Secrets Are Configured
+
+Check that all required secrets exist:
+
+```bash
+# List all GitHub production secrets
+gh secret list --env production
+
+# Validate secrets before deployment
+make cloud-secrets-check
+```
+
+### Deployment Workflow Steps
+
+```bash
+# 1. Deploy bundle to Cloudflare
+make cloud-release
+
+# 2. Secrets automatically upload from GitHub
+# (no manual step needed - happens after deployment)
+```
+
+The deploy workflow (`.github/workflows/deploy.yml`):
+1. Validates code and builds bundle
+2. Deploys to Cloudflare Worker
+3. **Validates secrets** (consistency check)
+4. **Automatically uploads secrets** to Worker bindings
+5. Secrets are now available to the running Worker
+
+### Secret Groups
+
+Secrets are organized by integration. Configure the entire group or leave it blank to preserve remote values:
+
+| Group | Secrets |
+|---|---|
+| OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT` |
+| Google Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_TOKEN_KEY` |
+| Email (Resend) | `RESEND_API_KEY`, `NOTIFICATION_EMAIL_FROM` |
+| SMS (Twilio) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` |
+| Browser Push | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
+| Mobile Push (ntfy) | `NTFY_SERVER_URL`, `NTFY_ACCESS_TOKEN` |
+| Auth | `AUTH_PUBLIC_URL` |
+| Encryption | `INTEGRATION_CONFIG_KEY` |
+
+### Troubleshooting Secrets
+
+**Secrets not appearing in production:**
+- Check GitHub production environment has all required secrets: `gh secret list --env production`
+- Verify the latest deployment workflow run succeeded: visit GitHub Actions tab
+- Confirm Cloudflare authentication in workflow: check `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set
+
+**Updating a single secret locally:**
+```bash
+# 1. Edit the secret in web/.secrets.cloudflare
+vim web/.secrets.cloudflare
+
+# 2. Sync to GitHub
+make github-secrets-sync
+
+# 3. Push the changes
+git add web/.secrets.cloudflare
+git commit -m "Update production secrets"
+git push origin main
+```
+
+**Revoking secrets:**
+If a secret is compromised:
+1. Generate a new value
+2. Update in `web/.secrets.cloudflare`
+3. Run `make github-secrets-sync`
+4. Push to main (auto-deploys new value)
+
+---
+
 ## Next Steps
 
 After local setup works:
 1. Run tests: `make test`
 2. Verify health: `curl https://carestead.com:8083/api/health`
 3. Check logs: `make logs`
-4. Deploy to production: See `docs/deployment.md`
+4. Sync secrets to GitHub: `make github-secrets-sync`
+5. Deploy to production: Push to main (automatic with secrets)
 
 ---
 
@@ -389,8 +517,9 @@ Every integration displays additional setup instructions and a repository guide 
 | Editing `.dev.vars` or cloud secrets changes nothing | In each field, check **Saved override** versus **Environment**. Select **Use environment value**, then **Save configuration** to remove that field's override. Leaving an input blank keeps its current value. |
 | Cannot reset a required field while enabled | Supply a valid environment fallback before saving the reset, or switch the integration off first. An enabled integration cannot be saved with incomplete required credentials. |
 | Credentials configured, but service is off | **Save configuration** preserves the on/off state. Enable the owner's switch separately; then connect accounts or save caregiver preferences for each recipient. |
-| Local works, cloud does not | Local `.dev.vars` does not populate cloud bindings. Check the Worker target, run `make cloud-secrets-check` and `make cloud-secrets-apply` with that target, and inspect the UI's field sources. Blank secret groups preserve remote values rather than deleting them. |
-| Upload fails without provider details | The upload script suppresses potentially sensitive provider output. Check Cloudflare authentication, Worker permissions and target settings before retrying; do not print secret files to diagnose. |
+| Local works, cloud does not | Local `.dev.vars` does not populate cloud bindings. For cloud deployment, use `web/.secrets.cloudflare` instead. Check the Worker target, run `make cloud-secrets-check` and `make github-secrets-sync` to sync to GitHub, then push to main. Verify deployment succeeded in GitHub Actions. Blank secret groups preserve remote values rather than deleting them. |
+| Secrets don't persist after deployment | Ensure all secrets are in GitHub production environment: `gh secret list --env production`. Secrets auto-upload after every deployment. Check workflow logs in GitHub Actions to verify the "Upload runtime secrets" step succeeded. |
+| Upload fails without provider details | The upload script suppresses potentially sensitive provider output. Check Cloudflare authentication, Worker permissions and target settings before retrying; do not print secret files to diagnose. For automated syncing, run `make github-secrets-sync` and verify GitHub secrets are configured. |
 
 `INTEGRATION_CONFIG_KEY` encrypts saved configuration overrides;
 `GOOGLE_TOKEN_KEY` encrypts connected Google refresh tokens. Keep both stable and
