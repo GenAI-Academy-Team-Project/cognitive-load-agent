@@ -215,3 +215,7 @@ npm run dev
 ## Current scope
 
 Carestead is a care-coordination prototype, not a clinical decision system. It does not make diagnoses, recommend medication changes, determine whether a situation is medically safe, or independently contact people or providers. High-impact actions remain under human control and visible in the activity and evaluation history.
+
+## Connected cloud demo
+
+Use the [Maya and Alex connected demo guide](docs/connected-story-demo.md) for live image intake, scheduling, all notification channels, handover, and mobile voice. From `web/`, `npm run demo:login`, `npm run demo:seed`, `npm run demo:check`, and `npm run demo:clean` manage an isolated recipient on the deployed backend. The guide follows actual model outputs and documents guest cancellation before reset.

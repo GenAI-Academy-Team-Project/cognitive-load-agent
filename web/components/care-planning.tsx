@@ -1,4 +1,5 @@
 'use client';
+import { ConflictSchedule } from './conflict-schedule';
 import { useDictation } from './use-dictation';
 import type { VoiceAdapter } from '@/lib/voice';
 
@@ -49,6 +50,7 @@ import {
 import { AdaptivePlanBuilder, DocumentIntakePanel } from './agent-workflows';
 
 type Props = {
+  initialTool?: string;
   voiceAdapter?: VoiceAdapter;
   voiceFirst?: boolean;
   photoCapture?: boolean;
@@ -210,7 +212,7 @@ export function CarePlanning(props: Props) {
   const { dashboard } = props;
   const { state, act, busy, error, setError, message, writable } =
     usePlanning(props);
-  const [tab, setTab] = useState('week');
+  const [tab, setTab] = useState(props.initialTool || 'week');
   const [renderTime] = useState(() => Date.now());
   const zone = dashboard.selectedRecipient.timezone;
   const [start, setStart] = useState(() => localInput(future(60), zone));
@@ -606,6 +608,7 @@ export function CarePlanning(props: Props) {
                   zone={zone}
                 />
               </div>
+              {selectedTask && <ConflictSchedule tasks={state.tasks} taskId={taskId} timeZone={zone} preview={simulation} />}
               {state.tasks.find((task) => task.id === taskId)?.calendarLinked &&
                 props.onCalendar && (
                   <div className="mt-4 rounded-xl border bg-background p-4">
@@ -811,6 +814,7 @@ export function CarePlanning(props: Props) {
                   )}
                 </div>
               )}
+              {selectedTask && !selectedTask.calendarLinked && props.onCalendar && <div className="mt-5 rounded-xl border bg-background p-4"><p className="text-sm">After approving the care-plan time, continue with this responsibility to review the calendar invitation and guests.</p><Button className="mt-3" variant="outline" onClick={() => props.onCalendar?.(taskId)}>Continue to calendar review</Button></div>}
               {simulation && (
                 <div className="mt-6 space-y-5">
                   <ol className="border-l-2 border-primary/30 pl-5">
@@ -1039,6 +1043,7 @@ export function CarePlanning(props: Props) {
                 <ProposalCard
                   key={proposal.id}
                   proposal={proposal}
+                  onCalendar={props.onCalendar}
                   state={state}
                   zone={zone}
                   act={act}
@@ -1655,12 +1660,14 @@ function BrainDump({
 }
 
 function ProposalCard({
+  onCalendar,
   proposal,
   state,
   zone,
   act,
   disabled,
 }: {
+  onCalendar?: (taskId: string) => void;
   proposal: PlanningProposal;
   state: PlanningState;
   zone: string;
@@ -1668,6 +1675,7 @@ function ProposalCard({
   disabled: boolean;
 }) {
   const payload = proposal.payload;
+  const [createdTaskIds, setCreatedTaskIds] = useState<string[]>([]);
   return (
     <article
       data-care-tone={proposal.status === 'pending' ? 'amber' : 'sky'}
@@ -1790,11 +1798,12 @@ function ProposalCard({
           </ul>
         </details>
       )}
+      {proposal.status === 'applied' && onCalendar && <div className="mt-4 space-y-2">{state.tasks.filter(task => createdTaskIds.includes(task.id) || task.id === payload.rootTaskId).map(task => <div key={task.id} className="rounded-xl border p-3"><p className="text-sm font-medium">{task.title}</p><Button className="mt-2" variant="outline" onClick={() => onCalendar(task.id)}>Review schedule conflicts</Button></div>)}</div>}
       {proposal.status === 'pending' && (
         <div className="mt-5 flex flex-wrap gap-2">
           <Button
             disabled={disabled}
-            onClick={() => act('apply_proposal', { id: proposal.id })}
+            onClick={async () => { const before = new Set(state.tasks.map(task => task.id)); const result = await act('apply_proposal', { id: proposal.id }); if (result) setCreatedTaskIds(result.state.tasks.filter(task => !before.has(task.id)).map(task => task.id)); }}
           >
             <Check />
             {proposal.kind === 'relief'

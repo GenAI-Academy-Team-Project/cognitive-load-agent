@@ -65,6 +65,8 @@ export function NotificationComposer({
     if (initialDraft && !composing) setComposing(true);
   }, [initialDraft, composing]);
   const [memberId, setMemberId] = useState('');
+  const receivingMember = state.careCircle.find(member => member.id === memberId);
+  const sendingToSelf = receivingMember?.email.toLowerCase() === state.currentUser.email.toLowerCase();
   const [selectedChannels, setSelectedChannels] = useState<string[]>([
     'in_app',
   ]);
@@ -328,11 +330,13 @@ export function NotificationComposer({
               .filter((member) => member.status === 'active')
               .map((member) => (
                 <option key={member.id} value={member.id}>
-                  {member.display_name}
+                  {member.display_name}{member.email.toLowerCase() === state.currentUser.email.toLowerCase() ? ' (you)' : ''}
                 </option>
               ))}
           </select>
         </label>
+        {receivingMember && <output className="block rounded-xl border bg-secondary p-4 text-sm sm:col-span-2"><strong>{sendingToSelf ? `Update to yourself: ${receivingMember.display_name}` : `Caregiver handoff: ${state.currentUser.displayName} → ${receivingMember.display_name}`}</strong><span className="mt-1 block">{sendingToSelf ? 'This sends to your own account. Choose another caregiver to share the handover.' : `The update will be sent to ${receivingMember.display_name} through their enabled channels after approval. Sending an update does not transfer task ownership or confirm their acceptance.`}</span></output>}
+        {state.careCircle.some(member => member.status === 'invited') && <p className="text-sm text-muted-foreground sm:col-span-2">Pending caregivers: {state.careCircle.filter(member => member.status === 'invited').map(member => member.display_name).join(', ')}. They must accept their invitation before receiving updates.</p>}
         <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:col-span-2">
           <div>
             <p className="text-sm font-medium">Draft with Carestead AI</p>

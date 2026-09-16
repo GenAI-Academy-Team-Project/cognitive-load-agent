@@ -15,8 +15,11 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatMessage, ChatState } from '@/lib/types';
 
-export function CareChat({ recipientId, recipientName, canWrite, onActionCompleted, voiceAdapter, voiceFirst = false, defaultSpokenReplies = true, voiceEnabled = true, screen = 'Overview', screens = [], onNavigate = () => {}, mobile = false, autoListen = false, claimAutoListen }: { mobile?: boolean; autoListen?: boolean; claimAutoListen?: () => boolean; voiceEnabled?: boolean; screen?: string; screens?: string[]; onNavigate?: (screen: string) => void; voiceAdapter?: VoiceAdapter; voiceFirst?: boolean; defaultSpokenReplies?: boolean; recipientId: string; recipientName: string; canWrite: boolean; onActionCompleted: () => void }) {
-  const [open, setOpen] = useState(false);
+export function CareChat({ openRequest, recipientId, recipientName, canWrite, onActionCompleted, voiceAdapter, voiceFirst = false, defaultSpokenReplies = true, voiceEnabled = true, screen = 'Overview', screens = [], onNavigate = () => {}, mobile = false, autoListen = false, claimAutoListen }: { openRequest?: { recipientId: string; revision: number }; mobile?: boolean; autoListen?: boolean; claimAutoListen?: () => boolean; voiceEnabled?: boolean; screen?: string; screens?: string[]; onNavigate?: (screen: string) => void; voiceAdapter?: VoiceAdapter; voiceFirst?: boolean; defaultSpokenReplies?: boolean; recipientId: string; recipientName: string; canWrite: boolean; onActionCompleted: () => void }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const [dismissedRequest, setDismissedRequest] = useState<number>();
+  const open = localOpen || (openRequest?.recipientId === recipientId && openRequest.revision !== dismissedRequest);
+  function setOpen(value: boolean) { setLocalOpen(value); if (!value) setDismissedRequest(openRequest?.revision); }
   const [chat, setChat] = useState<ChatState | null>(null);
   const [previousMessageIds, setPreviousMessageIds] = useState<string[]>([]);
   const [showPrevious, setShowPrevious] = useState(false);

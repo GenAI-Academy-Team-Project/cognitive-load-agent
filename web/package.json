@@ -15,7 +15,12 @@
     "benchmark": "node benchmark/report.mjs",
     "benchmark:generate": "node benchmark/generate-synthetic.mjs",
     "test:accessibility": "playwright test",
-    "test:planning": "playwright test --config playwright.unit.config.ts"
+    "test:planning": "playwright test --config playwright.unit.config.ts",
+    "demo:login": "node scripts/story-demo-login.mjs",
+    "demo:seed": "node scripts/story-demo.mjs seed",
+    "demo:check": "node scripts/story-demo.mjs check",
+    "demo:clean": "node scripts/story-demo.mjs clean",
+    "test:demo": "node --test scripts/story-demo*.test.mjs scripts/calendar-demo*.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

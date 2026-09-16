@@ -160,3 +160,44 @@ test('cancel opens the review and repeated clicks reveal the existing proposal w
   await expect(review).toBeInViewport();
   expect(calls).toEqual(['propose']);
 });
+
+test('unscheduled intake task reviews a conflict and carries the approved option to the invitation', async ({ page }) => {
+  const dashboard = await (await page.request.get('/api/state')).json();
+  const planning = (await (await page.request.get(`/api/planning?recipientId=${dashboard.selectedRecipient.id}`)).json()).state;
+  const task = planning.tasks.find((item: { category: string }) => item.category === 'appointment');
+  task.due_at = '2030-01-15T20:00:00.000Z';
+  task.planning.owner_member_id = planning.memberId;
+  task.planning.duration_minutes = 60;
+  task.calendarLinked = false;
+  const blocker = { ...task, id: 'demo-overlap', title: 'Existing home-care visit', planning: { ...task.planning, task_id: 'demo-overlap' } };
+  planning.tasks = [task, blocker]; dashboard.tasks = [task, blocker];
+  const calendar: CalendarState = { configured: true, connection: { email: 'owner@example.test', status: 'connected' }, binding: { calendar_id: 'primary', calendar_name: 'Care calendar' }, calendars: [{ id: 'primary', summary: 'Care calendar' }], appointments: [], actions: [] };
+  const alternative = '2030-01-15T18:00:00.000Z';
+  let approved = false;
+  const calls: string[] = [];
+  await page.route('**/api/state*', route => route.fulfill({ json: dashboard }));
+  await page.route('**/api/calendar?*', route => route.fulfill({ json: calendar }));
+  await page.route('**/api/planning?*', route => route.fulfill({ json: { state: planning } }));
+  await page.route('**/api/agent-workflows', route => route.fulfill({ json: { options: [{ dueAt: alternative, label: 'Variable model label', rationale: 'Fits recorded availability.', uncertainty: 'Review before applying.', affected: [task.title], evidenceIds: [] }] } }));
+  await page.route('**/api/planning', async route => {
+    const body = route.request().postDataJSON(); calls.push(body.action);
+    if (body.action === 'apply_proposal') { approved = true; task.due_at = alternative; }
+    await route.fulfill({ json: { state: planning, proposalId: 'reviewed-move', simulation: { changes: [{ taskId: task.id, title: task.title, before: task.due_at, after: body.dueAt || task.due_at, dueAt: body.dueAt || task.due_at }], conflicts: !approved && body.dueAt !== alternative ? ['Maya has another responsibility at this time.'] : [], alternatives: [] } } });
+  });
+  await page.goto('/?view=Overview');
+  await page.getByRole('button', { name: 'Manage calendar', exact: true }).first().click();
+  const review = page.getByRole('region', { name: 'Responsibility scheduling review' });
+  await expect(review.getByText('Resolve scheduling conflicts', { exact: true })).toBeVisible();
+  await expect(review.getByRole('region', { name: 'Conflict calendar' })).toContainText('Existing home-care visit');
+  await expect(review.getByRole('button', { name: 'Schedule this responsibility', exact: true })).toBeDisabled();
+  await review.getByRole('button', { name: 'Suggest workable options' }).click();
+  await review.getByRole('button', { name: 'Review this option' }).click();
+  await expect(review.getByText('Proposed schedule — not applied')).toBeVisible();
+  expect(approved).toBe(false);
+  await review.getByRole('button', { name: 'Approve care-plan change' }).click();
+  await expect(review.getByRole('button', { name: 'Schedule this responsibility', exact: true })).toBeEnabled();
+  await review.getByRole('button', { name: 'Schedule this responsibility', exact: true }).click();
+  await expect(page.getByRole('dialog').getByLabel('Event title', { exact: true })).toHaveValue(task.title);
+  await expect(page.getByRole('dialog').getByLabel('Link a responsibility')).toHaveValue(task.id);
+  expect(calls).toContain('propose_simulation'); expect(calls).toContain('apply_proposal');
+});
