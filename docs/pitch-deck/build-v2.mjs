@@ -120,7 +120,7 @@ function note(slide, value) {
   text(slide, "Care Organizer", 510, 586, 220, 36, { size: 22 });
   text(slide, "Care Handover", 765, 586, 220, 36, { size: 22 });
   text(slide, "Grounded Agent", 1020, 586, 245, 36, { size: 22 });
-  text(slide, "Frincy Clement · Maneetta Antony · Tejaswini Venkata Raju · Shrijan Chipalu", 64, 680, 1100, 28, { size: 16, color: C.muted });
+  text(slide, "Frincy Clement · Maneetta Antony · Tejaswini Venkata Raju", 64, 680, 1100, 28, { size: 16, color: C.muted });
   note(slide, "SPEAKER 1 | Caregiving means managing more than tasks. One person often carries the changing checklist across appointments and people. Carestead reduces that load.");
 }
 
@@ -380,11 +380,8 @@ function note(slide, value) {
 {
   const slide = base("Mobile deployment track", 15, C.mint);
   title(slide, "Mobile", "The same care workspace is moving to iPhone.", "A Capacitor/iOS pilot reuses the responsive Carestead UI, shared types, and the same authenticated backend APIs.");
-  shape(slide, "roundRect", 90, 320, 280, 335, C.ink, "none", 36);
-  shape(slide, "roundRect", 106, 340, 248, 285, C.white, "none", 24);
-  text(slide, "+ Carestead", 132, 365, 195, 35, { size: 22, bold: true, color: C.green, align: "center" });
-  text(slide, "Plan\nChat + voice\nCalendar\nHandover\nApprovals", 132, 425, 195, 150, { size: 22, bold: true, color: C.ink, align: "center", valign: "middle" });
-  text(slide, "iOS pilot", 135, 582, 190, 24, { size: 14, color: C.muted, align: "center" });
+  await image(slide, "docs/pitch-deck/assets/current/mobile-ios-voice.png", 95, 300, 270, 405, "Carestead running in the iPhone simulator with Alex selected and voice interaction controls visible", "cover", 12);
+  text(slide, "Current iOS simulator view", 80, 716, 300, 22, { size: 12, color: C.muted, align: "center" });
   text(slide, "→", 395, 438, 70, 80, { size: 54, bold: true, color: C.green, align: "center" });
   card(slide, 485, 320, 380, 150, "Shared application layer", "Web and mobile import the same dashboard, chat, calendar, account flows, styles, and API types.", { fill: C.white, headingSize: 21, bodySize: 17 });
   card(slide, 485, 500, 380, 150, "Native adapter", "Restricted HTTPS API bridge plus native speech recognition and synthesis, with native share support.", { fill: "#EEF3EF", headingSize: 21, bodySize: 17 });

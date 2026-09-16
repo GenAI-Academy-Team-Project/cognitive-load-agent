@@ -23,7 +23,7 @@ Open `carestead-pitch.html` in a browser. The 12-slide v1 deck is self-contained
 - Left/right arrows, Page Up/Page Down, or on-screen controls move between slides.
 - Home/End jump to the first/last slide.
 - Notes (or N) opens presenter notes, including implementation limitations.
-- Print / PDF prints all 12 slides. The current PDF is `carestead-pitch-v1.pdf`; `carestead-pitch.pdf` is the earlier seven-slide export.
+- Print / PDF prints all 12 slides. The current PDF is `carestead-pitch-v1.pdf`.
 
 ## v1 revision
 
