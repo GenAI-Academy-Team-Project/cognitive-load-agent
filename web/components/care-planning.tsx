@@ -220,6 +220,7 @@ export function CarePlanning(props: Props) {
   );
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [conflictOptions, setConflictOptions] = useState<ConflictOption[]>([]);
+  const [selectedOptionDueAt, setSelectedOptionDueAt] = useState('');
   const [agentBusy, setAgentBusy] = useState(false);
   const [minutes, setMinutes] = useState(20);
   const selectedTask = state?.tasks.find((task) => task.id === taskId);
@@ -295,6 +296,7 @@ export function CarePlanning(props: Props) {
     setAgentBusy(true);
     setError('');
     setConflictOptions([]);
+    setSelectedOptionDueAt('');
     try {
       const response = await fetch('/api/agent-workflows', {
         method: 'POST',
@@ -564,6 +566,7 @@ export function CarePlanning(props: Props) {
                       setTaskId(e.target.value);
                       setSimulation(null);
                       setConflictOptions([]);
+                      setSelectedOptionDueAt('');
                     }}
                   >
                     <option value="">Choose a responsibility</option>
@@ -580,6 +583,7 @@ export function CarePlanning(props: Props) {
                   onChange={(value) => {
                     setNewTime(value);
                     setSimulation(null);
+                    setSelectedOptionDueAt('');
                   }}
                   zone={zone}
                 />
@@ -703,6 +707,7 @@ export function CarePlanning(props: Props) {
                     setNewTime('');
                     setSimulation(null);
                     setConflictOptions([]);
+                    setSelectedOptionDueAt('');
                     setError('');
                   }}
                 >
@@ -716,14 +721,23 @@ export function CarePlanning(props: Props) {
                     <button
                       type="button"
                       key={option.dueAt}
-                      className="rounded-xl border bg-background p-4 text-left hover:border-primary"
+                      aria-pressed={selectedOptionDueAt === option.dueAt}
+                      className={`rounded-xl border bg-background p-4 text-left hover:border-primary ${selectedOptionDueAt === option.dueAt ? 'border-primary ring-2 ring-primary/20' : ''}`}
                       onClick={() => {
                         setNewTime(localInput(option.dueAt, zone));
+                        setSelectedOptionDueAt(option.dueAt);
                         setSimulation(null);
                       }}
                     >
-                      <span className="font-medium">
-                        {option.label} · {when(option.dueAt, zone)}
+                      <span className="flex flex-wrap items-center justify-between gap-2 font-medium">
+                        <span>
+                          {option.label} · {when(option.dueAt, zone)}
+                        </span>
+                        {selectedOptionDueAt === option.dueAt && (
+                          <Badge>
+                            <Check /> Selected
+                          </Badge>
+                        )}
                       </span>
                       <span className="mt-1 block text-sm text-muted-foreground">
                         {option.rationale}
@@ -745,6 +759,35 @@ export function CarePlanning(props: Props) {
                     and explains them when available. Selecting an option does
                     not change the plan.
                   </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy || !selectedOptionDueAt}
+                      onClick={() => move()}
+                    >
+                      Preview selected option
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={
+                        busy ||
+                        !writable ||
+                        !selectedOptionDueAt ||
+                        !simulation ||
+                        simulation.conflicts.length > 0
+                      }
+                      onClick={() => move(true)}
+                    >
+                      Prepare selected option for approval
+                    </Button>
+                  </div>
+                  {selectedOptionDueAt && !simulation && (
+                    <p className="text-xs text-muted-foreground">
+                      Preview the selected option to confirm its ripple effect
+                      before preparing it for approval.
+                    </p>
+                  )}
                 </div>
               )}
               {simulation && (
