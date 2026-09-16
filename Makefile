@@ -6,7 +6,7 @@ export WRANGLER_SEND_METRICS := false
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 install: ## Install locked dependencies
-	cd web && npm ci
+	cd web && npm ci --legacy-peer-deps
 dev: ## Start development on HTTPS :8083, or HTTP :8080 without certificates
 	cd web && npm run dev
 build: ## Build the local Workers bundle
