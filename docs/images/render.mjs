@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 for (const name of [
   'carestead-core-features',
+  'carestead-agentic-capabilities',
   'carestead-technical-architecture',
   'carestead-user-journey',
   'carestead-decision-path',

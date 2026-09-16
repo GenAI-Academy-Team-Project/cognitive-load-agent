@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1190" viewBox="0 0 1600 1190" role="img" aria-labelledby="title desc">
+  <title id="title">Carestead agentic capabilities</title>
+  <desc id="desc">How Carestead combines recipient-scoped evidence, language models, deterministic agent orchestration, caregiver approval, and tools across eight product workflows.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbf8f1"/><stop offset="1" stop-color="#edf3ed"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173f31"/><stop offset="1" stop-color="#356a50"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#173f31" flood-opacity=".12"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0l10 5-10 5z" fill="#48735d"/></marker>
+    <style>
+      .sans{font-family:Inter,Arial,sans-serif}.serif{font-family:Georgia,serif}.ink{fill:#173a2e}.muted{fill:#62736b}
+      .box{fill:#fffdf8;stroke:#d2dcd4;stroke-width:2}.title{font:700 21px Inter,Arial,sans-serif;fill:#173a2e}
+      .class{font:700 13px Inter,Arial,sans-serif;fill:#48735d;letter-spacing:1px}.body{font:400 15px Inter,Arial,sans-serif;fill:#52665c}
+      .detail{font:400 14px Inter,Arial,sans-serif;fill:#62736b}.strong{font-weight:700;fill:#294d3d}.num{font:700 17px Inter,Arial,sans-serif;fill:#fff}
+      .flow{fill:none;stroke:#48735d;stroke-width:4;marker-end:url(#arrow)}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1190" fill="url(#bg)"/>
+  <circle cx="1490" cy="85" r="150" fill="#e5c982" opacity=".15"/><circle cx="75" cy="1110" r="175" fill="#90aa96" opacity=".12"/>
+  <text x="800" y="68" text-anchor="middle" class="serif ink" font-size="52" font-weight="700">Carestead agentic capabilities</text>
+  <text x="800" y="105" text-anchor="middle" class="sans muted" font-size="17" letter-spacing="4">ONE CONTROLLED LOOP ACROSS THE PRODUCT</text>
+  <text x="800" y="134" text-anchor="middle" class="sans muted" font-size="16">LLM intelligence where helpful • grounded evidence • caregiver approval • verified actions</text>
+
+  <path class="flow" d="M380 215H420M830 215H870M1180 215H1220"/>
+  <g transform="translate(50 155)" filter="url(#shadow)">
+    <rect class="box" width="330" height="120" rx="22"/>
+    <text x="165" y="42" text-anchor="middle" class="title">Observe + retrieve</text>
+    <text x="165" y="73" text-anchor="middle" class="body">Profile • care plan • calendar</text>
+    <text x="165" y="98" text-anchor="middle" class="body">Activity • contacts • risks</text>
+  </g>
+  <g transform="translate(420 155)" filter="url(#shadow)">
+    <rect width="410" height="120" rx="22" fill="url(#green)"/>
+    <text x="205" y="40" text-anchor="middle" class="sans" fill="#fffdf8" font-size="22" font-weight="700">Agent orchestrator</text>
+    <text x="205" y="72" text-anchor="middle" class="sans" fill="#dce9df" font-size="15">Ground • reason • constrain • propose</text>
+    <text x="205" y="98" text-anchor="middle" class="sans" fill="#f2dfad" font-size="13" font-weight="700" letter-spacing="1.2">LLM + DETERMINISTIC CONTROL</text>
+  </g>
+  <g transform="translate(870 155)" filter="url(#shadow)">
+    <rect width="310" height="120" rx="22" fill="#fffaf2" stroke="#d7b46e" stroke-width="2"/>
+    <text x="155" y="42" text-anchor="middle" class="title">Caregiver approval</text>
+    <text x="155" y="73" text-anchor="middle" class="body">Review • edit • approve</text>
+    <text x="155" y="98" text-anchor="middle" class="body">Human control before writes</text>
+  </g>
+  <g transform="translate(1220 155)" filter="url(#shadow)">
+    <rect width="330" height="120" rx="22" fill="#f4f8f4" stroke="#97ad9d" stroke-width="2"/>
+    <text x="165" y="42" text-anchor="middle" class="title">Tools + outcome</text>
+    <text x="165" y="73" text-anchor="middle" class="body">Act • verify • audit</text>
+    <text x="165" y="98" text-anchor="middle" class="body">Record success or failure</text>
+  </g>
+
+  <text x="800" y="316" text-anchor="middle" class="sans muted" font-size="15" letter-spacing="3">HOW AGENTIC INTELLIGENCE IS USED</text>
+
+  <g transform="translate(55 340)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#315f49"/><text x="44" y="48" text-anchor="middle" class="num">1</text>
+    <text x="82" y="37" class="title">Grounded care chat</text><text x="82" y="62" class="class">HYBRID AGENTIC WORKFLOW</text>
+    <text x="82" y="88" class="body">Answers from recipient evidence and turns action requests into reviewable steps.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> understand and synthesize  •  <tspan class="strong">Agent:</tspan> retrieve, route, approve, execute</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Text • voice input • spoken reply • structured records</text>
+  </g>
+  <g transform="translate(815 340)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#b65a3f"/><text x="44" y="48" text-anchor="middle" class="num">2</text>
+    <text x="82" y="37" class="title">Conflict resolution</text><text x="82" y="62" class="class">FULL AGENTIC WORKFLOW</text>
+    <text x="82" y="88" class="body">Finds feasible times, previews impact, and applies only an approved option.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> rank and explain  •  <tspan class="strong">Agent:</tspan> simulate, validate, reschedule, verify</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Calendar • availability • structured schedule</text>
+  </g>
+
+  <g transform="translate(55 521)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#b57a17"/><text x="44" y="48" text-anchor="middle" class="num">3</text>
+    <text x="82" y="37" class="title">Care-update extraction</text><text x="82" y="62" class="class">LLM-ASSISTED WORKFLOW</text>
+    <text x="82" y="88" class="body">Turns natural-language updates into editable tasks and clarification questions.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> extract intent and details  •  <tspan class="strong">Agent:</tspan> validate, match, approve, save</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Text • voice transcript</text>
+  </g>
+  <g transform="translate(815 521)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#315f49"/><text x="44" y="48" text-anchor="middle" class="num">4</text>
+    <text x="82" y="37" class="title">Intelligent handover</text><text x="82" y="62" class="class">GROUNDED READ-ONLY WORKFLOW</text>
+    <text x="82" y="88" class="body">Summarizes current state, changes, risks, priorities, contacts, and watch items.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> evidence-backed summary  •  <tspan class="strong">Agent:</tspan> scoped retrieval, citation checks</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Structured records • text summary</text>
+  </g>
+
+  <g transform="translate(55 702)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#315f49"/><text x="44" y="48" text-anchor="middle" class="num">5</text>
+    <text x="82" y="37" class="title">Adaptive care-plan builder</text><text x="82" y="62" class="class">LLM PLANNING WORKFLOW</text>
+    <text x="82" y="88" class="body">Builds a reusable draft plan and asks for missing timing, owner, or support details.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> propose plan  •  <tspan class="strong">Agent:</tspan> isolate data, validate, approve, create tasks</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Text • profile data • plan templates</text>
+  </g>
+  <g transform="translate(815 702)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#b65a3f"/><text x="44" y="48" text-anchor="middle" class="num">6</text>
+    <text x="82" y="37" class="title">Communication composer</text><text x="82" y="62" class="class">LLM + DELIVERY WORKFLOW</text>
+    <text x="82" y="88" class="body">Drafts recipient-grounded messages while sending remains approval-aware.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> draft and adapt tone  •  <tspan class="strong">Agent:</tspan> audience, channel, approval, receipt</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Text • email • SMS • push • in-app</text>
+  </g>
+
+  <g transform="translate(55 883)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#b57a17"/><text x="44" y="48" text-anchor="middle" class="num">7</text>
+    <text x="82" y="37" class="title">Document and image intake</text><text x="82" y="62" class="class">MULTIMODAL LLM WORKFLOW</text>
+    <text x="82" y="88" class="body">Extracts dates, contacts, follow-ups, facts, and uncertainty for caregiver review.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> multimodal extraction  •  <tspan class="strong">Agent:</tspan> consent, validate, approve, track</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Image • PDF • text file</text>
+  </g>
+  <g transform="translate(815 883)" filter="url(#shadow)">
+    <rect class="box" width="730" height="165" rx="22"/>
+    <circle cx="44" cy="42" r="23" fill="#315f49"/><text x="44" y="48" text-anchor="middle" class="num">8</text>
+    <text x="82" y="37" class="title">Risk checks and memory</text><text x="82" y="62" class="class">DETERMINISTIC AGENT WORKFLOW</text>
+    <text x="82" y="88" class="body">Detects coordination risks and retrieves durable, source-linked recipient facts.</text>
+    <text x="82" y="114" class="detail"><tspan class="strong">LLM:</tspan> optional explanation  •  <tspan class="strong">Agent:</tspan> rules, retrieval, policy, traces</text>
+    <text x="82" y="142" class="detail"><tspan class="strong">Modes:</tspan> Structured data • rules • audit events</text>
+  </g>
+
+  <g transform="translate(55 1070)">
+    <rect width="1490" height="82" rx="22" fill="#173f31"/>
+    <text x="32" y="33" class="sans" fill="#f2dfad" font-size="13" font-weight="700" letter-spacing="1.5">SHARED SAFETY FOUNDATION</text>
+    <text x="32" y="61" class="sans" fill="#fffdf8" font-size="16">Authentication • recipient-scoped D1 retrieval • consent • roles • strict schemas • approval • deterministic tools • outcome and audit traces</text>
+  </g>
+</svg>

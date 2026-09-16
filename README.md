@@ -30,61 +30,7 @@ Caregiving is not one task—it is the ongoing work of remembering what changed,
 
 Carestead uses language understanding where it helps while keeping authorization, scheduling feasibility, approvals, and writes deterministic.
 
-| Workflow | What the model contributes | Product control | AI pattern |
-| --- | --- | --- | --- |
-| **Grounded care chat** | Answers questions from the selected recipient’s current profile, responsibilities, memories, contacts, risks, and recent activity, with evidence references. | Recipient-scoped retrieval and evidence-ID validation prevent unsupported or cross-recipient answers. | **Hybrid agentic workflow:** the orchestrator retrieves evidence and controls actions; the LLM performs grounded synthesis. |
-| **Care-update extraction** | Turns a spoken, typed, or pasted update into editable responsibility drafts. | The caregiver confirms missing details and prepares the selected drafts for approval. A deterministic extractor remains available as fallback. | **LLM extraction in an approval workflow:** the model structures language; deterministic code validates and applies approved drafts. |
-| **Intelligent handover** | Produces a concise brief of current state, recent changes, priorities, risks, and supporting evidence. | The live structured handover remains the source of truth; the generated brief does not change care data. | **Grounded LLM synthesis:** retrieval and evidence validation surround a read-only summarization step. |
-| **Conflict resolution** | Ranks and explains workable scheduling choices. | Candidate times are generated and revalidated by the deterministic scheduler. The user selects and previews an option before preparing it for approval. | **Hybrid agentic workflow:** deterministic tools generate and verify options; the LLM ranks and explains them. |
-| **Adaptive care-plan builder** | Proposes a reusable set of responsibilities and clarification questions from the recipient profile and caregiver description. | Drafts are editable, another recipient’s private history is never copied, and nothing is applied without approval. | **LLM planning assistant:** the model proposes a structured plan while the orchestrator enforces isolation, validation, and approval. |
-| **Communication composer** | Drafts recipient-grounded SMS, family, formal, calendar, or response-style messages. | The caregiver chooses the recipient and channel, edits the exact text, and approves delivery through existing notification controls. | **LLM drafting in an agentic delivery flow:** the model writes the draft; deterministic services control audience, channel, approval, and delivery. |
-| **Document and image intake** | Extracts explicit dates, follow-ups, contacts, task drafts, and facts from PDF, TXT, PNG, JPG, or WebP files. | Processing requires consent, the source file is not retained, uncertain details are surfaced, and extracted facts remain unverified. | **Multimodal LLM extraction:** the model reads the source; deterministic controls govern consent, validation, verification state, and persistence. |
-
-## Product walkthrough
-
-The screenshots below use synthetic demonstration data.
-
-### Reusable care plans
-
-Caregivers can start with a built-in plan, personalize its responsibilities, save a de-identified template, or clone the plan structure for another person. Recipient history, memories, approvals, and past outcomes remain isolated.
-
-![Carestead reusable care plan and templates](docs/screenshots/care-plan.png)
-
-### Grounded chat with voice controls
-
-Ask Carestead answers from the selected recipient’s current profile and care state. The microphone starts browser speech recognition, spoken replies can be enabled separately, and only transcript text is retained.
-
-![Carestead grounded chat with voice controls](docs/screenshots/voice-chat.png)
-
-### Appointment rescheduling with caregiver approval
-
-An appointment request becomes a typed proposal. Carestead shows the intended change and supporting evidence, but no write occurs until an authorized caregiver approves it.
-
-![Carestead appointment rescheduling approval](docs/screenshots/appointment-approval.png)
-
-### Validated conflict resolution and reviewable plans
-
-The **What if?** workflow checks a proposed move and its dependent responsibilities against the live care plan and shared availability. **Suggest workable options** starts with deterministically feasible times; AI ranks and explains those candidates when available, and a deterministic explanation keeps the workflow usable if the model does not return safe choices. A caregiver selects an option, previews the ripple effect, and prepares it for approval. The resulting **Reviewable plans** queue appears immediately below the active planning workflow.
-
-Preparing the same change repeatedly reuses its pending proposal instead of creating duplicate approvals. When one scheduling proposal is applied, overlapping pending alternatives are retired while their history remains available for audit.
-
-![Carestead validated conflict options and reviewable plans](docs/screenshots/validated-conflict-options.png)
-
-### Multi-channel notifications
-
-Caregivers can choose a message template, select a receiving care-circle member, and prepare notifications for the Carestead inbox, mobile push, email, SMS, or browser push. Each selected channel gets its own approval draft; external delivery requires the channel to be configured and the receiving caregiver’s settings to allow it.
-
-![Carestead notification composer with message templates and multiple delivery channels](docs/screenshots/multi-channel-notifications.png)
-
-### Document and image intake
-
-The intake workflow accepts PDF, TXT, PNG, JPG, and WebP files up to 5 MB. It extracts only explicit information, shows warnings and clarification questions, and lets the caregiver edit or remove every proposed responsibility and fact before preparing an approval.
-
-![Carestead document and image intake with extracted reviewable items](docs/screenshots/document-image-intake.png)
-
-This synthetic appointment notice illustrates the kind of explicit dates, contact details, follow-ups, and uncertainty the intake workflow can identify for caregiver review.
-
-<img src="docs/samples/physiotherapy-appointment-intake.png" alt="Synthetic physiotherapy appointment notice for image-intake testing" width="480">
+![Carestead agentic capabilities across product workflows](docs/images/carestead-agentic-capabilities.png)
 
 ## How the agent works
 
@@ -134,6 +80,52 @@ The model works through narrow logical tool contracts; direct write tools are de
 | **Adaptive care plan** | `get_recipient_profile`, `get_plan_template`, `propose_template_adaptation`, `request_clarification` | Responsibilities become a reviewable bundle; another person’s history is never copied. |
 | **Communication composer** | `get_verified_outcome`, `get_care_circle_member`, `draft_notification` | AI fills a draft only. Existing channel-specific approval and delivery controls send it. |
 | **Document and image intake** | `analyze_document`, `propose_responsibility_bundle`, `propose_trusted_fact`, `request_clarification` | The source file is not retained. Approved facts enter D1 as `review_due`, not verified. |
+
+## Product walkthrough
+
+The screenshots below use synthetic demonstration data.
+
+### Reusable care plans
+
+Caregivers can start with a built-in plan, personalize its responsibilities, save a de-identified template, or clone the plan structure for another person. Recipient history, memories, approvals, and past outcomes remain isolated.
+
+![Carestead reusable care plan and templates](docs/screenshots/care-plan.png)
+
+### Grounded chat with voice controls
+
+Ask Carestead answers from the selected recipient’s current profile and care state. The microphone starts browser speech recognition, spoken replies can be enabled separately, and only transcript text is retained.
+
+![Carestead grounded chat with voice controls](docs/screenshots/voice-chat.png)
+
+### Appointment rescheduling with caregiver approval
+
+An appointment request becomes a typed proposal. Carestead shows the intended change and supporting evidence, but no write occurs until an authorized caregiver approves it.
+
+![Carestead appointment rescheduling approval](docs/screenshots/appointment-approval.png)
+
+### Validated conflict resolution and reviewable plans
+
+The **What if?** workflow checks a proposed move and its dependent responsibilities against the live care plan and shared availability. **Suggest workable options** starts with deterministically feasible times; AI ranks and explains those candidates when available, and a deterministic explanation keeps the workflow usable if the model does not return safe choices. A caregiver selects an option, previews the ripple effect, and prepares it for approval. The resulting **Reviewable plans** queue appears immediately below the active planning workflow.
+
+Preparing the same change repeatedly reuses its pending proposal instead of creating duplicate approvals. When one scheduling proposal is applied, overlapping pending alternatives are retired while their history remains available for audit.
+
+![Carestead validated conflict options and reviewable plans](docs/screenshots/validated-conflict-options.png)
+
+### Multi-channel notifications
+
+Caregivers can choose a message template, select a receiving care-circle member, and prepare notifications for the Carestead inbox, mobile push, email, SMS, or browser push. Each selected channel gets its own approval draft; external delivery requires the channel to be configured and the receiving caregiver’s settings to allow it.
+
+![Carestead notification composer with message templates and multiple delivery channels](docs/screenshots/multi-channel-notifications.png)
+
+### Document and image intake
+
+The intake workflow accepts PDF, TXT, PNG, JPG, and WebP files up to 5 MB. It extracts only explicit information, shows warnings and clarification questions, and lets the caregiver edit or remove every proposed responsibility and fact before preparing an approval.
+
+![Carestead document and image intake with extracted reviewable items](docs/screenshots/document-image-intake.png)
+
+This synthetic appointment notice illustrates the kind of explicit dates, contact details, follow-ups, and uncertainty the intake workflow can identify for caregiver review.
+
+<img src="docs/samples/physiotherapy-appointment-intake.png" alt="Synthetic physiotherapy appointment notice for image-intake testing" width="480">
 
 ## Tech stack
 
