@@ -1017,6 +1017,33 @@ export function CarePlanning(props: Props) {
               )}
             </section>
           )}
+          <section className="space-y-4" id="reviewable-plans">
+            <h2 className="font-heading text-xl font-semibold">
+              Reviewable plans
+            </h2>
+            <PaginatedList
+              label="Reviewable plans"
+              records={state.proposals}
+              resetKey={dashboard.selectedRecipient.id}
+            >
+              {state.proposals.map((proposal) => (
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  state={state}
+                  zone={zone}
+                  act={act}
+                  disabled={!writable || busy}
+                />
+              ))}
+            </PaginatedList>
+            {!state.proposals.length && (
+              <Empty>
+                Your coverage plans, simulations, and organized updates will
+                appear here for review.
+              </Empty>
+            )}
+          </section>
           <section className="space-y-4">
             <h2 className="font-heading text-xl font-semibold">
               Requests waiting for you
@@ -1086,33 +1113,6 @@ export function CarePlanning(props: Props) {
                 offer.member_id === state.memberId &&
                 offer.status === 'pending',
             ) && <Empty>No coverage requests are waiting for you.</Empty>}
-          </section>
-          <section className="space-y-4" id="reviewable-plans">
-            <h2 className="font-heading text-xl font-semibold">
-              Reviewable plans
-            </h2>
-            <PaginatedList
-              label="Reviewable plans"
-              records={state.proposals}
-              resetKey={dashboard.selectedRecipient.id}
-            >
-              {state.proposals.map((proposal) => (
-                <ProposalCard
-                  key={proposal.id}
-                  proposal={proposal}
-                  state={state}
-                  zone={zone}
-                  act={act}
-                  disabled={!writable || busy}
-                />
-              ))}
-            </PaginatedList>
-            {!state.proposals.length && (
-              <Empty>
-                Your coverage plans, simulations, and organized updates will
-                appear here for review.
-              </Empty>
-            )}
           </section>
         </>
       )}
