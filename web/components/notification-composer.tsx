@@ -61,6 +61,9 @@ export function NotificationComposer({
   const recipientId = state.selectedRecipient.id;
   const [template, setTemplate] = useState('custom');
   const [composing, setComposing] = useState(Boolean(initialDraft));
+  useEffect(() => {
+    if (initialDraft && !composing) setComposing(true);
+  }, [initialDraft, composing]);
   const [memberId, setMemberId] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>([
     'in_app',
@@ -268,7 +271,6 @@ export function NotificationComposer({
       {notice && <output className="mt-3 block text-sm">{notice}</output>}
       <form
         id="notification-compose-form"
-        hidden={!composing}
         className={`${composing ? 'grid' : 'hidden'} mt-5 min-w-0 gap-4 sm:grid-cols-2`}
         onSubmit={async (event) => {
           event.preventDefault();

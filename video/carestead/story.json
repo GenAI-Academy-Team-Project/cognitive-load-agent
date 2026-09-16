@@ -1,0 +1,28 @@
+{
+  "title": "Carestead — Less to carry",
+  "width": 1920, "height": 1080, "fps": 24, "duration": 60,
+  "scenes": [
+    {"id":"load", "start":0, "end":7},
+    {"id":"problem", "start":7, "end":13},
+    {"id":"meet", "start":13, "end":21},
+    {"id":"notice", "start":21, "end":30},
+    {"id":"whatif", "start":30, "end":39},
+    {"id":"control", "start":39, "end":48},
+    {"id":"handover", "start":48, "end":53},
+    {"id":"payoff", "start":53, "end":56.5},
+    {"id":"brand", "start":56.5, "end":60}
+  ],
+  "narration": [
+    {"start":0.35,"end":6.8,"text":"In caregiving, one small change rarely stays small. An appointment moves. A whole new plan to coordinate."},
+    {"start":7.1,"end":12.9,"text":"A calendar knows an appointment changed. Someone still has to connect the dots."},
+    {"start":13.15,"end":20.7,"text":"Meet Carestead. One shared care picture, so Maya doesn't have to keep rebuilding it in her head."},
+    {"start":21.1,"end":24.7,"speaker":"maya","text":"Carestead, what should I know about Alex today?"},
+    {"start":25,"end":29.8,"text":"Carestead connects the change to what could fall through the cracks."},
+    {"start":30.5,"end":34,"speaker":"maya","text":"I won't be available Friday. What needs coverage?"},
+    {"start":34.2,"end":38.8,"text":"It looks ahead, showing affected responsibilities and gaps in coverage."},
+    {"start":39.2,"end":47.7,"text":"Then, a coordinated next step. Consequential changes wait for Maya's review. Carestead helps coordinate. Maya stays in control."},
+    {"start":48.2,"end":53,"text":"When someone else steps in, the context moves with the care."},
+    {"start":53.15,"end":56.4,"text":"Less to remember. More room to be present."},
+    {"start":56.65,"end":59.9,"text":"Carestead. Less to carry. More care to give."}
+  ]
+}

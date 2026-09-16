@@ -1,0 +1,290 @@
+Create a polished 45 to 60 second product video for Carestead.
+
+First inspect the existing Carestead repository and reuse its logo, colors, typography, branding, and UI patterns. Build the video separately and do not modify the working application.
+
+PRODUCT STORY
+
+Carestead is a caregiver cognitive load agent.
+
+The problem is not that care information does not exist. It already lives across calendars, messages, notes, documents, responsibilities, contacts, and people.
+
+The problem is that someone still has to connect it all:
+
+What changed?
+Who does it affect?
+What needs attention?
+What could fall through the cracks?
+What should happen next?
+
+Carestead helps carry that coordination load.
+
+The key distinction should be:
+
+“A calendar knows an appointment changed. Carestead helps understand what that change means for everything around it.”
+
+STYLE
+
+Create a premium, warm, cinematic technology product film.
+
+Use photorealistic people, realistic home environments, natural lighting, subtle movement, and polished mobile UI.
+
+Maya is a capable working woman in her late 30s who coordinates care for Alex while balancing work and family.
+
+Carestead should primarily appear as a mobile app on Maya’s smartphone.
+
+Avoid cartoons, figurines, robots, futuristic AI visuals, hospitals, or stereotypical elderly care imagery.
+
+SCENE 1 — THE LOAD
+0:00–0:07
+
+Maya is getting ready for work.
+
+Her phone receives:
+
+“Alex’s physiotherapy moved to 3:30 PM.”
+
+Thoughts appear around her:
+
+“Meeting at 3”
+“Who can drive Alex?”
+“Does Priya know?”
+“What else does this affect?”
+“What am I forgetting?”
+
+These represent mental load, not notifications.
+
+Voiceover:
+
+“In caregiving, one small change rarely stays small. An appointment moves, and suddenly there’s a whole new plan to coordinate.”
+
+
+SCENE 2 — THE PROBLEM
+0:07–0:13
+
+Show Maya moving between calendar, messages, notes, tasks, contacts, and care information on her phone.
+
+The information exists, but Maya is connecting everything herself.
+
+On screen:
+
+“Someone still has to connect the dots.”
+
+Voiceover:
+
+“The information may already be there. The hard part is connecting what changed, who it affects, and what needs to happen next.”
+
+
+SCENE 3 — MEET CARESTEAD
+0:13–0:21
+
+Maya opens the Carestead mobile app.
+
+The fragmented information comes together into Alex’s shared care picture:
+
+Care Plan
+Responsibilities
+Schedule
+Care Circle
+Trusted Information
+Recent Activity
+
+Briefly show image/document intake:
+
+Maya photographs or uploads a care document.
+
+Carestead extracts useful information such as:
+
+Follow up date
+Contact
+Visit preparation
+
+Show:
+
+“Review required”
+
+Maya confirms it.
+
+Keep this interaction to 1 to 2 seconds. Image intake is a supporting feature, not the focus.
+
+Voiceover:
+
+“Meet Carestead. It brings the changing pieces of care into one shared picture, so Maya doesn’t have to keep rebuilding it in her head.”
+
+On screen:
+
+“CARESTEAD”
+“One shared care picture.”
+
+
+SCENE 4 — NOTICE + CONNECT
+0:21–0:30
+
+This is a hero product moment.
+
+Maya taps the microphone in the Carestead mobile app and says:
+
+“Carestead, what should I know about Alex today?”
+
+Show Carestead connecting:
+
+Physiotherapy moved to 3:30
+→ Maya unavailable
+→ Transportation affected
+→ Visit preparation has no owner
+
+Then show:
+
+“2 things need attention”
+
+“Transportation coverage needs review”
+
+“Visit preparation has no owner”
+
+Include “View evidence.”
+
+Do not make this look like generic chatbot output.
+
+Voiceover:
+
+“Carestead connects what changed to the people and responsibilities around it, helping surface what could fall through the cracks.”
+
+On screen:
+
+“NOTICE. CONNECT.”
+
+
+SCENE 5 — WHAT IF?
+0:30–0:39
+
+Maya receives:
+
+“Work trip Friday”
+
+She asks Carestead by voice:
+
+“I won’t be available Friday. What needs coverage?”
+
+Carestead evaluates Alex’s schedule, responsibilities, dependencies, Care Circle, and caregiver availability.
+
+Show:
+
+“3 responsibilities affected”
+
+Physiotherapy transportation
+Prescription pickup
+Evening check in
+
+Then:
+
+“1 coverage gap”
+
+Voiceover:
+
+“When Maya’s plans change, she doesn’t have to mentally rebuild Alex’s day. Carestead can look ahead and show where coverage is needed.”
+
+On screen:
+
+“WHAT IF?”
+“PLAN AHEAD.”
+
+
+SCENE 6 — COORDINATE + CONTROL
+0:39–0:48
+
+Carestead proposes:
+
+“Friday Coverage Plan”
+
+Priya → Physiotherapy transportation
+David → Prescription pickup
+Sarah → Evening check in
+
+Clearly show:
+
+Approve | Edit | Cancel
+
+Nothing happens automatically.
+
+Maya reviews the proposal and taps Approve.
+
+Show:
+
+“Coverage updated”
+
+Voiceover:
+
+“Carestead can turn what needs attention into a coordinated next step. But consequential changes wait for Maya’s review. Carestead helps coordinate. Maya stays in control.”
+
+On screen:
+
+“COORDINATE. REVIEW. DECIDE.”
+
+
+SCENE 7 — HANDOVER + PAYOFF
+0:48–0:60
+
+Priya arrives to support Alex.
+
+She opens Carestead on her own smartphone and already sees a concise handover:
+
+Alex · Today
+
+What changed
+Physiotherapy moved to 3:30
+
+Transportation
+Priya
+
+Completed
+Prescription pickup
+
+Needs attention
+Evening check in
+
+Key contacts
+
+Priya understands the current situation without Maya having to reconstruct everything.
+
+Then return to Maya.
+
+Mirror Scene 1. Life is still busy, but the floating mental checklist is gone. Maya puts down her phone and is present with Alex or her family.
+
+Voiceover:
+
+“When someone else steps in, the context moves with the care. Less to reconstruct. Less to remember. More room to be present.”
+
+FINAL SCREEN:
+
+CARESTEAD
+
+Less to carry. More care to give.
+
+You care. We plan.
+
+
+Voice should be a natural way Maya accesses these capabilities.
+
+Image/document intake should be visible but secondary.
+
+Carestead supports care coordination only. Never show it diagnosing, prescribing, changing medication doses, or making clinical decisions.
+
+IMPLEMENTATION
+
+Create this as a separate renderable video project, 
+
+
+Create reusable components for:
+smartphone UI,
+mental load thoughts,
+risk cards,
+coverage plan,
+approval controls,
+handover,
+and final branding.
+
+Keep scene timing and narration easy to edit.
+
+Target 1920x1080, 16:9, approximately 45 to 60 seconds.
+
+
+The final video should feel like one continuous product story, not a slideshow or feature tour.

@@ -1,0 +1,16 @@
+{
+  "decodedSuccessfully": true,
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "frames": 1440,
+  "durationSeconds": 60.0,
+  "videoCodec": "H.264",
+  "audioCodec": "AAC",
+  "audioPeak": 0.7447590231895447,
+  "narrationSegments": 11,
+  "captionCues": 25,
+  "sceneTimelineContinuous": true,
+  "humanVisuals": "AI-generated stills with camera movement; not live-action footage",
+  "ui": "Animated illustrative mobile UI based on repository branding"
+}

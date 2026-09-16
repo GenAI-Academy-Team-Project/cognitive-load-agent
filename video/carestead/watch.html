@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carestead — Less to carry</title>
+<style>
+@font-face{font-family:Outfit;src:url(assets/Outfit.ttf)}
+@font-face{font-family:DM;src:url(assets/DM-Sans.ttf)}
+*{box-sizing:border-box}body{margin:0;background:#284536;color:#fffaf2;font-family:DM,system-ui,sans-serif;padding:32px clamp(20px,5vw,96px)}
+header{display:flex;align-items:center;gap:14px;margin-bottom:30px;font:530 28px Outfit, sans-serif}header img{width:42px;height:42px}
+main{max-width:1500px;margin:auto}video{display:block;width:100%;aspect-ratio:16/9;background:#17251c;border-radius:12px;box-shadow:0 20px 60px #10231860}
+h1{font:530 clamp(28px,4vw,48px) Outfit,sans-serif;margin:28px 0 10px}p{color:#d7e4ce;line-height:1.6}nav{display:flex;gap:24px;flex-wrap:wrap;margin:24px 0}a{color:#fffaf2;text-underline-offset:6px}a:focus-visible{outline:2px solid #fffaf2;outline-offset:7px}
+</style>
+<main>
+<header><img src="assets/logo.svg" alt="">Carestead</header>
+<video controls playsinline preload="metadata" poster="output/poster.jpg">
+<source src="output/carestead-film.mp4" type="video/mp4">
+<track kind="captions" src="output/captions.vtt" srclang="en" label="English">
+Your browser does not support embedded video. Download the film below.
+</video>
+<h1>Less to carry. More care to give.</h1>
+<p>You care. We plan.</p>
+<nav aria-label="Film files"><a href="output/carestead-film.mp4" download>Download film</a><a href="output/storyboard.jpg">View storyboard</a><a href="output/captions.vtt" download>English captions</a></nav>
+</main>
+</html>
