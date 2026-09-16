@@ -70,6 +70,8 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     ]
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
+    private var speechRecognizer: SFSpeechRecognizer?
+    private var finishingSpeech = false
     private var speechTask: SFSpeechRecognitionTask?
     private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
     private var speechCall: CAPPluginCall?
@@ -80,7 +82,12 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     public override func load() {
         synthesizer.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(pauseVoice), name: UIApplication.didEnterBackgroundNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(pauseVoice), name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
+    }
+    @objc private func audioInterrupted(_ notification: Notification) {
+        guard let value = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              AVAudioSession.InterruptionType(rawValue: value) == .began else { return }
+        pauseVoice()
     }
     @objc private func pauseVoice() {
         DispatchQueue.main.async {
@@ -90,6 +97,20 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
     }
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         if speechCall == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+    }
+
+    // Stop supplying audio first, then give Speech time to deliver its final result.
+    // Explicit cancellation still discards everything immediately via finishSpeech.
+    private func endSpeechInput() {
+        guard let call = speechCall, !finishingSpeech else { return }
+        finishingSpeech = true
+        speechTimer?.invalidate()
+        audioEngine.stop()
+        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
+        speechRequest?.endAudio()
+        speechTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
+            if self.speechCall === call { self.finishSpeech() }
+        }
     }
 
     private func finishSpeech(_ error: String? = nil) {
@@ -103,6 +124,8 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
         speechTask?.cancel()
         speechTask = nil
         speechRequest = nil
+        speechRecognizer = nil
+        finishingSpeech = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         if let error = error { call?.reject(error) }
         else if speechText.isEmpty { call?.reject("No speech heard. Please try again.") }
@@ -129,6 +152,7 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
                             let session = AVAudioSession.sharedInstance()
                             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
                             try session.setActive(true, options: .notifyOthersOnDeactivation)
+                            self.speechRecognizer = recognizer
                             let request = SFSpeechAudioBufferRecognitionRequest()
                             request.shouldReportPartialResults = true
                             self.speechRequest = request
@@ -143,19 +167,28 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate, 
                                 DispatchQueue.main.async {
                                     guard self.speechCall === call else { return }
                                     if let result = result {
-                                        self.speechText = result.bestTranscription.formattedString
-                                        self.speechTimer?.invalidate()
-                                        self.speechTimer = Timer.scheduledTimer(withTimeInterval: 1.8, repeats: false) { _ in self.finishSpeech() }
+                                        let text = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !text.isEmpty { self.speechText = text }
                                         if result.isFinal { self.finishSpeech(); return }
+                                        if !self.finishingSpeech && !text.isEmpty {
+                                            self.speechTimer?.invalidate()
+                                            self.speechTimer = Timer.scheduledTimer(withTimeInterval: 1.8, repeats: false) { _ in
+                                                if self.speechCall === call { self.endSpeechInput() }
+                                            }
+                                        }
                                     }
-                                    if error != nil { self.finishSpeech("Speech recognition interrupted. Please try again.") }
+                                    if error != nil {
+                                        self.finishSpeech(self.finishingSpeech && !self.speechText.isEmpty ? nil : "Speech recognition interrupted. Please try again.")
+                                    }
                                 }
                             }
                             self.audioEngine.prepare()
                             try self.audioEngine.start()
-                            self.speechTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in self.finishSpeech() }
+                            self.speechTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
+                                if self.speechCall === call { self.endSpeechInput() }
+                            }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
-                                if self.speechCall === call { self.finishSpeech() }
+                                if self.speechCall === call { self.endSpeechInput() }
                             }
                         } catch { self.finishSpeech("Unable to start the microphone. Please try again.") }
                     }

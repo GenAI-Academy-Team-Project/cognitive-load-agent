@@ -94,11 +94,13 @@ async function messagesFor(db: D1Database, threadId: string): Promise<ChatMessag
   }));
 }
 
-async function chatState(db: D1Database, access: Access, threadId: string, notifications = false): Promise<ChatState> {
+async function chatState(db: D1Database, env: typeof import('cloudflare:workers').env, access: Access, threadId: string, notifications = false): Promise<ChatState> {
   // The composer reads pending drafts directly; app activity is never a chat message.
   const drafts = notifications ? await rows<ActionRow & { created_at: string }>(db,
     "SELECT * FROM chat_action_requests WHERE thread_id=? AND recipient_id=? AND action_type='send_notification' AND status='pending' ORDER BY created_at,id",
     [threadId, access.recipientId]) : [];
+
+  const llmConfig = await effectiveIntegrations(db, env);
 
   return {
     recipientId: access.recipientId,
@@ -110,10 +112,10 @@ async function chatState(db: D1Database, access: Access, threadId: string, notif
     })) : await messagesFor(db, threadId),
     quickPrompts,
     tools: [sendNotificationTool],
-    agentMode: modelEnabled(env) ? 'model' : 'deterministic',
-    model: modelEnabled(env) ? (env.OPENAI_MODEL || 'gpt-5.6-terra') : undefined,
-    notificationChannels: configuredChannels(await effectiveIntegrations(db, env)),
-    capabilities: { voiceInput: true, spokenReplies: true, externalDelivery: configuredChannels(await effectiveIntegrations(db, env)).length > 1 },
+    agentMode: modelEnabled(llmConfig) ? 'model' : 'deterministic',
+    model: modelEnabled(llmConfig) ? (llmConfig.OPENAI_MODEL || 'gpt-5.6-terra') : undefined,
+    notificationChannels: configuredChannels(llmConfig),
+    capabilities: { voiceInput: true, spokenReplies: true, externalDelivery: configuredChannels(llmConfig).length > 1 },
   };
 }
 
@@ -334,7 +336,7 @@ export async function GET(request: Request) {
     if (!recipientId) throw new AppError('recipient_required', 400, 'Choose a care recipient');
     const context = await resolveContext(request, recipientId);
     if ('error' in context) return context.error;
-    return Response.json(await chatState(context.db, context.access, context.threadId, new URL(request.url).searchParams.get('scope') === 'notifications'), { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(await chatState(context.db, env, context.access, context.threadId, new URL(request.url).searchParams.get('scope') === 'notifications'), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     await ensureDatabase(env.DB);
     await recordError(env.DB, { requestId, route: '/api/chat', action: 'read', errorCode: error instanceof AppError ? error.code : 'unhandled' });
@@ -437,7 +439,7 @@ export async function POST(request: Request) {
         if (conversationAction) await saveMessage(db, threadId, 'assistant', outcome, [evidence('Completed tool', action.action_type.replaceAll('_', ' ')), evidence('Audit', 'Approved action and outcome saved to the recipient timeline.')], action.id, new Date(Date.now() + 1).toISOString());
       }
     }
-    return Response.json(await chatState(db, access, threadId, preview.scope === 'notifications' || preview.action === 'propose_notification' || preview.action === 'edit_notification'), { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json(await chatState(db, env, access, threadId, preview.scope === 'notifications' || preview.action === 'propose_notification' || preview.action === 'edit_notification'), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     await ensureDatabase(env.DB);
     await recordError(env.DB, { requestId, route: '/api/chat', action: preview.action || 'unknown', errorCode: error instanceof AppError ? error.code : 'unhandled', recipientId: preview.recipientId });

@@ -56,11 +56,21 @@ test('account preference preserves both inputs across web/mobile and native-adap
   expect(await page.evaluate(() => (window as any).testVoice.spoken)).toEqual([]);
   const before = await (await page.request.get(`/api/chat?recipientId=${saved.selectedRecipient.id}`)).json();
   await microphone.click();
-  await page.getByRole('button', { name: 'Stop voice listening', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
   await page.evaluate(() => (window as any).testVoice.resolve('Discard this recording'));
+  await expect(page.getByRole('status')).toContainText('Recording cancelled. Nothing was sent.');
   expect((await (await page.request.get(`/api/chat?recipientId=${saved.selectedRecipient.id}`)).json()).messages.length).toBe(before.messages.length);
+
+  // An empty native result must explain the failure and allow a fresh attempt.
+  await microphone.click();
+  await page.evaluate(() => (window as any).testVoice.resolve('   '));
+  await expect(page.getByRole('status')).toContainText('No speech heard.');
+  await microphone.click();
+  await page.evaluate(() => (window as any).testVoice.resolve('What needs attention today?'));
+  await expect(page.getByRole('region', { name: 'Carestead voice assistant' })).toContainText('You: What needs attention today?');
+  await expect(page.getByRole('status')).not.toContainText('Checking your request');
   await page.getByRole('button', { name: 'Conversation history', exact: true }).click();
-  await expect(page.getByText('What needs attention today?', { exact: true })).toBeVisible();
+  await expect(page.getByText('What needs attention today?', { exact: true }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Back to voice', exact: true }).click();
   await page.getByRole('button', { name: 'Care Organizer', exact: true }).click();
   await page.getByRole('button', { name: 'Organize an update', exact: true }).click();
@@ -77,7 +87,7 @@ test('account preference preserves both inputs across web/mobile and native-adap
   await page.getByRole('button', { name: /Ask Carestead about/ }).click();
   await expect(page.getByRole('textbox', { name: /Message Carestead/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Talk to Carestead', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Turn on spoken replies', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Turn on spoken replies', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Enable spoken replies', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mute spoken replies', exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/web-assistant-panel.png' });
@@ -89,9 +99,9 @@ test('account preference preserves both inputs across web/mobile and native-adap
   await expect(page.getByText('Profile updated.', { exact: true })).toBeVisible();
   expect((await (await page.request.get('/api/state')).json()).currentUser.autoListenOnOpen).toBe(true);
   await page.goto(`${baseURL}/tests/voice-harness.html`);
-  await expect(page.getByRole('button', { name: 'Stop voice listening' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancel recording' })).toBeVisible();
   expect(await page.evaluate(() => (window as any).testVoice.calls)).toBe(1);
-  await page.getByRole('button', { name: 'Stop voice listening' }).click();
+  await page.getByRole('button', { name: 'Cancel recording' }).click();
   await page.getByRole('button', { name: 'Type instead', exact: true }).click();
   await page.getByRole('button', { name: 'Back to voice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Talk to Carestead', exact: true })).toBeVisible();

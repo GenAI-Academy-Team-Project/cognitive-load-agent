@@ -33,10 +33,11 @@ export function PrivateValue({ value, kind = 'secret', label }: { value: string;
 
 export function PrivateInput({ value, kind = 'secret', label, ...props }: Omit<ComponentProps<typeof Input>, 'value'> & { value: string; kind?: MaskKind; label: string }) {
   const [visible, setVisible] = useState(false);
+  const hasValue = Boolean(value) || Boolean(props.placeholder);
   const masked = !visible && kind !== 'secret' && Boolean(value);
   const showMasked = kind === 'secret' && !visible && Boolean(value);
   return <span className="flex min-w-0 items-center gap-1">
     <Input {...props} onChange={(event) => { if (kind !== 'secret') setVisible(true); props.onChange?.(event); }} value={showMasked ? mask(value, kind) : value} type={visible ? (kind === 'phone' ? 'tel' : 'text') : kind === 'secret' ? 'password' : 'text'} readOnly={masked || props.readOnly} autoComplete="off" className="min-w-0 flex-1" />
-    <RevealButton label={label} visible={visible} disabled={props.disabled || (kind === 'secret' && !Boolean(value))} onClick={() => setVisible(!visible)} />
+    <RevealButton label={label} visible={visible} disabled={props.disabled || (kind === 'secret' && !hasValue)} onClick={() => setVisible(!visible)} />
   </span>;
 }

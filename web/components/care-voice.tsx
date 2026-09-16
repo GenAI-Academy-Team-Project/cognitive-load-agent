@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Volume2, VolumeX, ChevronDown, History, Keyboard } from 'lucide-react';
 import { voiceSession } from '@/lib/voice-session';
+import { CareEvidence } from './care-evidence';
 import { Button } from '@/components/ui/button';
 import { browserVoice, voiceCommand, careVoiceRequest, needsVoiceTime, needsVoiceTitle, type VoiceAdapter } from '@/lib/voice';
-import type { ChatState } from '@/lib/types';
+import type { ChatMessage, ChatState } from '@/lib/types';
 
 export function CareVoice({ recipientId, recipientName, screen, screens, navigate, canWrite, onChanged, adapter, voiceFirst = false, spokenReplies = true, onSpokenRepliesChange, initialChat, onResponse, presentation = 'panel', onType, onHistory, autoListen = false, claimAutoListen, disabled = false, onBusyChange }: {
   onSpokenRepliesChange?: (enabled: boolean) => void;
@@ -21,6 +22,7 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
   const [phase, setPhase] = useState<'idle' | 'listening' | 'working'>('idle');
   const [reply, setReply] = useState('Ask about care, plan a responsibility, or open a screen.');
   const [transcript, setTranscript] = useState('');
+  const [replyEvidence, setReplyEvidence] = useState<{ recipientId: string; message: ChatMessage } | null>(null);
   const latest = [...(initialChat?.messages ?? [])].reverse().find(message => message.role === 'assistant');
   const pending = latest?.action?.status === 'pending' ? latest.action : null;
   const [localMuted, setLocalMuted] = useState(!spokenReplies);
@@ -74,12 +76,14 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
     const action = latest?.action?.status === 'pending' ? latest.action : null;
     onResponse?.(result);
     const answer = action ? `${latest?.content || ''} ${action.summary}. ${Object.entries(action.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => `${key}: ${value}`).join('. ')}. Say Confirm to approve, or Cancel.` : latest?.content || 'Request completed.';
+    setReplyEvidence(latest ? { recipientId, message: latest } : null);
     setReply(presentation === 'mobile' ? latest?.content || 'Request completed.' : 'Reply added to your conversation.');
     if (!muted) voice.speak(answer);
     if (intent.kind === 'confirm') onChanged();
   }
   async function run(text?: string) {
     if (lock.current || disabled) return;
+    setReplyEvidence(null);
     lock.current = true; setExpanded(true); voice.silence();
     const version = ++generation.current;
     try {
@@ -120,10 +124,11 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
     {((mobile && showCard) || (!mobile && (transcript || phase !== 'idle' || expanded))) && <div className={mobile ? 'mb-3 max-h-[38dvh] overflow-y-auto rounded-2xl border bg-background p-4' : 'mb-3'}>
       {transcript && <p className="mb-2 break-words text-xs text-muted-foreground">You: {transcript}</p>}
       <output className="block whitespace-pre-wrap break-words text-sm leading-6">{phase === 'listening' ? 'Listening… Speak, then pause to send.' : phase === 'working' ? 'Checking your request…' : reply}</output>
+      {mobile && phase === 'idle' && replyEvidence?.recipientId === recipientId && <CareEvidence key={replyEvidence.message.id} evidence={replyEvidence.message.evidence} />}
       {mobile && pending && <div className="mt-3 border-t pt-3 text-sm"><strong>{pending.summary}</strong><dl className="mt-2 space-y-1">{Object.entries(pending.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => <div key={key} className="break-words"><dt className="font-medium">{key}</dt><dd>{value}</dd></div>)}</dl><p className="mt-3 text-xs">Say Confirm or Cancel, or choose below.</p><div className="mt-2 flex gap-2"><Button disabled={!canWrite || phase !== 'idle'} onClick={() => void run('Confirm')}>Confirm</Button><Button variant="outline" disabled={phase !== 'idle'} onClick={() => void run('Cancel')}>Cancel</Button></div></div>}
     </div>}
     <div className="flex items-center gap-2">
-      <Button className={mobile ? 'h-14 flex-1 rounded-2xl px-4 text-base' : 'h-11 flex-1 rounded-xl'} variant={voiceFirst ? 'default' : 'outline'} disabled={disabled || phase === 'working'} aria-label={phase === 'listening' ? 'Stop voice listening' : 'Talk to Carestead'} aria-pressed={phase === 'listening'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Cancel recording' : mobile ? 'Talk' : 'Talk to Carestead'}</Button>
+      <Button className={mobile ? 'h-14 flex-1 rounded-2xl px-4 text-base' : 'h-11 flex-1 rounded-xl'} variant={voiceFirst ? 'default' : 'outline'} disabled={disabled || phase === 'working'} aria-label={phase === 'listening' ? 'Cancel recording' : 'Talk to Carestead'} aria-pressed={phase === 'listening'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Cancel recording' : mobile ? 'Talk' : 'Talk to Carestead'}</Button>
       {mobile && onType && <Button variant={voiceFirst ? 'ghost' : 'default'} className={voiceFirst ? 'h-14 rounded-xl' : 'order-first h-14 flex-1 rounded-xl'} onClick={onType}><Keyboard />{voiceFirst ? 'Type instead' : 'Type to Carestead'}</Button>}
     </div>
     {mobile && <p className="mt-2 text-center text-[11px] text-muted-foreground">{phase === 'listening' ? 'Microphone on · pause to send, or cancel to discard' : 'Speak to navigate, ask, or plan. Changes need confirmation.'}</p>}

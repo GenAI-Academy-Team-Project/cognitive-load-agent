@@ -41,8 +41,22 @@ test(`voice at ${width}px navigates, clarifies, requires confirmation, executes 
   await say('What needs attention today?');
   await expect(panel.getByRole('status')).not.toContainText('Checking your request');
   await expect(panel.getByRole('status')).not.toContainText('Listening');
+  if (width === 390) {
+    const state = await (await page.request.get('/api/state')).json();
+    const chat = await (await page.request.get(`/api/chat?recipientId=${state.selectedRecipient.id}`)).json();
+    const answer = [...chat.messages].reverse().find(message => message.role === 'assistant');
+    expect(answer.evidence.length).toBeGreaterThan(0);
+    const evidence = panel.locator('details');
+    await expect(evidence.locator('summary')).toHaveText(`Evidence used · ${answer.evidence.length}`);
+    await evidence.locator('summary').click();
+    for (const item of answer.evidence) {
+      await expect(evidence).toContainText(item.label);
+      await expect(evidence).toContainText(item.detail);
+    }
+  }
   await say('Create a reminder to call the care team tomorrow at nine');
   await expect(panel.getByRole('status')).toContainText('What date and time?');
+  if (width === 390) await expect(panel.locator('details')).toHaveCount(0);
   await say('tomorrow at nine AM');
   await expect(confirmation).toBeVisible();
   const before = await (await page.request.get('/api/state')).json();
@@ -74,7 +88,7 @@ test(`voice at ${width}px navigates, clarifies, requires confirmation, executes 
   const historyBefore = await (await page.request.get(`/api/chat?recipientId=${second.data.selectedRecipient.id}`)).json();
   await page.evaluate(() => { (window as unknown as { voiceDelay: number }).voiceDelay = 700; });
   await say('Run care check');
-  await page.getByRole('button', { name: 'Stop voice listening' }).click();
+  await page.getByRole('button', { name: 'Cancel recording' }).click();
   await page.waitForTimeout(900); // allow the discarded recognition callback to arrive
   const historyAfter = await (await page.request.get(`/api/chat?recipientId=${second.data.selectedRecipient.id}`)).json();
   expect(historyAfter.messages.length).toBe(historyBefore.messages.length);

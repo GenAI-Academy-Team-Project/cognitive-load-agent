@@ -119,12 +119,6 @@ export async function POST(request: Request) {
         403,
         'A caregiver role is required to prepare changes.',
       );
-    if (!modelEnabled(env))
-      throw new AppError(
-        'model_unavailable',
-        503,
-        'AI workflows are not configured. Add OPENAI_API_KEY to .dev.vars.',
-      );
 
     await enforceRateLimit(env.DB, auth.member.id, `agent_${action}`);
     const [snapshot, planning, llmConfig] = await Promise.all([
@@ -132,6 +126,13 @@ export async function POST(request: Request) {
       loadPlanning(env.DB, recipientId, auth.member.memberId),
       effectiveIntegrations(env.DB, env),
     ]);
+
+    if (!modelEnabled(llmConfig))
+      throw new AppError(
+        'model_unavailable',
+        503,
+        'AI workflows are not configured. Add OPENAI_API_KEY via Integration Settings or to .dev.vars.',
+      );
     const records = careAgentRecords(snapshot);
     let result: Record<string, unknown>;
 
