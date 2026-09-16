@@ -68,6 +68,8 @@ The **What if?** workflow checks a proposed move and its dependent responsibilit
 
 Preparing the same change repeatedly reuses its pending proposal instead of creating duplicate approvals. When one scheduling proposal is applied, overlapping pending alternatives are retired while their history remains available for audit.
 
+![Carestead validated conflict options and reviewable plans](docs/screenshots/validated-conflict-options.png)
+
 ### Multi-channel notifications
 
 Caregivers can choose a message template, select a receiving care-circle member, and prepare notifications for the Carestead inbox, mobile push, email, SMS, or browser push. Each selected channel gets its own approval draft; external delivery requires the channel to be configured and the receiving caregiver’s settings to allow it.
@@ -77,6 +79,8 @@ Caregivers can choose a message template, select a receiving care-circle member,
 ### Document and image intake
 
 The intake workflow accepts PDF, TXT, PNG, JPG, and WebP files up to 5 MB. It extracts only explicit information, shows warnings and clarification questions, and lets the caregiver edit or remove every proposed responsibility and fact before preparing an approval.
+
+![Carestead document and image intake with extracted reviewable items](docs/screenshots/document-image-intake.png)
 
 This synthetic appointment notice illustrates the kind of explicit dates, contact details, follow-ups, and uncertainty the intake workflow can identify for caregiver review.
 
