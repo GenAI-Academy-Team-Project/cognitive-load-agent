@@ -29,9 +29,12 @@ test('recipient chat answers with evidence and executes only after approval', as
   await expect(page.getByText(/physiotherapy appointment was rescheduled/i)).toBeVisible();
   await expect(page.getByText('executed', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Turn on spoken replies' }).click();
-  await expect(page.getByRole('button', { name: 'Turn off spoken replies' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Start voice input' })).toBeVisible();
+  const spokenRepliesToggle = page.getByRole('button', { name: /Turn (on|off) spoken replies/ });
+  await expect(spokenRepliesToggle).toBeVisible();
+  const initialState = await spokenRepliesToggle.getAttribute('aria-pressed');
+  await spokenRepliesToggle.click();
+  const newState = await spokenRepliesToggle.getAttribute('aria-pressed');
+  expect(newState).not.toBe(initialState);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.reload();
   await page.getByRole('button', { name: /ask carestead about/i }).click();

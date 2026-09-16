@@ -140,7 +140,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
 
-                  {(mobile || !voiceEnabled) && <Button type="button" variant={spokenReplies ? 'secondary' : 'ghost'} size="icon-sm" onClick={() => { setSpokenReplies((value) => !value); if (spokenReplies) voice.silence(); }} aria-label={spokenReplies ? 'Turn off spoken replies' : 'Turn on spoken replies'} aria-pressed={spokenReplies}>{spokenReplies ? <Volume2 /> : <VolumeX />}</Button>}
+                  <Button type="button" variant={spokenReplies ? 'secondary' : 'ghost'} size="icon-sm" onClick={() => { setSpokenReplies((value) => !value); if (spokenReplies) voice.silence(); }} aria-label={spokenReplies ? 'Turn off spoken replies' : 'Turn on spoken replies'} aria-pressed={spokenReplies}>{spokenReplies ? <Volume2 /> : <VolumeX />}</Button>
                   <span className="hidden text-[11px] text-muted-foreground sm:inline">Audio is not saved</span>
                 </div>
                 <Button type="button" size="icon-sm" onClick={() => send()} disabled={!draft.trim() || busy || voiceBusy || chat?.recipientId !== recipientId} aria-label="Send message"><Send /></Button>
