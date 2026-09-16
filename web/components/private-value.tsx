@@ -22,7 +22,7 @@ function mask(value: string, kind: MaskKind) {
 
 function RevealButton({ label, visible, onClick, disabled }: { label: string; visible: boolean; onClick: () => void; disabled?: boolean }) {
   return <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label={`${visible ? 'Hide' : 'Show'} ${label}`} aria-pressed={visible} disabled={disabled} onClick={onClick}>
-    {visible ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+    {visible ? <Eye aria-hidden="true" className="size-4" /> : <EyeOff aria-hidden="true" className="size-4" />}
   </Button>;
 }
 
