@@ -26,7 +26,7 @@ test('shared sign-up, task completion, scoped chat, recipient switching, calenda
 
   await page.getByRole('button', { name: 'Care Hand Over', exact: true }).click();
   await expect(page.getByRole('heading', { name: /at a glance/ })).toBeVisible();
-  await page.getByRole('button', { name: /Ask Carestead about/ }).click();
+  await page.getByRole('button', { name: 'Type instead', exact: true }).click();
   await expect(page.getByRole('heading', { name: `Ask about ${initial.selectedRecipient.display_name}` })).toBeVisible();
   await expect(page.getByText('Preparing the recipient-specific care context…')).toBeHidden();
   await page.getByRole('textbox', { name: /message/i }).fill('What needs attention?');
@@ -42,7 +42,7 @@ test('shared sign-up, task completion, scoped chat, recipient switching, calenda
   await page.getByRole('button', { name: 'Refresh care plan' }).click();
   await expect(page.getByLabel('Care recipient')).toBeEnabled();
   await page.getByLabel('Care recipient').selectOption(second.data.selectedRecipient.id);
-  await expect(page.getByRole('button', { name: 'Ask Carestead about Mobile Second Recipient' })).toBeVisible();
+  await expect(page.getByText('Carestead · Mobile Second Recipient', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Responsibilities', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Responsibilities', exact: true })).toBeVisible();
   expect((await (await page.request.get(`/api/state?recipientId=${second.data.selectedRecipient.id}`)).json()).tasks.some((item: { id: string }) => item.id === task.id)).toBe(false);

@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Mic, MicOff, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
+import { Bot, Check, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 
+import { CareVoice } from './care-voice';
+import { browserVoice, type VoiceAdapter } from '@/lib/voice';
+import { voiceSession } from '@/lib/voice-session';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,43 +14,32 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatMessage, ChatState } from '@/lib/types';
 
-type RecognitionEventLike = { results: { [index: number]: { [index: number]: { transcript: string } } } };
-type RecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: RecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type VoiceWindow = Window & { webkitSpeechRecognition?: new () => RecognitionLike; SpeechRecognition?: new () => RecognitionLike };
-
-function speak(text: string) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.98;
-  utterance.pitch = 1;
-  window.speechSynthesis.speak(utterance);
-}
-
-export function CareChat({ recipientId, recipientName, canWrite, onActionCompleted }: { recipientId: string; recipientName: string; canWrite: boolean; onActionCompleted: () => void }) {
+export function CareChat({ recipientId, recipientName, canWrite, onActionCompleted, voiceAdapter, voiceFirst = false, defaultSpokenReplies = true, voiceEnabled = true, screen = 'Overview', screens = [], onNavigate = () => {}, mobile = false, autoListen = false, claimAutoListen }: { mobile?: boolean; autoListen?: boolean; claimAutoListen?: () => boolean; voiceEnabled?: boolean; screen?: string; screens?: string[]; onNavigate?: (screen: string) => void; voiceAdapter?: VoiceAdapter; voiceFirst?: boolean; defaultSpokenReplies?: boolean; recipientId: string; recipientName: string; canWrite: boolean; onActionCompleted: () => void }) {
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<ChatState | null>(null);
   const [previousMessageIds, setPreviousMessageIds] = useState<string[]>([]);
   const [showPrevious, setShowPrevious] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [draft, setDraft] = useState('');
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
-  const [spokenReplies, setSpokenReplies] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [spokenReplies, setSpokenReplies] = useState(defaultSpokenReplies);
+  const active = useRef(false);
+  useEffect(() => { active.current = open; return () => { active.current = false; }; }, [open, recipientId]);
   const currentRecipient = useRef(recipientId);
   useEffect(() => { currentRecipient.current = recipientId; }, [recipientId]);
-  const recognitionRef = useRef<RecognitionLike | null>(null);
+  const [voice] = useState(() => voiceSession(voiceAdapter || browserVoice()));
+  const [loadRevision, setLoadRevision] = useState(0);
+  const historyLoaded = useRef(false);
+  const conversationRevision = useRef(0);
+  function updateChat(next: ChatState) { conversationRevision.current++; setChat(next); }
+  function openText(history = false) { setShowPrevious(history); setError(null); setOpen(true); }
+  useEffect(() => {
+    const silence = () => { if (document.hidden) voice.silence(); };
+    document.addEventListener('visibilitychange', silence);
+    return () => { voice.silence(); document.removeEventListener('visibilitychange', silence); };
+  }, [voice, open]);
   const lastSpokenId = useRef<string | null>(null);
   const historyRef = useRef<HTMLDivElement | null>(null);
   const messages = chat?.recipientId === recipientId ? chat.messages.filter((message) => showPrevious || !previousMessageIds.includes(message.id)) : [];
@@ -59,7 +51,8 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
   }, [latestMessageId, busy, showPrevious]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !mobile) return;
+    const version = conversationRevision.current;
     let active = true;
     fetch(`/api/chat?recipientId=${encodeURIComponent(recipientId)}`)
       .then(async (response) => {
@@ -67,20 +60,10 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
         if (!response.ok) throw new Error('error' in result ? result.error : 'Unable to load chat');
         return result as ChatState;
       })
-      .then((result) => { if (active) { setPreviousMessageIds(result.messages.map((message) => message.id)); setShowPrevious(false); setChat(result); } })
+      .then((result) => { if (active && version === conversationRevision.current) { if (!historyLoaded.current) { setPreviousMessageIds(result.messages.map(message => message.id)); historyLoaded.current = true; } setChat(result); } })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load chat'); });
     return () => { active = false; };
-  }, [open, recipientId]);
-
-  useEffect(() => () => {
-    recognitionRef.current?.stop();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-  }, []);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setVoiceSupported(Boolean((window as VoiceWindow).SpeechRecognition || (window as VoiceWindow).webkitSpeechRecognition)));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [open, recipientId, mobile, loadRevision]);
 
   async function request(payload: Record<string, string>) {
     setBusy(true);
@@ -90,10 +73,10 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
       const result = await response.json() as ChatState | { error: string };
       if (!response.ok) throw new Error('error' in result ? result.error : 'Chat request failed');
       const next = result as ChatState;
-      if (currentRecipient.current !== recipientId) return false;
-      setChat(next);
+      if (!active.current || currentRecipient.current !== recipientId) return false;
+      updateChat(next);
       const latest = [...next.messages].reverse().find((message) => message.role === 'assistant');
-      if (spokenReplies && latest && latest.id !== lastSpokenId.current) { lastSpokenId.current = latest.id; speak(latest.content); }
+      if (spokenReplies && latest && latest.id !== lastSpokenId.current) { lastSpokenId.current = latest.id; voice.speak(latest.content); }
       return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Carestead could not complete that request.');
@@ -103,7 +86,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
 
   async function send(message = draft) {
     const value = message.trim();
-    if (!value || busy || chat?.recipientId !== recipientId) return;
+    if (!value || busy || voiceBusy || chat?.recipientId !== recipientId) return;
     setDraft('');
     await request({ action: 'message', message: value });
   }
@@ -119,33 +102,18 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
       setShowPrevious(false);
       setConfirmClear(false);
       lastSpokenId.current = null;
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      voice.silence();
     }
   }
 
-  function toggleListening() {
-    if (listening) { recognitionRef.current?.stop(); return; }
-    const Constructor = (window as VoiceWindow).SpeechRecognition || (window as VoiceWindow).webkitSpeechRecognition;
-    if (!Constructor) { setError('Voice input is not supported by this browser. You can continue by typing.'); return; }
-    const recognition = new Constructor();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-CA';
-    recognition.onresult = (event) => { const transcript = event.results[0]?.[0]?.transcript || ''; setDraft(transcript); };
-    recognition.onerror = () => { setError('I could not hear that clearly. Please try again or type your question.'); setListening(false); };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
-  }
 
   return (
     <>
-      <Button onClick={() => { setChat(null); setError(null); setOpen(true); }} className="fixed right-5 bottom-5 z-40 h-13 w-13 rounded-2xl px-0 sm:w-auto sm:px-5 shadow-[0_14px_40px_rgb(35_68_52/0.24)]" aria-label={`Ask Carestead about ${recipientName}`}>
-        <Sparkles className="size-5" /><span className="hidden sm:inline">Ask Carestead</span>
-      </Button>
-      <Sheet open={open} onOpenChange={(next) => { if (next) { setChat(null); setError(null); } setOpen(next); }}>
-        <SheetContent className="w-[min(100vw,460px)] gap-0 border-l-0 bg-background p-0 sm:max-w-[460px]" aria-label={`Carestead assistant for ${recipientName}`}>
+      {mobile && voiceEnabled && !open ? <div className="fixed inset-x-3 bottom-0 z-40 mx-auto max-w-xl pb-[calc(.75rem+env(safe-area-inset-bottom))]" data-mobile-assistant>
+        {chat?.recipientId === recipientId ? <CareVoice presentation="mobile" recipientId={recipientId} recipientName={recipientName} screen={screen} screens={screens} navigate={onNavigate} canWrite={canWrite} onChanged={onActionCompleted} adapter={voiceAdapter} voiceFirst={voiceFirst} spokenReplies={spokenReplies} onSpokenRepliesChange={enabled => { voice.silence(); setSpokenReplies(enabled); }} initialChat={chat} onResponse={updateChat} onType={() => openText()} onHistory={() => openText(true)} autoListen={autoListen} claimAutoListen={claimAutoListen} /> : <section className="rounded-3xl border bg-card p-4 shadow-lg" aria-label="Carestead voice assistant"><p className="text-sm">{error || 'Getting Carestead ready…'}</p>{error && <Button variant="outline" onClick={() => { setError(null); setLoadRevision(value => value + 1); }}>Retry assistant</Button>}</section>}
+      </div> : !open && <Button data-voice-primary={voiceFirst} onClick={() => openText()} className="fixed right-5 bottom-5 z-40 h-14 rounded-2xl px-5 shadow-[0_14px_40px_rgb(35_68_52/0.24)]" aria-label={`Ask Carestead about ${recipientName}`}><Sparkles className="size-5" /><span>Carestead</span></Button>}
+      <Sheet open={open} onOpenChange={(next) => { if (!next) voice.silence(); setOpen(next); }}>
+        <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-[460px] gap-0 border-l-0 bg-background p-0" aria-label={`Carestead assistant for ${recipientName}`}>
           <SheetHeader className="border-b bg-card px-5 py-4 pr-14">
             <div className="flex items-center gap-3">
               <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>
@@ -153,12 +121,12 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
             </div>
           </SheetHeader>
 
-          {chat?.recipientId === recipientId && chat.messages.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-4 py-2">{previousMessageIds.length > 0 && <Button variant="ghost" size="sm" onClick={() => setShowPrevious((value) => !value)} aria-expanded={showPrevious}>{showPrevious ? 'Hide previous conversation' : 'Show previous conversation'}</Button>}<Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirmClear(true)}>Clear chat history</Button></div>}
+          {chat?.recipientId === recipientId && chat.messages.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-card px-4 py-2">{previousMessageIds.length > 0 && <Button variant="ghost" size="sm" onClick={() => setShowPrevious((value) => !value)} aria-expanded={showPrevious}>{showPrevious ? 'Hide previous conversation' : 'Show previous conversation'}</Button>}<Button variant="outline" size="sm" disabled={busy || voiceBusy} onClick={() => setConfirmClear(true)}>Clear chat history</Button></div>}
           <ScrollArea ref={historyRef} className="min-h-0 flex-1">
             <div className="space-y-4 px-4 py-5" aria-live="polite" aria-busy={busy}>
               {!chat && !error && <div className="flex items-center gap-2 rounded-2xl border bg-card p-4 text-sm text-muted-foreground"><Sparkles className="size-4 animate-pulse text-primary" />Preparing the recipient-specific care context…</div>}
               {chat?.recipientId === recipientId && messages.length === 0 && <Welcome recipientName={recipientName} />}
-              {messages.map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy} onDecide={decide} />)}
+              {messages.map((message) => <Message key={message.id} message={message} canWrite={canWrite} busy={busy || voiceBusy} onDecide={decide} />)}
               {busy && <div className="w-fit rounded-2xl rounded-bl-md border bg-card px-4 py-3 text-sm text-muted-foreground">Checking the care plan…</div>}
               {error && <div role="alert" className="rounded-xl border border-[var(--care-rose-ink)]/30 bg-[var(--care-rose)] p-3 text-sm text-[var(--care-rose-ink)]">{error}</div>}
             </div>
@@ -166,27 +134,29 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
 
           <div className="border-t bg-card p-4">
 
-            {chat?.recipientId === recipientId && messages.length === 0 && <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{chat.quickPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)} disabled={busy} className="shrink-0 rounded-full border bg-card px-3 py-1.5 text-left text-xs text-[var(--care-success-ink)] hover:bg-secondary disabled:opacity-50">{prompt}</button>)}</div>}
+            {chat?.recipientId === recipientId && messages.length === 0 && <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{chat.quickPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)} disabled={busy || voiceBusy} className="shrink-0 rounded-full border bg-card px-3 py-1.5 text-left text-xs text-[var(--care-success-ink)] hover:bg-secondary disabled:opacity-50">{prompt}</button>)}</div>}
             <div className="rounded-2xl border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
-              <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 resize-none border-0 p-2 shadow-none focus-visible:ring-0" disabled={busy} />
+              <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 resize-none border-0 p-2 shadow-none focus-visible:ring-0" disabled={busy || voiceBusy} />
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
-                  <Button type="button" variant={listening ? 'default' : 'ghost'} size="icon-sm" onClick={toggleListening} aria-label={listening ? 'Stop listening' : 'Start voice input'} aria-pressed={listening} disabled={!voiceSupported || busy}>{listening ? <MicOff /> : <Mic />}</Button>
-                  <Button type="button" variant={spokenReplies ? 'secondary' : 'ghost'} size="icon-sm" onClick={() => { setSpokenReplies((value) => !value); if (spokenReplies && 'speechSynthesis' in window) window.speechSynthesis.cancel(); }} aria-label={spokenReplies ? 'Turn off spoken replies' : 'Turn on spoken replies'} aria-pressed={spokenReplies}>{spokenReplies ? <Volume2 /> : <VolumeX />}</Button>
+
+                  {(mobile || !voiceEnabled) && <Button type="button" variant={spokenReplies ? 'secondary' : 'ghost'} size="icon-sm" onClick={() => { setSpokenReplies((value) => !value); if (spokenReplies) voice.silence(); }} aria-label={spokenReplies ? 'Turn off spoken replies' : 'Turn on spoken replies'} aria-pressed={spokenReplies}>{spokenReplies ? <Volume2 /> : <VolumeX />}</Button>}
                   <span className="hidden text-[11px] text-muted-foreground sm:inline">Audio is not saved</span>
                 </div>
-                <Button type="button" size="icon-sm" onClick={() => send()} disabled={!draft.trim() || busy || chat?.recipientId !== recipientId} aria-label="Send message"><Send /></Button>
+                <Button type="button" size="icon-sm" onClick={() => send()} disabled={!draft.trim() || busy || voiceBusy || chat?.recipientId !== recipientId} aria-label="Send message"><Send /></Button>
               </div>
             </div>
-            <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">Care coordination only—not medical advice. Messages require approval. Enable delivery channels in Notifications.</p>
+            <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">Care coordination only. Changes require your approval.</p>
           </div>
+          {!mobile && voiceEnabled && chat?.recipientId === recipientId && <CareVoice disabled={busy} onBusyChange={setVoiceBusy} presentation="panel" recipientId={recipientId} recipientName={recipientName} screen={screen} screens={screens} navigate={target => { onNavigate(target); setOpen(false); }} canWrite={canWrite} onChanged={onActionCompleted} adapter={voiceAdapter} voiceFirst={voiceFirst} spokenReplies={spokenReplies} onSpokenRepliesChange={enabled => { voice.silence(); setSpokenReplies(enabled); }} initialChat={chat} onResponse={updateChat} />}
+          {mobile && voiceEnabled && <div className="border-t px-4 py-3"><Button className="w-full" onClick={() => setOpen(false)}>Back to voice</Button></div>}
         </SheetContent>
       </Sheet>
       <Dialog open={confirmClear} onOpenChange={(next) => { if (!busy) setConfirmClear(next); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Clear chat history?</DialogTitle><DialogDescription>Permanently delete your saved voice and text messages about {recipientName}. Care records, trusted facts, and action records are retained.</DialogDescription></DialogHeader>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setConfirmClear(false)}>Cancel</Button><Button disabled={busy} onClick={clearHistory}>{busy ? 'Clearing…' : 'Clear history'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" disabled={busy || voiceBusy} onClick={() => setConfirmClear(false)}>Cancel</Button><Button disabled={busy || voiceBusy} onClick={clearHistory}>{busy ? 'Clearing…' : 'Clear history'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>

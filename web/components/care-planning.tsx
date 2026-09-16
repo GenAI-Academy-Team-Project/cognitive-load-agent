@@ -1,8 +1,10 @@
 'use client';
+import { useDictation } from './use-dictation';
+import type { VoiceAdapter } from '@/lib/voice';
 
 import { PaginatedList } from './paginated-list';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
   Check,
@@ -47,6 +49,9 @@ import {
 import { AdaptivePlanBuilder, DocumentIntakePanel } from './agent-workflows';
 
 type Props = {
+  voiceAdapter?: VoiceAdapter;
+  voiceFirst?: boolean;
+  photoCapture?: boolean;
   dashboard: DashboardState;
   onChanged: () => void;
   onCalendar?: (taskId: string) => void;
@@ -867,6 +872,9 @@ export function CarePlanning(props: Props) {
           )}
           {tab === 'dump' && (
             <BrainDump
+              recipientId={dashboard.selectedRecipient.id}
+              voiceAdapter={props.voiceAdapter}
+              voiceFirst={props.voiceFirst}
               state={state}
               zone={zone}
               act={act}
@@ -885,6 +893,7 @@ export function CarePlanning(props: Props) {
           )}
           {tab === 'intake' && (
             <DocumentIntakePanel
+              photoCapture={props.photoCapture}
               dashboard={dashboard}
               act={act}
               disabled={!writable || busy}
@@ -1404,25 +1413,19 @@ function AvailabilityEditor({
   );
 }
 
-type Recognition = {
-  start: () => void;
-  stop: () => void;
-  lang: string;
-  onresult:
-    | ((event: {
-        results: { [key: number]: { [key: number]: { transcript: string } } };
-      }) => void)
-    | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
 function BrainDump({
+  recipientId,
+  voiceAdapter,
+  voiceFirst = false,
   state,
   zone,
   act,
   disabled,
   onError,
 }: {
+  recipientId: string;
+  voiceAdapter?: VoiceAdapter;
+  voiceFirst?: boolean;
   state: PlanningState;
   zone: string;
   act: Action;
@@ -1433,64 +1436,10 @@ function BrainDump({
     [drafts, setDrafts] = useState<DraftItem[]>([]),
     [extractionMode, setExtractionMode] = useState<
       'model' | 'deterministic' | null
-    >(null),
-    [listening, setListening] = useState(false);
-  const recognition = useRef<Recognition | null>(null);
-  useEffect(
-    () => () => {
-      if (recognition.current) {
-        recognition.current.onresult = null;
-        recognition.current.onend = null;
-        recognition.current.stop();
-      }
-    },
-    [],
-  );
-  useEffect(() => {
-    if (disabled && recognition.current) recognition.current.stop();
-  }, [disabled]);
-  function voice() {
-    if (listening) {
-      recognition.current?.stop();
-      return;
-    }
-    const voiceWindow = window as unknown as {
-      SpeechRecognition?: new () => Recognition;
-      webkitSpeechRecognition?: new () => Recognition;
-    };
-    const Constructor =
-      voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition;
-    if (!Constructor) {
-      onError(
-        'Voice input is unavailable in this browser. Type or paste your update below.',
-      );
-      return;
-    }
-    const instance = new Constructor();
-    instance.lang = 'en-CA';
-    instance.onresult = (event) => {
-      setMessage(
-        (current) =>
-          `${current}${current ? '\n' : ''}${event.results[0][0].transcript}`,
-      );
-      setDrafts([]);
-      setExtractionMode(null);
-    };
-    instance.onend = () => setListening(false);
-    instance.onerror = () => {
-      setListening(false);
-      onError(
-        'Voice input stopped. Check microphone permission or type your update.',
-      );
-    };
-    recognition.current = instance;
-    try {
-      instance.start();
-      setListening(true);
-    } catch {
-      onError('Microphone unavailable. Type or paste your update.');
-    }
-  }
+    >(null);
+  const dictation = useDictation({ adapter: voiceAdapter, enabled: !disabled, scope: recipientId,
+    onText: text => { setMessage(current => `${current}${current ? '\n' : ''}${text}`.slice(0, 4000)); setDrafts([]); setExtractionMode(null); }, onError });
+  const { listening } = dictation;
   function change(index: number, patch: Partial<DraftItem>) {
     setDrafts((current) =>
       current.map((item, i) => (i === index ? { ...item, ...patch } : item)),
@@ -1533,7 +1482,7 @@ function BrainDump({
         >
           Organize my update
         </Button>
-        <Button variant="outline" disabled={disabled} onClick={voice}>
+        <Button className={voiceFirst ? "order-first" : undefined} variant={voiceFirst ? "default" : "outline"} disabled={disabled} onClick={() => void dictation.toggle()}>
           <Mic />
           {listening ? 'Stop recording' : 'Speak an update'}
         </Button>
@@ -1544,7 +1493,7 @@ function BrainDump({
           : extractionMode === 'deterministic'
             ? 'Local rules organized this update because the model was unavailable. '
             : 'Carestead AI organizes the update when configured, with local rules as a fallback. '}
-        No raw audio is stored. Your browser’s speech service may process audio
+        No raw audio is stored. Your device’s speech service may process audio
         when voice input is used.
       </p>
       {!!drafts.length && (

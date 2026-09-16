@@ -499,3 +499,10 @@ export const authPasswordResets = sqliteTable('auth_password_resets', {
   passwordHash: text('password_hash').notNull(),
   expiresAt: text('expires_at').notNull(),
 });
+
+export const accountPreferences = sqliteTable('account_preferences', {
+  accountId: text('account_id').primaryKey(),
+  inputPreference: text('input_preference').notNull().default('voice'),
+  spokenReplies: integer('spoken_replies').notNull().default(1),
+  autoListenOnOpen: integer('auto_listen_on_open').notNull().default(0),
+});

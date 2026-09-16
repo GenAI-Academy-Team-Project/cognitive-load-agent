@@ -4,6 +4,7 @@ import { calendarSchema } from './calendar-schema';
 import { planningSchema } from './planning-schema';
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS account_preferences (account_id TEXT PRIMARY KEY, input_preference TEXT NOT NULL DEFAULT 'voice', spoken_replies INTEGER NOT NULL DEFAULT 1, auto_listen_on_open INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS auth_password_resets (account_id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, expires_at TEXT NOT NULL)`,
   ...notificationSchema,
   ...calendarSchema,
@@ -212,6 +213,12 @@ const seedStatements = [
 
 export async function ensureDatabase(db: D1Database) {
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
+  // Upgrade an existing preference table without changing saved input choices.
+  const hasStartupPreference = async () => (await db.prepare('PRAGMA table_info(account_preferences)').all<{ name: string }>()).results.some(column => column.name === 'auto_listen_on_open');
+  if (!await hasStartupPreference()) {
+    try { await db.prepare('ALTER TABLE account_preferences ADD COLUMN auto_listen_on_open INTEGER NOT NULL DEFAULT 0').run(); }
+    catch (error) { if (!await hasStartupPreference()) throw error; }
+  }
   await db.batch(
     seedStatements.map(([statement, values]) => db.prepare(statement).bind(...values)),
   );

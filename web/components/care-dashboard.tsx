@@ -4,7 +4,7 @@ import { CategorySelect } from '@/components/category-select';
 import { PlanUpgradeDialog } from '@/components/plan-upgrade-dialog';
 import { CreateRecipientDialog } from '@/components/create-recipient-dialog';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity, AlertTriangle, BrainCircuit, CalendarDays, Check, CheckCircle2,
@@ -25,7 +25,6 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { NotificationComposer } from '@/components/notification-composer';
 import { NotificationSettings } from '@/components/notification-settings';
-import { CareVoice } from '@/components/care-voice';
 import type { VoiceAdapter } from '@/lib/voice';
 import { CareChat } from '@/components/care-chat';
 import { CarePlanning, SinceAway, MemoryConflicts } from '@/components/care-planning';
@@ -55,11 +54,20 @@ const formatDate = (value: string) =>
     timeZone: 'America/Toronto',
   }).format(new Date(value));
 
-export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }: {
+export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter, photoCapture = false, mobile = false }: {
+  mobile?: boolean;
+  photoCapture?: boolean;
   voiceAdapter?: VoiceAdapter;
   publicOrigin?: string;
   saveExport?: (blob: Blob, filename: string) => Promise<void>;
 } = {}) {
+  const [autoListen, setAutoListen] = useState(false);
+  const autoListenClaimed = useRef(false);
+  const claimAutoListen = useCallback(() => {
+    if (autoListenClaimed.current) return false;
+    autoListenClaimed.current = true;
+    return true;
+  }, []);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const [demoOpen, setDemoOpen] = useState(false);
   const [integrationRevision, setIntegrationRevision] = useState(0);
@@ -94,7 +102,7 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
         if (!response.ok) throw new Error('Unable to load care state');
         return response.json() as Promise<DashboardState>;
       })
-      .then((nextState) => { if (active) { setState(nextState); if (!nextState.currentUser.isGuest && [...navItems.map((item) => item.view), 'Calendar', 'Notifications', 'Memory', 'Privacy & data', 'Integrations'].includes(params.get('view') || '')) { setView(params.get('view') as View); if (params.get('view') === 'Evaluations') setDemoOpen(true); } } })
+      .then((nextState) => { if (active) { setState(nextState); setAutoListen(nextState.currentUser.autoListenOnOpen === true); if (!nextState.currentUser.isGuest && [...navItems.map((item) => item.view), 'Calendar', 'Notifications', 'Memory', 'Privacy & data', 'Integrations'].includes(params.get('view') || '')) { setView(params.get('view') as View); if (params.get('view') === 'Evaluations') setDemoOpen(true); } } })
       .catch(() => { if (active) setMessage('The care plan could not be loaded.'); });
     return () => { active = false; };
   }, []);
@@ -181,6 +189,8 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
     finally { setBusy(null); }
   }
 
+  const voiceFirst = state?.currentUser.inputPreference !== 'typing';
+  const spokenReplies = state?.currentUser.spokenReplies ?? true;
   const openTasks = state?.tasks.filter((task) => !['complete', 'archived'].includes(task.status)).length ?? 0;
   const resolvedRisks = state?.risks.filter((risk) => risk.status === 'resolved').length ?? 0;
   const coverage = useMemo(() => {
@@ -205,7 +215,7 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
             description: list === 'proposals' ? 'Discard pending plans and remove completed plans from your view. Existing responsibilities remain.' : list === 'routines' ? 'Stop repeating these routines. Existing responsibilities remain.' : list === 'availability' ? 'Remove your availability windows from the shared schedule.' : list === 'careCircle' ? 'Remove non-owner members’ access to this care recipient.' : personal ? 'Remove items from your view. Shared records and pending approvals are retained.' : 'Remove items by archiving them from the shared care plan.',
             remove: (ids: string[]) => act('remove_list_items', { list: String(list), ids }, 'Items removed.'),
           }]))}>
-    <main className="min-h-screen bg-background text-foreground"><a href="#care-content" className="care-skip-link">Skip to care content</a>
+    <main className={`min-h-screen bg-background text-foreground ${mobile ? "pb-56" : ""}`}><a href="#care-content" className="care-skip-link">Skip to care content</a>
       <div className="mx-auto grid min-h-screen max-w-[1540px] lg:grid-cols-[252px_1fr]">
         <aside className="care-sidebar hidden border-r border-sidebar-border bg-sidebar px-5 py-6 lg:flex lg:flex-col">
           <Brand />
@@ -239,7 +249,7 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
               {state && !guest && <Button variant="ghost" size="icon" aria-label={`Notifications, ${state.notifications.filter((item) => !item.read_at).length} unread`} title="Notifications" aria-pressed={view === 'Notifications'} onClick={() => setView('Notifications')} className="relative"><Bell />{state.notifications.some((item) => !item.read_at) && <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />}</Button>}
               {state && !guest && <Button variant="ghost" size="icon" aria-label="Calendar" title="Calendar" aria-pressed={view === 'Calendar'} onClick={() => setView('Calendar')}><CalendarDays /></Button>}
               {state && <Button variant="ghost" size="icon" aria-label="Refresh care plan" disabled={!!busy} onClick={() => selectRecipient(state.selectedRecipient.id)}><RefreshCw /></Button>}
-              {state && <AccountMenus user={state.currentUser} recipientName={state.selectedRecipient.display_name} view={view} onNavigate={setView} onSignOut={signOut} onProfileUpdated={(displayName) => setState((current) => current ? { ...current, currentUser: { ...current.currentUser, displayName }, careCircle: current.careCircle.map((member) => member.email === current.currentUser.email ? { ...member, display_name: displayName } : member) } : current)} busy={!!busy} />}
+              {state && <AccountMenus user={state.currentUser} recipientName={state.selectedRecipient.display_name} view={view} onNavigate={setView} onSignOut={signOut} onProfileUpdated={(displayName, preferences) => setState((current) => current ? { ...current, currentUser: { ...current.currentUser, displayName, ...preferences }, careCircle: current.careCircle.map((member) => member.email === current.currentUser.email ? { ...member, display_name: displayName } : member) } : current)} busy={!!busy} />}
             </div>
           </header>
 
@@ -262,7 +272,7 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
               <>
                 {view === 'Integrations' && <IntegrationSettings recipientId={state.selectedRecipient.id} recipientName={state.selectedRecipient.display_name} onChanged={() => setIntegrationRevision((value) => value + 1)} />}
                 {view === 'Overview' && <Overview onCalendar={guest ? undefined : openTaskCalendar} state={state} openTasks={openTasks} coverage={coverage} resolvedRisks={resolvedRisks} onAdd={() => setTaskDialog('new')} onApprove={() => setApprovalOpen(true)} onAssign={() => setView('Care Organizer')} busy={busy} writeAllowed={writeAllowed} />}
-                {view === 'Care Organizer' && <CarePlanning key={state.selectedRecipient.id} dashboard={state} onCalendar={openTaskCalendar} onChanged={() => selectRecipient(state.selectedRecipient.id)} />}
+                {view === 'Care Organizer' && <CarePlanning voiceAdapter={voiceAdapter} voiceFirst={voiceFirst} photoCapture={photoCapture} key={state.selectedRecipient.id} dashboard={state} onCalendar={openTaskCalendar} onChanged={() => selectRecipient(state.selectedRecipient.id)} />}
                 {view === 'Handover' && <HandoverView key={state.selectedRecipient.id} onChanged={() => selectRecipient(state.selectedRecipient.id)} state={state} onEditProfile={() => setProfileOpen(true)} onAddContact={() => setContactDialog('new')} onEditContact={setContactDialog} onArchiveContact={(id) => act('archive_support_contact', { id }, 'Support contact archived.')} onCopy={copyHandover} busy={busy} />}
                 {view === 'Notifications' && <NotificationsView onChanged={() => selectRecipient(state.selectedRecipient.id)} state={state} onRead={(id) => act('mark_notification_read', { id }, 'Notification marked as read.')} onReview={() => setApprovalOpen(true)} busy={busy} />}
                 {view === 'Care plan' && <CarePlanView state={state} onCreate={(templateKey) => { setSelectedTemplateKey(templateKey); setRecipientOpen(true); }} onSave={() => setTemplateOpen(true)} onClone={() => setCloneOpen(true)} onUpgrade={() => setUpgradeOpen(true)} busy={busy} />}
@@ -293,17 +303,8 @@ export default function CareDashboard({ publicOrigin, saveExport, voiceAdapter }
       <SupportContactDialog key={contactDialog === 'new' ? 'contact-new' : `contact-${contactDialog?.id ?? 'closed'}`} open={contactDialog !== null} contact={contactDialog === 'new' ? undefined : contactDialog ?? undefined} onOpenChange={(open) => { if (!open) setContactDialog(null); }} busy={busy} onSave={async (payload) => { const ok = await act(contactDialog === 'new' ? 'add_support_contact' : 'update_support_contact', contactDialog !== 'new' && contactDialog ? { ...payload, id: contactDialog.id } : payload, contactDialog === 'new' ? 'Support contact added.' : 'Support contact updated.'); if (ok) setContactDialog(null); }} />
       <ConsentDialog open={consentOpen} onOpenChange={setConsentOpen} consent={state?.consent} busy={busy} onSave={async (payload) => { const ok = await act('update_consent', payload, payload.consentStatus === 'active' ? 'Consent and retention settings saved.' : 'Consent withdrawn; care actions are now paused.'); if (ok) setConsentOpen(false); }} />
       <DeleteRecipientDialog open={deleteOpen} onOpenChange={setDeleteOpen} recipientName={state?.selectedRecipient.display_name ?? ''} busy={busy} onDelete={async (payload) => { const ok = await act('delete_recipient', payload, 'Recipient data was permanently deleted.'); if (ok) { setDeleteOpen(false); setView('Overview'); } }} />
-      {state && !guest && state.consent.status === 'active' && !busy && <CareVoice key={state.selectedRecipient.id} recipientId={state.selectedRecipient.id} recipientName={state.selectedRecipient.display_name} screen={view} screens={[...navItems.map(item => item.view), 'Calendar', 'Notifications', 'Memory', 'Privacy & data', 'Integrations']} navigate={target => setView(target as View)} canWrite={writeAllowed} onChanged={() => {
-        const recipientId = state.selectedRecipient.id;
-        void fetch(`/api/state?recipientId=${encodeURIComponent(recipientId)}`).then(async response => {
-          if (!response.ok) throw new Error('Action finished, but the screen could not refresh. Use Refresh care plan.');
-          const next = await response.json() as DashboardState;
-          setState(current => current?.selectedRecipient.id === recipientId ? next : current);
-          setRefreshRevision(value => value + 1);
-        }).catch(error => setMessage(error instanceof Error ? error.message : 'Unable to refresh.'));
-      }} adapter={voiceAdapter} />}
-      {state && !guest && <CareChat key={integrationRevision} recipientId={state.selectedRecipient.id} recipientName={state.profile.preferred_name || state.selectedRecipient.display_name} canWrite={writeAllowed} onActionCompleted={() => selectRecipient(state.selectedRecipient.id)} />}
-      {message && <button onClick={() => setMessage(null)} className="fixed right-4 bottom-20 z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl"><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
+      {state && !guest && <CareChat mobile={mobile} autoListen={autoListen} claimAutoListen={claimAutoListen} voiceEnabled={state.consent.status === 'active'} screen={view} screens={[...navItems.map(item => item.view), 'Calendar', 'Notifications', 'Memory', 'Privacy & data', 'Integrations']} onNavigate={target => setView(target as View)} voiceAdapter={voiceAdapter} voiceFirst={voiceFirst} defaultSpokenReplies={spokenReplies} key={`${state.selectedRecipient.id}:${integrationRevision}:${spokenReplies}`} recipientId={state.selectedRecipient.id} recipientName={state.profile.preferred_name || state.selectedRecipient.display_name} canWrite={writeAllowed} onActionCompleted={() => selectRecipient(state.selectedRecipient.id)} />}
+      {message && <button onClick={() => setMessage(null)} className={`fixed right-4 ${mobile ? 'top-20' : 'bottom-20'} z-50 flex max-w-sm items-center gap-3 rounded-2xl border bg-foreground px-4 py-3 text-left text-sm text-background shadow-xl`}><CheckCircle2 className="size-4 shrink-0" />{message}</button>}
     </main>
     </ListRemovalContext.Provider>
   );

@@ -1,21 +1,30 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Square, Volume2, VolumeX, X } from 'lucide-react';
+import { Mic, Square, Volume2, VolumeX, ChevronDown, History, Keyboard } from 'lucide-react';
+import { voiceSession } from '@/lib/voice-session';
 import { Button } from '@/components/ui/button';
 import { browserVoice, voiceCommand, careVoiceRequest, needsVoiceTime, needsVoiceTitle, type VoiceAdapter } from '@/lib/voice';
-import type { ChatActionRequest, ChatState } from '@/lib/types';
+import type { ChatState } from '@/lib/types';
 
-export function CareVoice({ recipientId, recipientName, screen, screens, navigate, canWrite, onChanged, adapter }: {
+export function CareVoice({ recipientId, recipientName, screen, screens, navigate, canWrite, onChanged, adapter, voiceFirst = false, spokenReplies = true, onSpokenRepliesChange, initialChat, onResponse, presentation = 'panel', onType, onHistory, autoListen = false, claimAutoListen, disabled = false, onBusyChange }: {
+  onSpokenRepliesChange?: (enabled: boolean) => void;
+  disabled?: boolean; onBusyChange?: (busy: boolean) => void;
+  presentation?: 'mobile' | 'panel'; onType?: () => void; onHistory?: () => void;
+  autoListen?: boolean; claimAutoListen?: () => boolean;
+  initialChat?: ChatState; onResponse?: (chat: ChatState) => void;
+  voiceFirst?: boolean; spokenReplies?: boolean;
   recipientId: string; recipientName: string; screen: string; screens: string[];
   navigate: (screen: string) => void; canWrite: boolean; onChanged: () => void; adapter?: VoiceAdapter;
 }) {
-  const [voice] = useState(() => adapter || browserVoice());
-  const [open, setOpen] = useState(false);
+  const [voice] = useState(() => voiceSession(adapter || browserVoice()));
+  const [expanded, setExpanded] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'listening' | 'working'>('idle');
-  const [reply, setReply] = useState('Say “Open calendar” or ask about the care plan.');
+  const [reply, setReply] = useState('Ask about care, plan a responsibility, or open a screen.');
   const [transcript, setTranscript] = useState('');
-  const [pending, setPending] = useState<ChatActionRequest | null>(null);
-  const [muted, setMuted] = useState(false);
+  const latest = [...(initialChat?.messages ?? [])].reverse().find(message => message.role === 'assistant');
+  const pending = latest?.action?.status === 'pending' ? latest.action : null;
+  const [localMuted, setLocalMuted] = useState(!spokenReplies);
+  const muted = onSpokenRepliesChange ? !spokenReplies : localMuted;
   const clarification = useRef('');
   const awaitingTitle = useRef(false);
   const generation = useRef(0);
@@ -23,15 +32,25 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
-    const stop = () => { if (document.hidden) { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); setPending(null); } };
+    const stop = () => { if (document.hidden) { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
+    const modalFocus = (event: FocusEvent) => { if (presentation === 'mobile' && event.target instanceof Element && event.target.closest('[role=dialog], [role=menu]')) { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
+    document.addEventListener('focusin', modalFocus);
     document.addEventListener('visibilitychange', stop);
-    return () => { alive.current = false; generation.current++; voice.stop(); voice.silence(); document.removeEventListener('visibilitychange', stop); };
-  }, [voice]);
+    const invalidate = () => { alive.current = false; generation.current++; };
+    return () => { invalidate(); voice.stop(); voice.silence(); document.removeEventListener('visibilitychange', stop); document.removeEventListener('focusin', modalFocus); };
+  }, [voice, presentation]);
+  useEffect(() => { onBusyChange?.(phase !== 'idle'); return () => onBusyChange?.(false); }, [phase, onBusyChange]);
+  useEffect(() => {
+    if (!disabled) return;
+    generation.current++; voice.stop(); lock.current = false;
+    const frame = requestAnimationFrame(() => setPhase('idle'));
+    return () => cancelAnimationFrame(frame);
+  }, [disabled, voice]);
   function say(text: string) { setReply(text); if (!muted) voice.speak(text); }
   async function command(text: string, version: number) {
     const current = () => alive.current && version === generation.current;
     const intent = voiceCommand(text, screens);
-    if (intent.kind === 'navigate') { clarification.current = ''; setPending(null); navigate(intent.screen); say(`Opened ${intent.screen}.`); return; }
+    if (intent.kind === 'navigate') { clarification.current = ''; navigate(intent.screen); say(`Opened ${intent.screen}.`); setExpanded(false); return; }
     if (intent.kind === 'confirm' || intent.kind === 'cancel') {
       if (!pending) { clarification.current = ''; say(intent.kind === 'cancel' ? 'Request cancelled.' : 'There is no voice action waiting for confirmation.'); return; }
       if (intent.kind === 'confirm' && !canWrite) { say('You do not have permission to make this change.'); return; }
@@ -53,13 +72,15 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
     if (result.recipientId !== recipientId) throw new Error('The care recipient changed. Please try again.');
     const latest = [...result.messages].reverse().find(message => message.role === 'assistant');
     const action = latest?.action?.status === 'pending' ? latest.action : null;
-    setPending(action);
-    say(action ? `${latest?.content || ''} ${action.summary}. ${Object.entries(action.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => `${key}: ${value}`).join('. ')}. Say Confirm to approve, or Cancel.` : latest?.content || 'Request completed.');
+    onResponse?.(result);
+    const answer = action ? `${latest?.content || ''} ${action.summary}. ${Object.entries(action.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => `${key}: ${value}`).join('. ')}. Say Confirm to approve, or Cancel.` : latest?.content || 'Request completed.';
+    setReply(presentation === 'mobile' ? latest?.content || 'Request completed.' : 'Reply added to your conversation.');
+    if (!muted) voice.speak(answer);
     if (intent.kind === 'confirm') onChanged();
   }
   async function run(text?: string) {
-    if (lock.current) return;
-    lock.current = true; setOpen(true); voice.silence();
+    if (lock.current || disabled) return;
+    lock.current = true; setExpanded(true); voice.silence();
     const version = ++generation.current;
     try {
       if (!text) setPhase('listening');
@@ -67,20 +88,43 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
       if (!alive.current || generation.current !== version) return;
       setTranscript(heard); await command(heard, version);
     } catch (error) {
-      if (alive.current && generation.current === version) { setPending(null); say(error instanceof Error ? error.message : 'Voice request failed.'); }
+      if (error instanceof Error && error.message === 'Listening stopped.') return;
+      if (alive.current && generation.current === version) { say(error instanceof Error ? error.message : 'Voice request failed.'); }
     } finally { if (alive.current && generation.current === version) { lock.current = false; setPhase('idle'); } }
   }
   function stop() { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); }
-  return <div className="fixed bottom-5 left-5 z-40 max-w-[calc(100vw-2.5rem)]">
-    {open && <section aria-label="Carestead voice assistant" className="mb-3 max-h-[calc(100dvh-7rem)] w-80 max-w-full overflow-y-auto rounded-2xl border bg-card p-4 shadow-xl">
-      <div className="flex items-center justify-between"><h2 className="font-semibold">Voice · {screen}</h2><Button variant="ghost" size="icon-sm" aria-label="Close voice assistant" disabled={phase === 'working'} onClick={() => { stop(); setOpen(false); }}><X /></Button></div>
-      <p className="text-xs text-muted-foreground">For {recipientName}</p>
-      {transcript && <p className="mt-3 text-sm">You: {transcript}</p>}
-      <p role="status" className="my-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm">{phase === 'listening' ? 'Listening…' : phase === 'working' ? 'Checking your request…' : reply}</p>
-      {pending && <div className="my-3 text-sm"><strong>{pending.summary}</strong><dl>{Object.entries(pending.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => <div key={key}><dt className="font-medium">{key}</dt><dd>{value}</dd></div>)}</dl><div className="mt-2 flex gap-2"><Button disabled={!canWrite || phase !== 'idle'} onClick={() => void run('Confirm')}>Confirm</Button><Button variant="outline" disabled={phase !== 'idle'} onClick={() => void run('Cancel')}>Cancel</Button></div></div>}
-      <p className="text-xs text-muted-foreground">Tap the microphone for each command. Speech may be processed by your device’s speech provider. Requests are saved in care chat history.</p>
-      <Button variant="ghost" size="sm" onClick={() => { voice.silence(); setMuted(!muted); }}>{muted ? <VolumeX /> : <Volume2 />}{muted ? 'Enable spoken replies' : 'Mute spoken replies'}</Button>
-    </section>}
-    <Button className="rounded-full shadow-lg" disabled={phase === 'working'} aria-label={phase === 'listening' ? 'Stop voice listening' : 'Talk to Carestead'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Stop' : 'Talk to Carestead'}</Button>
-  </div>;
+  const autoRun = useRef(() => { void run(); });
+  useEffect(() => { autoRun.current = () => { void run(); }; });
+  useEffect(() => {
+    if (!autoListen || !claimAutoListen) return;
+    const start = () => {
+      if (document.visibilityState === 'visible' && !document.querySelector('[role=dialog]') && claimAutoListen()) autoRun.current();
+    };
+    const frame = requestAnimationFrame(start);
+    document.addEventListener('visibilitychange', start);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener('visibilitychange', start); };
+  }, [autoListen, claimAutoListen]);
+  const mobile = presentation === 'mobile';
+  const showCard = expanded || !!pending || phase !== 'idle';
+  return <section aria-label="Carestead voice assistant" data-voice-primary={voiceFirst}
+    className={mobile ? 'rounded-3xl border border-primary/20 bg-card p-4 shadow-[0_-8px_40px_rgb(35_68_52/0.12)]' : 'border-t bg-secondary/40 px-4 py-3'}>
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <p className="min-w-0 truncate text-xs font-medium text-muted-foreground">{mobile ? `Carestead · ${recipientName}` : `Speaking about ${recipientName}`}</p>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon-sm" aria-label={muted ? 'Enable spoken replies' : 'Mute spoken replies'} onClick={() => { voice.silence(); if (onSpokenRepliesChange) onSpokenRepliesChange(muted); else setLocalMuted(!muted); }}>{muted ? <VolumeX /> : <Volume2 />}</Button>
+        {mobile && onHistory && <Button variant="ghost" size="icon-sm" aria-label="Conversation history" onClick={onHistory}><History /></Button>}
+        {mobile && expanded && !pending && phase === 'idle' && <Button variant="ghost" size="icon-sm" aria-label="Minimize voice response" onClick={() => setExpanded(false)}><ChevronDown /></Button>}
+      </div>
+    </div>
+    {((mobile && showCard) || (!mobile && (transcript || phase !== 'idle' || expanded))) && <div className={mobile ? 'mb-3 max-h-[38dvh] overflow-y-auto rounded-2xl border bg-background p-4' : 'mb-3'}>
+      {transcript && <p className="mb-2 break-words text-xs text-muted-foreground">You: {transcript}</p>}
+      <output className="block whitespace-pre-wrap break-words text-sm leading-6">{phase === 'listening' ? 'Listening…' : phase === 'working' ? 'Checking your request…' : reply}</output>
+      {mobile && pending && <div className="mt-3 border-t pt-3 text-sm"><strong>{pending.summary}</strong><dl className="mt-2 space-y-1">{Object.entries(pending.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => <div key={key} className="break-words"><dt className="font-medium">{key}</dt><dd>{value}</dd></div>)}</dl><p className="mt-3 text-xs">Say Confirm or Cancel, or choose below.</p><div className="mt-2 flex gap-2"><Button disabled={!canWrite || phase !== 'idle'} onClick={() => void run('Confirm')}>Confirm</Button><Button variant="outline" disabled={phase !== 'idle'} onClick={() => void run('Cancel')}>Cancel</Button></div></div>}
+    </div>}
+    <div className="flex items-center gap-2">
+      <Button className={mobile ? 'h-14 flex-1 rounded-2xl px-4 text-base' : 'h-11 flex-1 rounded-xl'} variant={voiceFirst ? 'default' : 'outline'} disabled={disabled || phase === 'working'} aria-label={phase === 'listening' ? 'Stop voice listening' : 'Talk to Carestead'} aria-pressed={phase === 'listening'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Stop listening' : mobile ? 'Talk' : 'Talk to Carestead'}</Button>
+      {mobile && onType && <Button variant={voiceFirst ? 'ghost' : 'default'} className={voiceFirst ? 'h-14 rounded-xl' : 'order-first h-14 flex-1 rounded-xl'} onClick={onType}><Keyboard />{voiceFirst ? 'Type instead' : 'Type to Carestead'}</Button>}
+    </div>
+    {mobile && <p className="mt-2 text-center text-[11px] text-muted-foreground">{phase === 'listening' ? 'Microphone on · tap Stop to discard' : 'Speak to navigate, ask, or plan. Changes need confirmation.'}</p>}
+  </section>;
 }

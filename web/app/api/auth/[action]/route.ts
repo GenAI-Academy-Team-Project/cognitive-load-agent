@@ -1,3 +1,4 @@
+import { accountPreferences } from '@/lib/account-preferences';
 import { meetsPasswordPolicy, passwordPolicyMessage } from '@/lib/password-policy';
 import { requestPasswordReset, resetPassword, recoveryMessage } from '@/lib/password-recovery';
 import { env } from 'cloudflare:workers';
@@ -73,16 +74,27 @@ export async function POST(request: Request) {
       const user = await authenticatedUser(db, request);
       if (!user) throw new AppError('authentication_required', 401, 'Sign in to update your profile.');
       if (user.isGuest) throw new AppError('guest_access', 403, 'Guest accounts cannot update profiles.');
-      if (Object.keys(body).some((key) => key !== 'displayName'))
-        throw new AppError('invalid_profile', 400, 'Only your display name can be changed here.');
+      if (Object.keys(body).some((key) => !['displayName', 'inputPreference', 'spokenReplies', 'autoListenOnOpen'].includes(key)))
+        throw new AppError('invalid_profile', 400, 'Only your display name and input preferences can be changed here.');
       const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
       if (!displayName || displayName.length > 100)
         throw new AppError('invalid_name', 400, 'Enter a display name of 1 to 100 characters.');
+      if (body.inputPreference !== undefined && (typeof body.inputPreference !== 'string' || !['voice', 'typing'].includes(body.inputPreference)))
+        throw new AppError('invalid_preference', 400, 'Choose voice-first or typing-first.');
+      if (body.spokenReplies !== undefined && typeof body.spokenReplies !== 'boolean')
+        throw new AppError('invalid_preference', 400, 'Spoken replies must be on or off.');
+      if (body.autoListenOnOpen !== undefined && typeof body.autoListenOnOpen !== 'boolean')
+        throw new AppError('invalid_preference', 400, 'Listen on open must be on or off.');
+      const previous = await accountPreferences(db, user.id);
+      const inputPreference = body.inputPreference === undefined ? previous.inputPreference : body.inputPreference;
+      const spokenReplies = body.spokenReplies === undefined ? previous.spokenReplies : body.spokenReplies;
+      const autoListenOnOpen = body.autoListenOnOpen === undefined ? previous.autoListenOnOpen : body.autoListenOnOpen;
       await db.batch([
+        db.prepare('INSERT INTO account_preferences (account_id,input_preference,spoken_replies,auto_listen_on_open) VALUES (?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET input_preference=excluded.input_preference,spoken_replies=excluded.spoken_replies,auto_listen_on_open=excluded.auto_listen_on_open').bind(user.id, inputPreference, spokenReplies ? 1 : 0, autoListenOnOpen ? 1 : 0),
         db.prepare('UPDATE auth_accounts SET display_name=? WHERE id=?').bind(displayName, user.id),
         db.prepare('UPDATE care_circle_members SET display_name=?,updated_at=? WHERE user_id=?').bind(displayName, new Date().toISOString(), user.id),
       ]);
-      return Response.json({ user: { ...user, displayName } }, { headers: noStore });
+      return Response.json({ user: { ...user, displayName, inputPreference, spokenReplies, autoListenOnOpen } }, { headers: noStore });
     }
     if (action === 'forgot-password' || action === 'reset-password') {
       await enforceRateLimit(db, `recovery-ip:${tokenHash(request.headers.get('cf-connecting-ip') || 'local')}`, 'auth_ip');

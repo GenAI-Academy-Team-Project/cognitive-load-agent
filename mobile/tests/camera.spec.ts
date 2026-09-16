@@ -39,4 +39,12 @@ test('document intake offers camera capture and existing uploads with the same r
   await expect(page.getByText('Test review response', { exact: true })).toBeVisible();
   expect(submitted?.file.name).toBe('existing.png');
   expect(submitted?.processingConsent).toBe('true');
+  // The web entry uses the same panel, but must not offer mobile photo capture.
+  const webURL = new URL(baseURL!);
+  webURL.port = process.env.CARESTEAD_MOBILE_TEST_BACKEND_PORT || '43980';
+  await page.goto(`${webURL.origin}/?view=Care%20Organizer`);
+  await page.getByRole('button', { name: 'Review a document', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Take a photo', exact: true })).toHaveCount(0);
+  await expect(page.locator('#care-document-camera')).toHaveCount(0);
+  await expect(page.getByLabel(/^Document or image/)).toBeVisible();
 });

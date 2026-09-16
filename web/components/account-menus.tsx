@@ -23,7 +23,7 @@ const roleDetails = {
 };
 
 export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut, onProfileUpdated, busy }: {
-  user: CurrentUser; recipientName: string; view: string; onNavigate: (view: AccountView) => void; onSignOut: () => void; onProfileUpdated: (displayName: string) => void; busy: boolean;
+  user: CurrentUser; recipientName: string; view: string; onNavigate: (view: AccountView) => void; onSignOut: () => void; onProfileUpdated: (displayName: string, preferences: Pick<CurrentUser, 'inputPreference' | 'spokenReplies' | 'autoListenOnOpen'>) => void; busy: boolean;
 }) {
   const [dialog, setDialog] = useState<'role' | 'password' | 'profile' | null>(null);
   return <>
@@ -65,7 +65,7 @@ export function AccountMenus({ user, recipientName, view, onNavigate, onSignOut,
       </DialogContent>
     </Dialog>
     <Dialog open={dialog === 'profile'} onOpenChange={(open) => { if (!open) setDialog(null); }}>
-      <DialogContent><ProfileForm key={dialog ?? 'closed'} user={user} onSaved={onProfileUpdated} onClose={() => setDialog(null)} /></DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto"><ProfileForm key={dialog ?? 'closed'} user={user} onSaved={onProfileUpdated} onClose={() => setDialog(null)} /></DialogContent>
     </Dialog>
     <Dialog open={dialog === 'password'} onOpenChange={(open) => { if (!open) setDialog(null); }}>
       <DialogContent><PasswordForm key={dialog ?? 'closed'} email={user.email} /></DialogContent>
@@ -107,8 +107,11 @@ function PasswordForm({ email }: { email: string }) {
   </form>;
 }
 
-function ProfileForm({ user, onSaved, onClose }: { user: CurrentUser; onSaved: (displayName: string) => void; onClose: () => void }) {
+function ProfileForm({ user, onSaved, onClose }: { user: CurrentUser; onSaved: (displayName: string, preferences: Pick<CurrentUser, 'inputPreference' | 'spokenReplies' | 'autoListenOnOpen'>) => void; onClose: () => void }) {
   const [name, setName] = useState(user.displayName);
+  const [inputPreference, setInputPreference] = useState(user.inputPreference ?? 'voice');
+  const [spokenReplies, setSpokenReplies] = useState(user.spokenReplies ?? true);
+  const [autoListenOnOpen, setAutoListenOnOpen] = useState(user.autoListenOnOpen ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -116,19 +119,22 @@ function ProfileForm({ user, onSaved, onClose }: { user: CurrentUser; onSaved: (
     event.preventDefault();
     setBusy(true); setError(''); setSaved(false);
     try {
-      const response = await fetch('/api/auth/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name.trim() }) });
-      const result = await response.json() as { error?: string; user: { displayName: string } };
+      const response = await fetch('/api/auth/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name.trim(), inputPreference, spokenReplies, autoListenOnOpen }) });
+      const result = await response.json() as { error?: string; user: CurrentUser };
       if (!response.ok) throw new Error(result.error || 'Your profile could not be updated. Try again.');
-      setName(result.user.displayName); onSaved(result.user.displayName); setSaved(true);
+      setName(result.user.displayName); onSaved(result.user.displayName, { inputPreference: result.user.inputPreference, spokenReplies: result.user.spokenReplies, autoListenOnOpen: result.user.autoListenOnOpen }); setSaved(true);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Your profile could not be updated. Try again.'); }
     finally { setBusy(false); }
   }
   return <form onSubmit={submit} className="space-y-5">
     <DialogHeader><DialogTitle>Edit profile</DialogTitle><DialogDescription>Choose how your name appears to your care circle.</DialogDescription></DialogHeader>
     <div className="space-y-2"><label htmlFor="profile-display-name" className="text-sm font-medium">Display name</label><Input id="profile-display-name" name="displayName" autoComplete="name" value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} required maxLength={100} disabled={busy} aria-describedby="profile-name-hint" /><p id="profile-name-hint" className="text-xs text-muted-foreground">Use your name or the name you prefer to go by. Up to 100 characters.</p></div>
+    <div className="space-y-2"><label htmlFor="profile-input-preference" className="text-sm font-medium">Preferred interaction</label><select id="profile-input-preference" className="min-h-11 w-full rounded-lg border bg-background px-3" value={inputPreference} onChange={event => { setInputPreference(event.target.value as typeof inputPreference); setSaved(false); }} disabled={busy}><option value="voice">Voice-first</option><option value="typing">Typing-first</option></select><p className="text-xs text-muted-foreground">Both options stay available. This preference applies to your account on all devices. Tap a microphone to start listening.</p></div>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={spokenReplies} onChange={event => { setSpokenReplies(event.target.checked); setSaved(false); }} disabled={busy} />Read assistant replies aloud</label>
+    <div className="space-y-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={autoListenOnOpen} onChange={event => { setAutoListenOnOpen(event.target.checked); setSaved(false); }} disabled={busy} />Start listening when mobile opens</label><p className="text-xs text-muted-foreground">On your next mobile launch, start one voice request after your care workspace loads. Microphone permission is required. Listening stops when you leave the app; web always waits for a tap.</p></div>
     <div className="space-y-2"><label htmlFor="profile-email" className="text-sm font-medium">Email address</label><Input id="profile-email" type="email" value={user.email} readOnly aria-describedby="profile-email-hint" /><p id="profile-email-hint" className="text-xs text-muted-foreground">This is your sign-in and password recovery email. Email changes are not available yet.</p></div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {saved && <output className="block text-sm text-primary">Profile updated.</output>}
-    <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy}>{saved ? 'Done' : 'Cancel'}</Button><Button type="submit" disabled={busy || !name.trim() || name.trim() === user.displayName}>{busy && <LoaderCircle className="animate-spin" />}Save changes</Button></DialogFooter>
+    <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy}>{saved ? 'Done' : 'Cancel'}</Button><Button type="submit" disabled={busy || !name.trim() || (name.trim() === user.displayName && inputPreference === (user.inputPreference ?? 'voice') && spokenReplies === (user.spokenReplies ?? true) && autoListenOnOpen === (user.autoListenOnOpen ?? false))}>{busy && <LoaderCircle className="animate-spin" />}Save changes</Button></DialogFooter>
   </form>;
 }

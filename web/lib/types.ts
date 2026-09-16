@@ -70,6 +70,9 @@ export type CareCircleMember = {
 };
 
 export type CurrentUser = {
+  inputPreference?: 'voice' | 'typing';
+  spokenReplies?: boolean;
+  autoListenOnOpen?: boolean;
   isGuest?: boolean;
   id: string;
   email: string;

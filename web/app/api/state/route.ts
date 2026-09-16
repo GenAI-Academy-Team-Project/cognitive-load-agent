@@ -1,3 +1,4 @@
+import { accountPreferences } from '@/lib/account-preferences';
 import { guestDashboard } from '@/lib/guest';
 import { authenticatedUser } from '@/lib/auth';
 import { currentMemories } from '@/lib/current-memories';
@@ -88,7 +89,7 @@ async function state(db: D1Database, member: CareMembership, recipientId: string
   const confirmedCoverage = activeTasks.length ? Math.round(activeTasks.filter((task) => task.accepted).length / activeTasks.length * 100) : 0;
   const dismissed = await rows<{ entity_type: string; entity_id: string }>(db, 'SELECT entity_type,entity_id FROM list_dismissals WHERE recipient_id=? AND member_id=?', [recipientId, member.memberId]);
   const visible = <T extends { id: string }>(type: string, records: T[]) => records.filter(record => !dismissed.some(item => item.entity_type === type && item.entity_id === record.id));
-  return { listDismissals: dismissed, confirmedCoverage, risks, tasks, events, memories, approvals, traces, careCircle, recipients, selectedRecipient: recipient, currentPlan: { ...plan, latest_version: latestVersion, update_available: Number(latestVersion) > Number(plan.template_version), override_count: overrides?.count ?? 0 }, templates, profile, supportContacts, consent, notifications: visible('notifications', notifications), monitoring: { recentErrors: errorStats?.recentErrors ?? 0, lastErrorAt: errorStats?.lastErrorAt ?? null }, currentUser: { id: member.id, email: member.email, displayName: member.displayName, role }, benchmark: runBenchmark(), agentMode: env.OPENAI_API_KEY ? 'hybrid' : 'deterministic' };
+  return { listDismissals: dismissed, confirmedCoverage, risks, tasks, events, memories, approvals, traces, careCircle, recipients, selectedRecipient: recipient, currentPlan: { ...plan, latest_version: latestVersion, update_available: Number(latestVersion) > Number(plan.template_version), override_count: overrides?.count ?? 0 }, templates, profile, supportContacts, consent, notifications: visible('notifications', notifications), monitoring: { recentErrors: errorStats?.recentErrors ?? 0, lastErrorAt: errorStats?.lastErrorAt ?? null }, currentUser: { ...await accountPreferences(db, member.id), id: member.id, email: member.email, displayName: member.displayName, role }, benchmark: runBenchmark(), agentMode: env.OPENAI_API_KEY ? 'hybrid' : 'deterministic' };
 }
 
 async function audit(db: D1Database, member: CareMembership, action: string, type: string, id: string, detail: string) { await db.prepare('INSERT INTO audit_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), member.id, member.email, action, type, id, detail, new Date().toISOString()).run(); }

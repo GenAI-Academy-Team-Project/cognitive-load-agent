@@ -294,11 +294,13 @@ export function AdaptivePlanBuilder({
 }
 
 export function DocumentIntakePanel({
+  photoCapture = false,
   dashboard,
   act,
   disabled,
   onError,
 }: {
+  photoCapture?: boolean;
   dashboard: DashboardState;
   act: PlanningAction;
   disabled: boolean;
@@ -408,6 +410,7 @@ export function DocumentIntakePanel({
           PDF, TXT, PNG, JPG, or WebP · 5 MB maximum
         </span>
       </label>
+      {photoCapture && <>
       <input
         ref={cameraInput}
         id="care-document-camera"
@@ -429,6 +432,7 @@ export function DocumentIntakePanel({
       <p className="mt-2 text-xs text-muted-foreground">
         Take a picture with your camera, or choose an existing image or document above.
       </p>
+      </>}
       {file && <output className="mt-3 block break-all text-sm">Selected file: {file.name}</output>}
       <label className="mt-4 flex items-start gap-3 text-sm">
         <input
