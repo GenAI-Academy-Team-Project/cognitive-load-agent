@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 export WRANGLER_WRITE_LOGS := false
 export WRANGLER_SEND_METRICS := false
-.PHONY: test-notifications help install dev build lint test check up local-init down logs cloud-login cloud-db-create cloud-config cloud-build cloud-check cloud-migrate cloud-release deploy cloud-secrets-check cloud-secrets-apply test-config
+.PHONY: test-notifications help install dev build lint test check up local-init down logs cloud-login cloud-db-create cloud-config cloud-build cloud-check cloud-migrate cloud-release deploy cloud-secrets-check cloud-secrets-apply github-secrets-sync test-config
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -61,5 +61,7 @@ cloud-secrets-check: ## Validate configured cloud integration groups without upl
 cloud-secrets-apply: cloud-secrets-check ## Upload cloud runtime secrets to the configured Worker
 	cd web && node scripts/cloud-config.mjs --production
 	cd web && node scripts/cloud-secrets.mjs --apply
+github-secrets-sync: ## Sync local secrets to GitHub production environment (requires gh CLI)
+	cd web && node scripts/github-secrets-sync.mjs
 test-config: ## Test deployment configuration and secret handling without network access
 	cd web && node --test scripts/*.test.mjs

@@ -3,12 +3,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upload_runtime_secrets:
-        description: Upload configured runtime secrets after deployment
-        type: boolean
-        required: false
-        default: false
 permissions:
   contents: read
 concurrency:
@@ -33,7 +27,6 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: make install
       - name: Validate runtime secret configuration
-        if: ${{ inputs.upload_runtime_secrets }}
         run: make cloud-secrets-check
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
@@ -61,7 +54,6 @@ jobs:
           WRANGLER_WRITE_LOGS: 'false'
           WRANGLER_SEND_METRICS: 'false'
       - name: Upload runtime secrets
-        if: ${{ inputs.upload_runtime_secrets }}
         run: make cloud-secrets-apply
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
