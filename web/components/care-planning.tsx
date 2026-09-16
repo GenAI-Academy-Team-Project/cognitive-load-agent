@@ -212,10 +212,43 @@ export function CarePlanning(props: Props) {
   const [end, setEnd] = useState(() => localInput(future(240), zone));
   const [taskId, setTaskId] = useState('');
   const [newTime, setNewTime] = useState(() => localInput(future(1440), zone));
+  const [setupStart, setSetupStart] = useState(() =>
+    localInput(future(1440), zone),
+  );
+  const [setupEnd, setSetupEnd] = useState(() =>
+    localInput(future(1680), zone),
+  );
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [conflictOptions, setConflictOptions] = useState<ConflictOption[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const [minutes, setMinutes] = useState(20);
+  const selectedTask = state?.tasks.find((task) => task.id === taskId);
+  const assignedMember = state?.members.find(
+    (member) => member.id === selectedTask?.planning.owner_member_id,
+  );
+  const hasSchedulingWindow = Boolean(
+    selectedTask?.planning.owner_member_id &&
+    state?.availability.some(
+      (window) =>
+        window.member_id === selectedTask.planning.owner_member_id &&
+        Date.parse(window.end_at) > renderTime &&
+        Date.parse(window.end_at) - Date.parse(window.start_at) >=
+          selectedTask.planning.duration_minutes * 60000 &&
+        window.categories.includes(selectedTask.category) &&
+        selectedTask.planning.requirements.every((requirement) =>
+          window.capabilities.includes(requirement),
+        ),
+    ),
+  );
+  const schedulingSetupNeeded = Boolean(
+    selectedTask &&
+    (!selectedTask.planning.owner_member_id || !hasSchedulingWindow),
+  );
+  const canCompleteSetupHere = Boolean(
+    selectedTask &&
+    (!selectedTask.planning.owner_member_id ||
+      selectedTask.planning.owner_member_id === state?.memberId),
+  );
   const tabs = [
     { id: 'week', title: 'Your week ahead', icon: Clock3 },
     { id: 'routines', title: 'Recurring care', icon: Check },
@@ -286,6 +319,44 @@ export function CarePlanning(props: Props) {
     } finally {
       setAgentBusy(false);
     }
+  }
+  async function completeSetupAndSuggest() {
+    if (!selectedTask || !state || !canCompleteSetupHere) return;
+    if (!selectedTask.planning.owner_member_id) {
+      const assigned = await run('save_task_details', {
+        taskId: selectedTask.id,
+        ownerMemberId: state.memberId,
+        durationMinutes: selectedTask.planning.duration_minutes,
+        dependsOn: selectedTask.planning.depends_on,
+        backupMemberId: selectedTask.planning.backup_member_id,
+        requirements: selectedTask.planning.requirements,
+        factIds: selectedTask.planning.fact_ids ?? [],
+      });
+      if (!assigned) return;
+    }
+    if (!hasSchedulingWindow) {
+      let windowStart = '',
+        windowEnd = '';
+      try {
+        windowStart = localToInstant(setupStart, zone);
+        windowEnd = localToInstant(setupEnd, zone);
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'Check the availability window.',
+        );
+        return;
+      }
+      const saved = await run('save_availability', {
+        start: windowStart,
+        end: windowEnd,
+        categories: [selectedTask.category],
+        capabilities: selectedTask.planning.requirements,
+      });
+      if (!saved) return;
+    }
+    await suggestConflictOptions();
   }
   return (
     <div
@@ -492,6 +563,7 @@ export function CarePlanning(props: Props) {
                     onChange={(e) => {
                       setTaskId(e.target.value);
                       setSimulation(null);
+                      setConflictOptions([]);
                     }}
                   >
                     <option value="">Choose a responsibility</option>
@@ -529,6 +601,73 @@ export function CarePlanning(props: Props) {
                     </Button>
                   </div>
                 )}
+              {selectedTask &&
+                !selectedTask.calendarLinked &&
+                schedulingSetupNeeded && (
+                  <div className="mt-4 rounded-xl border border-primary/30 bg-background p-4">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" />
+                      <div>
+                        <h3 className="font-medium">Finish the setup here</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {!selectedTask.planning.owner_member_id
+                            ? `This responsibility has no caregiver. Carestead can assign it to you and use the availability below before suggesting options.`
+                            : `${assignedMember?.display_name ?? 'The assigned caregiver'} has not shared a compatible future availability window for this responsibility.`}
+                        </p>
+                      </div>
+                    </div>
+                    {canCompleteSetupHere ? (
+                      <>
+                        {!hasSchedulingWindow && (
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <DateField
+                              label="I am available from"
+                              value={setupStart}
+                              onChange={setSetupStart}
+                              zone={zone}
+                            />
+                            <DateField
+                              label="I am available until"
+                              value={setupEnd}
+                              onChange={setSetupEnd}
+                              zone={zone}
+                            />
+                          </div>
+                        )}
+                        <Button
+                          className="mt-4"
+                          disabled={
+                            busy ||
+                            agentBusy ||
+                            !writable ||
+                            !setupStart ||
+                            !setupEnd
+                          }
+                          onClick={completeSetupAndSuggest}
+                        >
+                          {busy || agentBusy ? (
+                            <LoaderCircle className="animate-spin" />
+                          ) : (
+                            <Sparkles />
+                          )}
+                          Save setup and suggest options
+                        </Button>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          You will still review the proposed schedule before any
+                          time changes.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Only{' '}
+                        {assignedMember?.display_name ??
+                          'the assigned caregiver'}{' '}
+                        can share their availability. Choose another
+                        responsibility or ask them to add a window.
+                      </p>
+                    )}
+                  </div>
+                )}
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   disabled={busy || !writable || !taskId || !newTime}
@@ -539,7 +678,13 @@ export function CarePlanning(props: Props) {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy || agentBusy || !writable || !taskId}
+                  disabled={
+                    busy ||
+                    agentBusy ||
+                    !writable ||
+                    !taskId ||
+                    schedulingSetupNeeded
+                  }
                   onClick={suggestConflictOptions}
                 >
                   {agentBusy ? (
