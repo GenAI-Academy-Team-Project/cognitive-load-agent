@@ -32,7 +32,7 @@ export async function integrationConfig<T extends Bindings>(db: D1Database, conf
 }
 function statuses(config: Bindings, rows: SettingRow[]): IntegrationStatus[] {
   return (Object.keys(integrationKeys) as IntegrationId[]).map((id) => {
-    const configured = integrationKeys[id].every((key) => key === 'NTFY_ACCESS_TOKEN' || Boolean(config[key]?.trim())) && (id !== 'ntfy' || Boolean(ntfyServerUrl(config.NTFY_SERVER_URL))) && (id !== 'calendar' || /^[a-f0-9]{64}$/i.test(config.GOOGLE_TOKEN_KEY || ''));
+    const configured = integrationKeys[id].every((key) => key === 'NTFY_ACCESS_TOKEN' || key === 'OPENAI_MODEL' || key === 'OPENAI_REASONING_EFFORT' || Boolean(config[key]?.trim())) && (id !== 'ntfy' || Boolean(ntfyServerUrl(config.NTFY_SERVER_URL))) && (id !== 'calendar' || /^[a-f0-9]{64}$/i.test(config.GOOGLE_TOKEN_KEY || ''));
     return { id, configured, enabled: configured && rows.some((row) => row.key === `integration:${id}` && row.value === 'true'), fields: integrationKeys[id].map(key => ({ key, source: rows.some(row => row.key === `${configPrefix}${key}`) ? 'override' as const : config[key]?.trim() ? 'environment' as const : 'missing' as const })) };
   });
 }
