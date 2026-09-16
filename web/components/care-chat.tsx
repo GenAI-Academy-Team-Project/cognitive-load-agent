@@ -21,6 +21,19 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
   const [showPrevious, setShowPrevious] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [draft, setDraft] = useState('');
+  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!open || !window.visualViewport) return;
+    const visible = window.visualViewport;
+    const update = () => setViewport({ height: visible.height, top: visible.offsetTop });
+    update();
+    visible.addEventListener('resize', update);
+    visible.addEventListener('scroll', update);
+    return () => {
+      visible.removeEventListener('resize', update);
+      visible.removeEventListener('scroll', update);
+    };
+  }, [open]);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +101,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
     const value = message.trim();
     if (!value || busy || voiceBusy || chat?.recipientId !== recipientId) return;
     setDraft('');
-    await request({ action: 'message', message: value });
+    if (!await request({ action: 'message', message: value })) setDraft(current => current || message);
   }
 
   async function decide(actionId: string, decision: 'approve_action' | 'reject_action') {
@@ -98,6 +111,7 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
 
   async function clearHistory() {
     if (await request({ action: 'clear_history' })) {
+      setDraft('');
       setPreviousMessageIds([]);
       setShowPrevious(false);
       setConfirmClear(false);
@@ -113,8 +127,8 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
         {chat?.recipientId === recipientId ? <CareVoice presentation="mobile" recipientId={recipientId} recipientName={recipientName} screen={screen} screens={screens} navigate={onNavigate} canWrite={canWrite} onChanged={onActionCompleted} adapter={voiceAdapter} voiceFirst={voiceFirst} spokenReplies={spokenReplies} onSpokenRepliesChange={enabled => { voice.silence(); setSpokenReplies(enabled); }} initialChat={chat} onResponse={updateChat} onType={() => openText()} onHistory={() => openText(true)} autoListen={autoListen} claimAutoListen={claimAutoListen} /> : <section className="rounded-3xl border bg-card p-4 shadow-lg" aria-label="Carestead voice assistant"><p className="text-sm">{error || 'Getting Carestead ready…'}</p>{error && <Button variant="outline" onClick={() => { setError(null); setLoadRevision(value => value + 1); }}>Retry assistant</Button>}</section>}
       </div> : !open && <Button data-voice-primary={voiceFirst} onClick={() => openText()} className="fixed right-5 bottom-5 z-40 h-14 rounded-2xl px-5 shadow-[0_14px_40px_rgb(35_68_52/0.24)]" aria-label={`Ask Carestead about ${recipientName}`}><Sparkles className="size-5" /><span>Carestead</span></Button>}
       <Sheet open={open} onOpenChange={(next) => { if (!next) voice.silence(); setOpen(next); }}>
-        <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-[460px] gap-0 border-l-0 bg-background p-0" aria-label={`Carestead assistant for ${recipientName}`}>
-          <SheetHeader className="border-b bg-card px-5 py-4 pr-14">
+        <SheetContent style={viewport ? { height: viewport.height, top: viewport.top, bottom: 'auto' } : { height: '100dvh' }} className="min-w-0 overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-[460px] gap-0 border-l-0 bg-background p-0" aria-label={`Carestead assistant for ${recipientName}`}>
+          <SheetHeader className="shrink-0 border-b bg-card px-5 py-4 pr-14">
             <div className="flex items-center gap-3">
               <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>
               <div><SheetTitle className="font-heading text-lg font-semibold">Ask about {recipientName}</SheetTitle><SheetDescription className="mt-0.5 text-xs">{chat?.agentMode === 'model' ? `AI-grounded answers${chat.model ? ` · ${chat.model}` : ''}` : 'Grounded local answers'} · actions require approval</SheetDescription></div>
@@ -132,11 +146,11 @@ export function CareChat({ recipientId, recipientName, canWrite, onActionComplet
             </div>
           </ScrollArea>
 
-          <div className="border-t bg-card p-4">
+          <div className="min-w-0 shrink-0 border-t bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
 
             {chat?.recipientId === recipientId && messages.length === 0 && <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{chat.quickPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)} disabled={busy || voiceBusy} className="shrink-0 rounded-full border bg-card px-3 py-1.5 text-left text-xs text-[var(--care-success-ink)] hover:bg-secondary disabled:opacity-50">{prompt}</button>)}</div>}
             <div className="rounded-2xl border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
-              <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 resize-none border-0 p-2 shadow-none focus-visible:ring-0" disabled={busy || voiceBusy} />
+              <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} placeholder={`Ask about ${recipientName} or request an action…`} aria-label={`Message Carestead about ${recipientName}`} className="min-h-14 max-h-32 resize-none overflow-y-auto border-0 p-2 shadow-none focus-visible:ring-0" />
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
 

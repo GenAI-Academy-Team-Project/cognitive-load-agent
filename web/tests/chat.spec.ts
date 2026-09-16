@@ -73,3 +73,28 @@ test('recipient chat answers with evidence and executes only after approval', as
   const saved = await (await page.request.get('/api/chat?recipientId=recipient-alex')).json();
   expect(saved.messages).toEqual([]);
 });
+
+
+test('mobile chat keeps the composer visible and editable, and clears the draft', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: /ask carestead about/i }).click();
+  const composer = page.getByRole('textbox', { name: /message carestead/i });
+  await composer.fill('What should I review today?');
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  // Model the reduced visible area when a mobile keyboard opens.
+  await page.setViewportSize({ width: 390, height: 440 });
+  await expect(composer).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeInViewport();
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(composer).toHaveValue('');
+  await composer.fill('Next question');
+  await expect(composer).toHaveValue('Next question');
+  await expect(page.getByRole('button', { name: 'Clear chat history', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Clear chat history', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear history', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Clear chat history?' })).toHaveCount(0);
+  await expect(composer).toHaveValue('');
+  await composer.fill('I can type again');
+  await expect(composer).toHaveValue('I can type again');
+});
