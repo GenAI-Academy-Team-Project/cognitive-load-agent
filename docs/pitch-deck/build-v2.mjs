@@ -121,7 +121,7 @@ function note(slide, value) {
   text(slide, "Care Handover", 765, 586, 220, 36, { size: 22 });
   text(slide, "Grounded Agent", 1020, 586, 245, 36, { size: 22 });
   text(slide, "Frincy Clement · Maneetta Antony · Tejaswini Venkata Raju · Shrijan Chipalu", 64, 680, 1100, 28, { size: 16, color: C.muted });
-  note(slide, "Open with the product promise: reduce the mental work of coordinating care. Carestead is non-clinical and keeps consequential actions under human control.");
+  note(slide, "SPEAKER 1 | Caregiving means managing more than tasks. One person often carries the changing checklist across appointments and people. Carestead reduces that load.");
 }
 
 // 2. Persona
@@ -133,7 +133,7 @@ function note(slide, value) {
   card(slide, 64, 455, 610, 132, "The invisible work of care", "Keep the information in her head. Spot the clash. Find cover. Update everyone.", { fill: C.white, line: C.line, headingSize: 17, bodySize: 19 });
   await image(slide, "docs/pitch-deck/assets/maya-persona.svg", 770, 115, 575, 555, "Illustrative caregiver persona surrounded by appointments, work, medication pickup, and transport needs", "contain", 0);
   text(slide, "Illustrative persona and scenario", 915, 680, 330, 24, { size: 12, color: C.muted, align: "center" });
-  note(slide, "Maya is illustrative. The problem is coordination, not diagnosis: information, ownership, timing, and handover are fragmented across people and tools.");
+  note(slide, "SPEAKER 1 | Meet Maya. She coordinates Alex's care while balancing work and family, connecting information held by different people.");
 }
 
 // 3. Problem
@@ -145,7 +145,7 @@ function note(slide, value) {
   card(slide, 908, 330, 390, 270, "More reminders are not enough", "The practical need is shared context, a named owner, a safe decision, and a visible outcome.", { fill: C.peach, bodySize: 19 });
   shape(slide, "roundRect", 200, 635, 980, 64, C.green, "none", 12);
   text(slide, "Enable Maya to coordinate the next step without rebuilding the whole picture.", 230, 650, 920, 36, { size: 23, bold: true, color: C.white, align: "center" });
-  note(slide, "Carestead addresses coordination failures: stale plans, ambiguous ownership, forgotten follow-ups, and costly handovers. It does not diagnose or replace clinical judgment.");
+  note(slide, "SPEAKER 1 | When one detail changes, calendars, transport, and responsibilities can remain outdated. Reminders alone cannot close that coordination gap.");
 }
 
 // 4. Product pillars and current application
@@ -167,7 +167,7 @@ function note(slide, value) {
   shape(slide, "roundRect", 580, 310, 785, 425, C.white, C.line, 12);
   await image(slide, "docs/pitch-deck/assets/current/handover.png", 598, 326, 749, 380, "Current Carestead handover view with profile, latest state, risks, contacts, and review items", "contain", 8);
   text(slide, "Current product view: recipient profile, latest care state, review items, and handover context", 625, 707, 695, 20, { size: 12, color: C.muted, align: "center" });
-  note(slide, "Introduce the four central workspace areas. The current handover view shows how Carestead consolidates a recipient profile, latest state, open review items, risks, and support context.");
+  note(slide, "SPEAKER 1 | Carestead creates one shared workspace with a reusable Care Plan, trusted Care Circle, Care Organizer, and live Care Handover.");
 }
 
 // 5. Complete product feature map
@@ -195,19 +195,19 @@ function note(slide, value) {
   });
   shape(slide, "roundRect", 215, 690, 1010, 46, C.green, "none", 12);
   text(slide, "Foundation: sign-in and roles · recipient scope · export and deletion · approval history · audit trail", 235, 701, 970, 28, { size: 15, bold: true, color: C.white, align: "center" });
-  note(slide, "Use this slide as the product inventory. Carestead combines recipient context, daily coordination, people and handover, agent interactions, integrations, and governance in one workspace.");
+  note(slide, "SPEAKER 1 | Around one care recipient, caregivers manage routines, responsibilities, appointments, contacts, notifications, activity history, chat, voice, documents, and approvals.");
 }
 
 // 6. End-to-end caregiver journey
 {
   const slide = base("Prototype journey", 6);
   await image(slide, "docs/images/carestead-user-journey.png", 30, 82, 1380, 680, "Caregiver journey from sign-in and review through grounded chat, approval, action, and handover", "contain", 0);
-  note(slide, "This is the prototype flow: select an allowed recipient, review the brief, ask Carestead, inspect evidence, approve or decline, execute an allowed tool, record the result, and hand over clearly.");
+  note(slide, "SPEAKER 1 | The journey moves from understanding the person to identifying needs, coordinating support, approving a safe action, and recording the outcome.");
 }
 
 // 7. Agent capability taxonomy
 {
-  const slide = base("Agent capability types", 7);
+  const slide = base("Agent capability types", 9);
   title(slide, "Agentic design", "Not every workflow uses AI the same way.", "Carestead applies model intelligence selectively and keeps safety-critical control in deterministic code.");
   const types = [
     ["LLM-assisted workflow", "Model", "Extracts, summarizes, ranks, or drafts.", "Control layer", "Validates, clarifies, scopes, and saves after review.", C.mint],
@@ -227,12 +227,12 @@ function note(slide, value) {
   });
   shape(slide, "roundRect", 230, 706, 980, 34, C.darkGreen, "none", 12);
   text(slide, "Interaction modes: text · voice transcript · spoken reply · image · PDF · structured records", 250, 712, 940, 24, { size: 15, bold: true, color: C.white, align: "center" });
-  note(slide, "Explain the taxonomy first. LLM-assisted work uses the model for language tasks. Full agentic work spans retrieval, decisions, tools, and verification. Grounded read-only work cannot change data. Deterministic agents use rules for risk and policy.");
+  note(slide, "SPEAKER 2 | Carestead uses several capability patterns. The LLM handles language, extraction, and summarization. Agentic workflows add retrieval, decisions, tools, approval, and verification.");
 }
 
 // 8. Workflow mapping
 {
-  const slide = base("Agent workflows in the product", 8, C.mint);
+  const slide = base("Agent workflows in the product", 10, C.mint);
   text(slide, "CAPABILITY MAP", 64, 103, 600, 28, { size: 16, bold: true, color: C.darkGreen });
   text(slide, "Eight workflows. Four capability patterns.", 64, 142, 1240, 120, { size: 48, bold: true });
   text(slide, "Each workflow states what the model contributes and what the agent controls.", 64, 265, 1210, 58, { size: 21, color: C.muted });
@@ -258,12 +258,12 @@ function note(slide, value) {
     text(slide, w[2], x + 18, y + 48, 285, 22, { size: 13, color: C.ink });
     text(slide, w[3], x + 315, y + 46, 310, 30, { size: 13, color: C.muted });
   });
-  note(slide, "Walk through the eight implemented workflows. The left side of each card states the model contribution. The right side states the orchestration, policy, approval, tool, and verification responsibilities.");
+  note(slide, "SPEAKER 2 | Across eight workflows, each card separates the model contribution from the controls enforced by the agent and orchestrator.");
 }
 
 // 9. Grounded chat and reviewed action
 {
-  const slide = base("Grounded chat · Reviewable actions", 9);
+  const slide = base("Grounded chat · Reviewable actions", 7);
   title(slide, "Prototype usability", "Ask naturally. See the evidence.\nApprove the exact next step.");
   const rows = [
     ["Grounded answer", "The LLM answers from the selected person’s current records and returns evidence IDs."],
@@ -272,32 +272,32 @@ function note(slide, value) {
   ];
   rows.forEach((r, i) => card(slide, 64, 335 + i * 122, 655, 104, r[0], r[1], { fill: i === 1 ? C.peach : C.white, headingSize: 21, bodySize: 17, number: i + 1 }));
   await image(slide, "docs/pitch-deck/assets/current/chat-approval.png", 790, 275, 465, 470, "Carestead chat showing a pending approval for an appointment change", "contain", 12);
-  note(slide, "Demo the chat flow: ask what needs attention, inspect the supporting evidence, request a concrete change, review the exact proposal, approve, and confirm the recorded outcome.");
+  note(slide, "SPEAKER 1 | A caregiver asks Carestead naturally, inspects the evidence, and requests an action. Carestead prepares the exact change for caregiver approval.");
 }
 
 // 10. Voice and multimodal intake
 {
-  const slide = base("Voice · Multimodal intake", 10);
+  const slide = base("Voice · Multimodal intake", 8);
   title(slide, "Voice + multimodal", "Care updates arrive in the format caregivers already have.", "Speak a request, type a note, or upload an image or PDF. Review structured changes before saving.");
   await image(slide, "docs/screenshots/voice-chat.png", 64, 330, 610, 340, "Carestead voice-enabled chat", "contain", 12);
   await image(slide, "docs/screenshots/document-image-intake.png", 735, 300, 300, 405, "Carestead document and image intake", "contain", 12);
   card(slide, 1060, 330, 280, 150, "Voice interaction", "Speech-to-text starts a grounded chat. Spoken replies are optional. Carestead stores transcript text, not raw microphone audio.", { fill: C.mint, headingSize: 20, bodySize: 15 });
   card(slide, 1060, 505, 280, 165, "Multimodal extraction", "The model extracts dates, contacts, follow-ups, facts, and uncertainty. The agent validates scope and asks for approval before saving.", { fill: C.peach, headingSize: 20, bodySize: 15 });
-  note(slide, "Voice is an interface to the same safe workflow. Document and image intake uses multimodal extraction followed by deterministic validation and caregiver review.");
+  note(slide, "SPEAKER 1 | Updates can arrive as speech, notes, documents, or images. The model extracts information, and the agent validates it before saving. HANDOFF: Now we will explain the agent design behind that experience.");
 }
 
 // 11. Technical architecture, unchanged
 {
   const slide = base("Technical architecture", 11);
   await image(slide, "docs/images/carestead-technical-architecture.png", 30, 80, 1380, 680, "Carestead technical architecture", "contain", 0);
-  note(slide, "Architecture: React and Vinext interface, authenticated APIs, TypeScript agent orchestration, recipient-scoped retrieval over D1, OpenAI Responses API, policy and approval gates, and constrained care-action tools.");
+  note(slide, "SPEAKER 2 | Authenticated APIs connect the interface to a TypeScript orchestrator, recipient-scoped retrieval, the OpenAI Responses API, policy gates, and narrow tools.");
 }
 
 // 12. Decision path, unchanged
 {
   const slide = base("Decision path", 12);
   await image(slide, "docs/images/carestead-decision-path.png", 30, 80, 1380, 680, "Carestead decision path", "contain", 0);
-  note(slide, "The decision path separates read-only answers from proposed actions. Missing evidence triggers clarification. Consequential changes require an authorized caregiver. Every allowed action is verified and recorded.");
+  note(slide, "SPEAKER 2 | Missing evidence triggers clarification. Read-only questions return grounded answers. Consequential actions require authorization, approval, verification, and an audit record.");
 }
 
 // 13. Autonomy and tools
@@ -314,7 +314,7 @@ function note(slide, value) {
     shape(slide, "roundRect", x, y, 285, 44, C.white, C.line, 20);
     text(slide, t, x + 14, y + 9, 255, 28, { size: 16, bold: true, align: "center", valign: "middle" });
   });
-  note(slide, "Use this slide to explain autonomy. The LLM never gets direct database or provider access. It proposes structured outputs; deterministic code validates and calls a narrow tool only after the applicable approval gate.");
+  note(slide, "SPEAKER 2 | The LLM interprets and summarizes. Deterministic code controls recipient scope, consent, feasibility, and tool access. The caregiver makes the decision.");
 }
 
 // 14. Evaluation
@@ -373,7 +373,7 @@ function note(slide, value) {
   text(slide, "One policy or safety violation fails CI.", 915, 676, 185, 31, { size: 12, color: C.white, align: "center" });
   text(slide, "Synthetic regression benchmark", 1125, 643, 190, 24, { size: 16, bold: true, color: C.white, align: "center" });
   text(slide, "Not clinical validation or measured caregiver impact.", 1120, 677, 200, 33, { size: 11, color: C.mint, align: "center" });
-  note(slide, "Explain how evaluation follows the complete trajectory. Each scenario defines expected retrieval, evidence, decision, policy, action, and outcome. Eight dimensions are scored independently. Grounding, policy, outcome, and safety require 100 percent, and one hard-gate violation fails CI. The result remains a deterministic synthetic regression benchmark, not clinical validation.");
+  note(slide, "SPEAKER 2 | We score retrieval, grounding, decisions, policy, tools, outcomes, and safety across 104 synthetic scenarios. One safety violation fails the run.");
 }
 
 // 15. Mobile
@@ -391,7 +391,7 @@ function note(slide, value) {
   card(slide, 900, 320, 400, 150, "Already checked", "Web/mobile builds · browser integration · unsigned iOS simulator build · transport and config tests.", { fill: C.white, headingSize: 21, bodySize: 17 });
   card(slide, 900, 500, 400, 150, "Before distribution", "Signed-device sessions · native accessibility · Google OAuth return · native push · icon/store/privacy review.", { fill: C.peach, headingSize: 21, bodySize: 17 });
   text(slide, "STATUS · Integration in progress. Pilot, not an App Store release.", 500, 685, 780, 34, { size: 16, bold: true, color: C.green, align: "center" });
-  note(slide, "Mobile is a parallel deployment track. Be precise: the pilot builds and runs in simulator, but signed-device validation, native push, release assets, OAuth return flows, and distribution work remain.");
+  note(slide, "SPEAKER 2 | The same workspace is moving to an iPhone pilot with care plans, calendar, handover, approvals, and native voice.");
 }
 
 // 16. Real-world impact and close
@@ -406,15 +406,28 @@ function note(slide, value) {
   text(slide, "Coordination time · unresolved responsibilities · unnecessary alerts · handover completeness · caregiver confidence", 250, 586, 1040, 34, { size: 18, color: C.white });
   shape(slide, "roundRect", 190, 650, 1060, 62, C.peach, "none", 12);
   text(slide, "Less to carry. More care to give.", 220, 665, 1000, 34, { size: 27, bold: true, color: C.ink, align: "center" });
-  note(slide, "Close on the intended impact without claiming measured outcomes. The future pilot should measure coordination time, unresolved responsibilities, unnecessary alerts, handover completeness, and caregiver confidence.");
+  note(slide, "SPEAKER 2 | Carestead turns a scattered care story into a shared, reviewable next step. Less to carry. More care to give. Now let us demonstrate it.");
 }
+
+// Keep the product experience together before the agent and engineering section.
+// moveTo uses zero-based slide positions.
+slides[8].moveTo(6);
+slides[9].moveTo(7);
+const orderedSlides = [
+  ...slides.slice(0, 6),
+  slides[8],
+  slides[9],
+  slides[6],
+  slides[7],
+  ...slides.slice(10),
+];
 
 const candidatePath = path.join(outDir, "carestead-pitch-v2.candidate.pptx");
 await (await PresentationFile.exportPptx(deck)).save(candidatePath);
-for (let i = 0; i < slides.length; i++) {
-  const png = await deck.export({ slide: slides[i], format: "png", scale: 1 });
+for (let i = 0; i < orderedSlides.length; i++) {
+  const png = await deck.export({ slide: orderedSlides[i], format: "png", scale: 1 });
   await fs.writeFile(path.join(outDir, `slide-${String(i + 1).padStart(2, "0")}.png`), new Uint8Array(await png.arrayBuffer()));
-  const layout = await slides[i].export({ format: "layout" });
+  const layout = await orderedSlides[i].export({ format: "layout" });
   await fs.writeFile(path.join(outDir, `slide-${String(i + 1).padStart(2, "0")}.layout.json`), await layout.text());
 }
 console.log(candidatePath);
