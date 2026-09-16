@@ -1,5 +1,23 @@
 # Carestead pitch deck
 
+## v2 deck: current product story
+
+The current presentation is available as an editable [PowerPoint deck](carestead-pitch-v2.pptx) and a shareable [PDF](carestead-pitch-v2.pdf). It keeps the v1 deep-teal, warm-ivory, aqua, and peach visual language while expanding the story to 16 slides.
+
+The v2 narrative covers the caregiver problem, Carestead’s four product pillars, the complete product feature map, an end-to-end prototype journey, four agent capability types, all eight model-backed and deterministic workflows, grounded chat and approval-aware actions, voice and multimodal intake, the latest technical architecture and decision path, bounded autonomy and tools, the 104-scenario evaluation strategy, the mobile deployment track, and intended real-world impact. The mobile slide deliberately describes the current work as a Capacitor/iOS pilot and integration in progress, not an App Store release.
+
+Current technical claims are aligned with the repository: OpenAI Responses API for model-backed language and multimodal work; a deterministic TypeScript orchestrator for scope, roles, consent, feasibility, approvals, execution, and fallback; lightweight recipient-scoped retrieval from Cloudflare D1 without a vector database or Mem0; and explicit outcome/audit records after tool use. The evaluation slide reports the reproducible `npm run benchmark` result: 104/104 synthetic scenarios passed with all eight dimensions at 100% and hard safety gates passed. It also labels the benchmark as deterministic and synthetic rather than evidence of clinical safety, live-model quality, or caregiver outcomes.
+
+Rebuild the editable deck with:
+
+```bash
+ARTIFACT_NODE_MODULES=/path/to/bundled/node_modules node docs/pitch-deck/build-v2.mjs
+```
+
+The build script writes its draft and slide previews under `.codex-build/pitch-v2`; the checked-in PPTX and PDF are the finalized deliverables.
+
+## v1 archive
+
 Open `carestead-pitch.html` in a browser. The 12-slide v1 deck is self-contained: screenshots, styling, and navigation are embedded, so the HTML can be shared on its own and viewed offline.
 
 - Left/right arrows, Page Up/Page Down, or on-screen controls move between slides.
@@ -31,7 +49,7 @@ Code evidence:
 - Roles, sessions and guardrails: `web/lib/auth.ts`, `web/lib/sessions.ts`, `web/lib/guardrails.ts`
 - Evals: `web/benchmark/scenarios.json`, `web/benchmark/report.mjs`, `web/lib/benchmark.ts`
 
-The current application uses email/password accounts and sessions, superseding the older design description of private-Site identity headers. The [project README](../../README.md#authentication-and-authorization) and [authentication guide](../authentication.md) describe the implemented account flow. The current agent is deterministic; external calendar, pharmacy, email and SMS integrations, richer risk reasoning, and continuous monitoring should not be inferred from the broader design proposal.
+The v1 deck captured the earlier email/password account implementation and a primarily deterministic agent. It is retained for history; use v2 for the current model-backed workflows, expanded integrations, stronger evaluation set, and mobile pilot status. The [project README](../../README.md#authentication-and-authorization) and [authentication guide](../authentication.md) describe the current account flow.
 
 ## Account flow for presenters
 
