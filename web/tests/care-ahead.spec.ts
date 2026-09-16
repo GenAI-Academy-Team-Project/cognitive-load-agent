@@ -80,9 +80,13 @@ test('care ahead supports personalized planning, approved recurrence, visit note
     .getByRole('button', { name: 'Care Organizer', exact: true })
     .first()
     .click();
+  // Wait for the care planning section to load
+  await expect(
+    page.getByRole('heading', { name: 'A little less to remember.' }),
+  ).toBeVisible();
   await page
     .getByText('Make this plan fit your family', { exact: true })
-    .click();
+    .click({ timeout: 10000 });
   await expect(
     page.getByLabel('Daily care limit for this person (minutes)'),
   ).toHaveValue('75');

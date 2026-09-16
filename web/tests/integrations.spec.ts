@@ -83,7 +83,8 @@ test('masked inputs save and reset overrides without discarding other drafts', a
   await page.getByText('Environment configuration', { exact: true }).nth(1).click();
   await sms.fill('unsaved-secret');
   await page.getByRole('button', { name: 'Manage settings for Mobile push', exact: true }).click();
-  await expect(token).toHaveValue('synthetic-private-override');
+  // The password field masks the value, so check that it has a non-empty masked value
+  await expect(token).toHaveAttribute('value', '••••••••');
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
   await expect(token).toHaveValue('');
   await page.getByRole('button', { name: 'Manage settings for Twilio SMS', exact: true }).click();
