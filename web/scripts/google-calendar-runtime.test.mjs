@@ -5,11 +5,11 @@ import ts from 'typescript';
 import { Miniflare } from 'miniflare';
 
 await test('Google requests work in Workers and reject redirects', async () => {
-  const modules = await Promise.all(['google-calendar', 'guardrails'].map(async name => ({
+  const modules = await Promise.all(['app-error', 'google-calendar', 'guardrails'].map(async name => ({
     type: 'ESModule', path: `${name}.js`,
     contents: ts.transpileModule(await readFile(new URL(`../lib/${name}.ts`, import.meta.url), 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    }).outputText.replace("'./guardrails'", "'./guardrails.js'"),
+    }).outputText.replace(/from ['"]\.\/[a-z-]+['"]/g, (match) => match.replace(/['"]/, '"').replace(/['"]$/, '.js"')),
   })));
   let requests = 0;
   const mf = new Miniflare({
