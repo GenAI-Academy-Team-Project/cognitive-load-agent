@@ -2,7 +2,7 @@
 
 ## v2 deck: current product story
 
-The current presentation is available as an editable [PowerPoint deck](carestead-pitch-v2.pptx) and a shareable [PDF](carestead-pitch-v2.pdf). It keeps the v1 deep-teal, warm-ivory, aqua, and peach visual language while expanding the story to 16 slides.
+The current presentation is available as an editable [PowerPoint deck](carestead-pitch-v2.pptx) and a shareable [PDF](carestead-pitch-v2.pdf). The timed [two-speaker presentation script](carestead-pitch-v2-script.md) follows the current slide order. The deck keeps the v1 deep-teal, warm-ivory, aqua, and peach visual language while expanding the story to 16 slides.
 
 The v2 narrative covers the caregiver problem, Carestead’s four product pillars, the complete product feature map, an end-to-end prototype journey, four agent capability types, all eight model-backed and deterministic workflows, grounded chat and approval-aware actions, voice and multimodal intake, the latest technical architecture and decision path, bounded autonomy and tools, the 104-scenario evaluation strategy, the mobile deployment track, and intended real-world impact. The mobile slide deliberately describes the current work as a Capacitor/iOS pilot and integration in progress, not an App Store release.
 
