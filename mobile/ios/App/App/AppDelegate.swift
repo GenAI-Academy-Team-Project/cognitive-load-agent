@@ -62,7 +62,7 @@ public class CaresteadAPI: CAPPlugin, CAPBridgedPlugin, URLSessionTaskDelegate {
         CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise)
     ]
     private let allowedPaths: Set<String> = [
-        "/api/auth/session", "/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/sign-out",
+        "/api/auth/session", "/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/sign-out", "/api/auth/guest",
         "/api/state", "/api/chat", "/api/calendar"
     ]
     private lazy var session: URLSession = {
