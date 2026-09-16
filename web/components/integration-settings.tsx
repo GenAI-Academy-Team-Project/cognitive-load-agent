@@ -44,14 +44,25 @@ export function IntegrationSettings({ onChanged, recipientId, recipientName }: {
     return () => { active = false; };
   }, []);
   async function save(item: IntegrationStatus, enabled: boolean, config?: Record<string, string | null>) {
-    setBusy(item.id); setError(''); setNotice('');
+    setBusy(item.id);
+    setError('');
+    setNotice('');
     try {
       const response = await fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, enabled, ...(config ? { config } : {}) }) });
       const result = await response.json() as Settings & { error?: string };
       if (!response.ok) throw new Error(result.error || 'Integration could not be updated.');
-      setData(result); setPreferenceRevision(value => value + 1); if (config) setDrafts(current => ({ ...current, [item.id]: {} })); setNotice('Integration settings saved.'); onChanged(); return true;
-    } catch (e) { setError(e instanceof Error ? e.message : 'Integration could not be updated.'); return false; }
-    finally { setBusy(null); }
+      setData(result);
+      setPreferenceRevision(value => value + 1);
+      if (config) setDrafts(current => ({ ...current, [item.id]: {} }));
+      setNotice('Integration settings saved.');
+      onChanged();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Integration could not be updated.');
+      return false;
+    } finally {
+      setBusy(null);
+    }
   }
   function edit(id: IntegrationId, key: string, value: string | null) {
     setDrafts(current => ({ ...current, [id]: { ...current[id], [key]: value } }));

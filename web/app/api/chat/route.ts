@@ -396,7 +396,8 @@ export async function POST(request: Request) {
       } else if ((message.toLowerCase().includes('reschedule') || /\bmove\b/i.test(message)) && !requestedDate(message, new Date())) {
         response = { content: 'I found the rescheduling request, but I need a date and time—for example, “tomorrow at 3:30 PM.” Nothing has been changed.', evidence: [] };
       } else {
-        const grounded = await generateGroundedAnswer(env, message, access.recipientName, careAgentRecords(snapshot));
+        const llmConfig = await effectiveIntegrations(db, env);
+        const grounded = await generateGroundedAnswer(llmConfig, message, access.recipientName, careAgentRecords(snapshot));
         if (grounded) {
           response = grounded.value;
           answerSource = grounded.model;

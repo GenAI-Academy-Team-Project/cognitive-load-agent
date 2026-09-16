@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 
 import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
+import { effectiveIntegrations } from '@/lib/integration-settings';
 import { careAgentRecords, loadCareSnapshot } from '@/lib/care-context';
 import {
   AppError,
@@ -44,10 +45,13 @@ export async function POST(request: Request) {
       );
 
     await enforceRateLimit(env.DB, auth.member.id, 'handover_generate');
-    const snapshot = await loadCareSnapshot(env.DB, recipientId);
+    const [snapshot, llmConfig] = await Promise.all([
+      loadCareSnapshot(env.DB, recipientId),
+      effectiveIntegrations(env.DB, env),
+    ]);
     const recipientName = snapshot.profile.preferred_name || access.name;
     const generated = await generateHandoverBrief(
-      env,
+      llmConfig,
       recipientName,
       careAgentRecords(snapshot),
     );

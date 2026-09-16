@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 
 import { ensureDatabase } from '@/db/bootstrap';
 import { requireMembership } from '@/lib/auth';
+import { effectiveIntegrations } from '@/lib/integration-settings';
 import { careAgentRecords, loadCareSnapshot } from '@/lib/care-context';
 import {
   analyzeCareDocument,
@@ -126,9 +127,10 @@ export async function POST(request: Request) {
       );
 
     await enforceRateLimit(env.DB, auth.member.id, `agent_${action}`);
-    const [snapshot, planning] = await Promise.all([
+    const [snapshot, planning, llmConfig] = await Promise.all([
       loadCareSnapshot(env.DB, recipientId),
       loadPlanning(env.DB, recipientId, auth.member.memberId),
+      effectiveIntegrations(env.DB, env),
     ]);
     const records = careAgentRecords(snapshot);
     let result: Record<string, unknown>;
@@ -165,7 +167,7 @@ export async function POST(request: Request) {
             : 'Assign a caregiver and add their availability before requesting schedule options.',
         );
       const generated = await generateConflictSuggestions(
-        env,
+        llmConfig,
         task,
         access.timezone,
         records,
@@ -229,7 +231,7 @@ export async function POST(request: Request) {
         2000,
       );
       const generated = await generatePlanAdaptation(
-        env,
+        llmConfig,
         description,
         access.timezone,
         records,
@@ -261,7 +263,7 @@ export async function POST(request: Request) {
           'Choose a supported message style.',
         );
       const generated = await composeCareMessage(
-        env,
+        llmConfig,
         text(body.context, 'message purpose', 1200),
         tone,
         target.display_name,
@@ -355,7 +357,7 @@ export async function POST(request: Request) {
                 },
               ];
       const generated = await analyzeCareDocument(
-        env,
+        llmConfig,
         [{ role: 'user', content }],
         safeName,
       );

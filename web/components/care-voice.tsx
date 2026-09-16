@@ -32,8 +32,8 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
-    const stop = () => { if (document.hidden) { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
-    const modalFocus = (event: FocusEvent) => { if (presentation === 'mobile' && event.target instanceof Element && event.target.closest('[role=dialog], [role=menu]')) { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
+    const stop = () => { if (document.hidden) { if (lock.current) setReply('Listening interrupted. Tap Talk to try again.'); generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
+    const modalFocus = (event: FocusEvent) => { if (presentation === 'mobile' && event.target instanceof Element && event.target.closest('[role=dialog], [role=menu]')) { if (lock.current) setReply('Listening stopped while another window was opened. Tap Talk to try again.'); generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); } };
     document.addEventListener('focusin', modalFocus);
     document.addEventListener('visibilitychange', stop);
     const invalidate = () => { alive.current = false; generation.current++; };
@@ -83,16 +83,17 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
     lock.current = true; setExpanded(true); voice.silence();
     const version = ++generation.current;
     try {
-      if (!text) setPhase('listening');
+      if (!text) { setTranscript(''); setPhase('listening'); }
       const heard = text || await voice.listen();
       if (!alive.current || generation.current !== version) return;
+      if (!heard.trim()) throw new Error('No speech heard. Tap Talk and try again.');
       setTranscript(heard); await command(heard, version);
     } catch (error) {
-      if (error instanceof Error && error.message === 'Listening stopped.') return;
+      if (error instanceof Error && error.message === 'Listening stopped.') { if (alive.current && generation.current === version) setReply('Recording cancelled. Tap Talk to try again.'); return; }
       if (alive.current && generation.current === version) { say(error instanceof Error ? error.message : 'Voice request failed.'); }
     } finally { if (alive.current && generation.current === version) { lock.current = false; setPhase('idle'); } }
   }
-  function stop() { generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); }
+  function stop() { setReply('Recording cancelled. Nothing was sent. Tap Talk to try again.'); generation.current++; voice.stop(); voice.silence(); lock.current = false; setPhase('idle'); }
   const autoRun = useRef(() => { void run(); });
   useEffect(() => { autoRun.current = () => { void run(); }; });
   useEffect(() => {
@@ -118,13 +119,13 @@ export function CareVoice({ recipientId, recipientName, screen, screens, navigat
     </div>
     {((mobile && showCard) || (!mobile && (transcript || phase !== 'idle' || expanded))) && <div className={mobile ? 'mb-3 max-h-[38dvh] overflow-y-auto rounded-2xl border bg-background p-4' : 'mb-3'}>
       {transcript && <p className="mb-2 break-words text-xs text-muted-foreground">You: {transcript}</p>}
-      <output className="block whitespace-pre-wrap break-words text-sm leading-6">{phase === 'listening' ? 'Listening…' : phase === 'working' ? 'Checking your request…' : reply}</output>
+      <output className="block whitespace-pre-wrap break-words text-sm leading-6">{phase === 'listening' ? 'Listening… Speak, then pause to send.' : phase === 'working' ? 'Checking your request…' : reply}</output>
       {mobile && pending && <div className="mt-3 border-t pt-3 text-sm"><strong>{pending.summary}</strong><dl className="mt-2 space-y-1">{Object.entries(pending.payload).filter(([key]) => !/id$/i.test(key)).map(([key, value]) => <div key={key} className="break-words"><dt className="font-medium">{key}</dt><dd>{value}</dd></div>)}</dl><p className="mt-3 text-xs">Say Confirm or Cancel, or choose below.</p><div className="mt-2 flex gap-2"><Button disabled={!canWrite || phase !== 'idle'} onClick={() => void run('Confirm')}>Confirm</Button><Button variant="outline" disabled={phase !== 'idle'} onClick={() => void run('Cancel')}>Cancel</Button></div></div>}
     </div>}
     <div className="flex items-center gap-2">
-      <Button className={mobile ? 'h-14 flex-1 rounded-2xl px-4 text-base' : 'h-11 flex-1 rounded-xl'} variant={voiceFirst ? 'default' : 'outline'} disabled={disabled || phase === 'working'} aria-label={phase === 'listening' ? 'Stop voice listening' : 'Talk to Carestead'} aria-pressed={phase === 'listening'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Stop listening' : mobile ? 'Talk' : 'Talk to Carestead'}</Button>
+      <Button className={mobile ? 'h-14 flex-1 rounded-2xl px-4 text-base' : 'h-11 flex-1 rounded-xl'} variant={voiceFirst ? 'default' : 'outline'} disabled={disabled || phase === 'working'} aria-label={phase === 'listening' ? 'Stop voice listening' : 'Talk to Carestead'} aria-pressed={phase === 'listening'} onClick={() => phase === 'listening' ? stop() : void run()}>{phase === 'listening' ? <Square /> : <Mic />}{phase === 'listening' ? 'Cancel recording' : mobile ? 'Talk' : 'Talk to Carestead'}</Button>
       {mobile && onType && <Button variant={voiceFirst ? 'ghost' : 'default'} className={voiceFirst ? 'h-14 rounded-xl' : 'order-first h-14 flex-1 rounded-xl'} onClick={onType}><Keyboard />{voiceFirst ? 'Type instead' : 'Type to Carestead'}</Button>}
     </div>
-    {mobile && <p className="mt-2 text-center text-[11px] text-muted-foreground">{phase === 'listening' ? 'Microphone on · tap Stop to discard' : 'Speak to navigate, ask, or plan. Changes need confirmation.'}</p>}
+    {mobile && <p className="mt-2 text-center text-[11px] text-muted-foreground">{phase === 'listening' ? 'Microphone on · pause to send, or cancel to discard' : 'Speak to navigate, ask, or plan. Changes need confirmation.'}</p>}
   </section>;
 }
